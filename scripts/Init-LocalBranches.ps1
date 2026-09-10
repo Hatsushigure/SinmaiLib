@@ -3,23 +3,21 @@
 Creates the local decomp and development branches for an SDGB version.
 
 .EXAMPLE
-.\scripts\Init-LocalBranches.ps1 -ManagedDirectory "D:\Game\Package\Sinmai_Data\Managed" -Version "1.57"
+.\scripts\Init-LocalBranches.ps1 -ManagedDirectory "D:\Game\Package\Sinmai_Data\Managed"
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory, Position = 0)]
     [ValidateNotNullOrEmpty()]
-    [string] $ManagedDirectory,
-
-    [Parameter(Mandatory, Position = 1)]
-    [ValidatePattern('^[A-Za-z0-9._-]+$')]
-    [string] $Version
+    [string] $ManagedDirectory
 )
 
 $ErrorActionPreference = "Stop"
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
     $PSNativeCommandUseErrorActionPreference = $false
 }
+
+. (Join-Path $PSScriptRoot "Git-Version.ps1")
 
 function Invoke-CheckedCommand {
     param(
@@ -50,22 +48,12 @@ function Invoke-CheckedCommand {
     }
 }
 
-$repositoryRoot = (& git -C $PSScriptRoot rev-parse --show-toplevel).Trim()
-if ($LASTEXITCODE -ne 0) {
-    throw "The script must be run from a Git repository."
-}
-$repositoryRoot = [System.IO.Path]::GetFullPath($repositoryRoot)
+$versionContext = Get-GitVersionContext -RepositoryPath $PSScriptRoot
+$repositoryRoot = $versionContext.RepositoryRoot
+$version = $versionContext.Version
 
-$currentBranch = (& git -C $repositoryRoot branch --show-current).Trim()
-if ($LASTEXITCODE -ne 0 -or -not $currentBranch) {
-    throw "The repository must be on a branch; detached HEAD is not supported."
-}
-if ($currentBranch -cne $Version) {
-    throw "Current branch '$currentBranch' does not match version '$Version'."
-}
-
-$decompBranchName = "decomp/$Version"
-$devBranchName = "dev/$Version"
+$decompBranchName = "decomp/$version"
+$devBranchName = "dev/$version"
 foreach ($branchName in @($decompBranchName, $devBranchName)) {
     & git -C $repositoryRoot show-ref --verify --quiet "refs/heads/$branchName"
     if ($LASTEXITCODE -eq 0) {
@@ -86,7 +74,7 @@ $assemblyPaths = foreach ($assemblyName in $assemblyNames) {
     Join-Path $managedPath $assemblyName
 }
 
-$worktreePath = Join-Path ([System.IO.Path]::GetTempPath()) "SinmaiLib-decomp-$Version-$([guid]::NewGuid().ToString('N'))"
+$worktreePath = Join-Path ([System.IO.Path]::GetTempPath()) "SinmaiLib-decomp-$version-$([guid]::NewGuid().ToString('N'))"
 $worktreeCreated = $false
 $completed = $false
 
@@ -133,7 +121,7 @@ try {
 
     Invoke-CheckedCommand git @(
         "-C", $worktreePath,
-        "commit", "-m", "init: Add SDGB $Version decompile code"
+        "commit", "-m", "init: Add SDGB $version decompile code"
     )
     Invoke-CheckedCommand git @(
         "-C", $repositoryRoot,
