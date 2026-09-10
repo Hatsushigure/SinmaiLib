@@ -74,7 +74,8 @@ try {
     Invoke-CheckedCommand dotnet @(
         "tool", "run", "csharpier",
         "--",
-        "format", $sourcePath
+        "format", $sourcePath,
+        "--config-path", ".csharpierrc.yaml"
     ) $repositoryRoot
 
     Get-ChildItem -LiteralPath $sourcePath -Recurse -File |
