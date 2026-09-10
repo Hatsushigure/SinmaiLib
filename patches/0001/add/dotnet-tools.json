@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "ilspycmd": {
+      "version": "11.0.0.9375",
+      "commands": [
+        "ilspycmd"
+      ],
+      "rollForward": false
+    },
+    "csharpier": {
+      "version": "1.3.0",
+      "commands": [
+        "csharpier"
+      ],
+      "rollForward": false
+    }
+  }
+}

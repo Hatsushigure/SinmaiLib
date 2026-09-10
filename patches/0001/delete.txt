@@ -1,0 +1,3 @@
+src/AMDaemon.NET/Properties/AssemblyInfo.cs
+src/AMDaemon.NET/libver/libver.txt
+src/ChimeLib.NET/Properties/AssemblyInfo.cs

@@ -1,0 +1,7 @@
+.csharpierrc.yaml
+.gitattributes
+.gitignore
+SinmaiLib.slnx
+dotnet-tools.json
+global.json
+src/SinmaiLib.csproj
