@@ -1,0 +1,19 @@
+{
+  "Assemblies": [
+    {
+      "Name": "Assembly-CSharp.dll",
+      "Size": 4202496,
+      "Sha256": "D9B4A545511EF4648F975636EFACBE5B6E6C9256633F3641955CA790E7580816"
+    },
+    {
+      "Name": "AMDaemon.NET.dll",
+      "Size": 171520,
+      "Sha256": "99FC159F90E31CE867A2614FB4C3B92DBC30A8A335914FBDE555516A7B114AD2"
+    },
+    {
+      "Name": "ChimeLib.NET.dll",
+      "Size": 208896,
+      "Sha256": "63350D6F906EF9908FACEE2CAA0BAD6C3A62FB332F9D3DACE2BE06055381BF11"
+    }
+  ]
+}
