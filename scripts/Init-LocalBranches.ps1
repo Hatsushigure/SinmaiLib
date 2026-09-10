@@ -17,36 +17,7 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
     $PSNativeCommandUseErrorActionPreference = $false
 }
 
-. (Join-Path $PSScriptRoot "Git-Version.ps1")
-
-function Invoke-CheckedCommand {
-    param(
-        [Parameter(Mandatory)]
-        [string] $FilePath,
-
-        [Parameter()]
-        [string[]] $ArgumentList = @(),
-
-        [Parameter()]
-        [string] $WorkingDirectory
-    )
-
-    if ($WorkingDirectory) {
-        Push-Location -LiteralPath $WorkingDirectory
-    }
-
-    try {
-        & $FilePath @ArgumentList
-        if ($LASTEXITCODE -ne 0) {
-            throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
-        }
-    }
-    finally {
-        if ($WorkingDirectory) {
-            Pop-Location
-        }
-    }
-}
+. (Join-Path $PSScriptRoot "Script-Helpers.ps1")
 
 $versionContext = Get-GitVersionContext -RepositoryPath $PSScriptRoot
 $repositoryRoot = $versionContext.RepositoryRoot
@@ -80,7 +51,7 @@ $completed = $false
 
 try {
     Invoke-CheckedCommand dotnet @("tool", "restore")
-    Invoke-CheckedCommand git @("-C", $repositoryRoot, "worktree", "add", "-b", $decompBranchName, $worktreePath, "HEAD")
+    Invoke-CheckedCommand git @("-C", $repositoryRoot, "worktree", "add", "--orphan", "-b", $decompBranchName, $worktreePath)
     $worktreeCreated = $true
 
     $sourcePath = Join-Path $worktreePath "src"

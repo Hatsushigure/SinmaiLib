@@ -13,22 +13,7 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
     $PSNativeCommandUseErrorActionPreference = $false
 }
 
-. (Join-Path $PSScriptRoot "Git-Version.ps1")
-
-function Invoke-CheckedCommand {
-    param(
-        [Parameter(Mandatory)]
-        [string] $FilePath,
-
-        [Parameter()]
-        [string[]] $ArgumentList = @()
-    )
-
-    & $FilePath @ArgumentList
-    if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
-    }
-}
+. (Join-Path $PSScriptRoot "Script-Helpers.ps1")
 
 $versionContext = Get-GitVersionContext -RepositoryPath $PSScriptRoot
 $repositoryRoot = $versionContext.RepositoryRoot

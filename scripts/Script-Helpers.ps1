@@ -31,3 +31,32 @@ function Get-GitVersionContext {
         Version        = $version
     }
 }
+
+function Invoke-CheckedCommand {
+    param(
+        [Parameter(Mandatory)]
+        [string] $FilePath,
+
+        [Parameter()]
+        [string[]] $ArgumentList = @(),
+
+        [Parameter()]
+        [string] $WorkingDirectory
+    )
+
+    if ($WorkingDirectory) {
+        Push-Location -LiteralPath $WorkingDirectory
+    }
+
+    try {
+        & $FilePath @ArgumentList
+        if ($LASTEXITCODE -ne 0) {
+            throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($ArgumentList -join ' ')"
+        }
+    }
+    finally {
+        if ($WorkingDirectory) {
+            Pop-Location
+        }
+    }
+}
