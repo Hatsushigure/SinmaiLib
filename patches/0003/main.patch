@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 11 Sep 2026 23:44:47 +0800
+Subject: [PATCH] fix(SpecialNum): fix the wrong SpecialNum in last commit
+
+
+diff --git a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+index eb8fc3a..7e75134 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+@@ -1024,7 +1024,7 @@ public static UserGamePlaylog ExportUserGamePlaylog(this UserData src, int playe
+         int playCredit = num + ticketCredit;
+         int max = 1037933;
+         int num2 = UnityEngine.Random.Range(1, max) * 2069;
+-        num2 += 0x00;
++        num2 += 0x400;
+         int num3 = 0;
+         for (int i = 0; i < 32; i++)
+         {
