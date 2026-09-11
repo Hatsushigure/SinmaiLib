@@ -65,68 +65,92 @@ if ($startIndex -ge $commits.Count)
     Write-Host "No new commits to export for version '$version'."; return 
 }
 
+$worktreePath = Join-Path ([System.IO.Path]::GetTempPath()) "SinmaiLib-export-$version-$([guid]::NewGuid().ToString('N'))"
+$worktreeCreated = $false
 
-for ($index = $startIndex; $index -lt $commits.Count; $index++)
+try
 {
-    $commit = ([string]$commits[$index]).Trim()
-    $parent = ([string](& git -C $repositoryRoot rev-parse "$commit^" )).Trim()
-    if ($LASTEXITCODE -ne 0 -or -not $parent)
-    {
-        throw "Unable to resolve parent commit for $commit." 
-    }
-    $number = $nextNumber + ($index - $startIndex)
-    $patchPath = Join-Path $patchDirectory ('{0:D4}' -f $number)
-    $addPath = Join-Path $patchPath 'add'
-    $null = New-Item -ItemType Directory -Path $addPath -Force
+    Invoke-CheckedCommand git @("-C", $repositoryRoot, "worktree", "add", "--detach", $worktreePath, $devBranchName)
+    $worktreeCreated = $true
 
-    $deleted = @(& git -C $repositoryRoot diff -B '--diff-filter=D' --name-only $parent $commit)
-    if ($LASTEXITCODE -ne 0)
+    for ($index = $startIndex; $index -lt $commits.Count; $index++)
     {
-        throw "Unable to enumerate deleted files for $commit." 
-    }
-    [System.IO.File]::WriteAllText(
-        (Join-Path $patchPath 'delete.txt'), 
-        ([string]::Join("`n", $deleted) + "`n"),
-        [System.Text.UTF8Encoding]($false)
-    )
+        $commit = ([string]$commits[$index]).Trim()
+        $parent = ([string](& git -C $repositoryRoot rev-parse "$commit^" )).Trim()
+        if ($LASTEXITCODE -ne 0 -or -not $parent)
+        {
+            throw "Unable to resolve parent commit for $commit." 
+        }
+        $number = $nextNumber + ($index - $startIndex)
+        $patchPath = Join-Path $patchDirectory ('{0:D4}' -f $number)
+        $addPath = Join-Path $patchPath 'add'
+        $null = New-Item -ItemType Directory -Path $addPath -Force
 
-    $added = @(& git -C $repositoryRoot diff -B '--diff-filter=A' --name-only $parent $commit)
-    if ($LASTEXITCODE -ne 0)
+        $deleted = @(& git -C $repositoryRoot diff -B '--diff-filter=D' --name-only $parent $commit)
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "Unable to enumerate deleted files for $commit." 
+        }
+        [System.IO.File]::WriteAllText(
+            (Join-Path $patchPath 'delete.txt'), 
+            ([string]::Join("`n", $deleted) + "`n"),
+            [System.Text.UTF8Encoding]($false)
+        )
+
+        $added = @(& git -C $repositoryRoot diff -B '--diff-filter=A' --name-only $parent $commit)
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "Unable to enumerate added files for $commit." 
+        }
+        [System.IO.File]::WriteAllText(
+            (Join-Path $patchPath 'add.txt'), 
+            ([string]::Join("`n", $added) + "`n"),
+            [System.Text.UTF8Encoding]($false)
+        )
+
+        Invoke-CheckedCommand git @("-C", $worktreePath, "checkout", "--detach", $commit)
+        foreach ($relativePath in $added)
+        {
+            $source = Join-Path $worktreePath $relativePath
+            $destination = Join-Path $addPath $relativePath
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf))
+            {
+                throw "Added file is missing from commit ${commit}: $relativePath"
+            }
+            $destinationParent = Split-Path -Parent $destination
+            $null = New-Item -ItemType Directory -Path $destinationParent -Force
+            Copy-Item -LiteralPath $source -Destination $destination -Force
+        }
+
+        $patchFilePath = Join-Path $patchPath "main.patch"
+        Invoke-CheckedCommand git @(
+            '-C', $repositoryRoot, 
+            'format-patch', 
+            '-p', '-B', 
+            '--diff-filter=ad', 
+            '--zero-commit', 
+            '--no-signature', 
+            "--output=$patchFilePath", 
+            "$parent..$commit"
+        )
+        if (-not (Test-Path -LiteralPath $patchFilePath))
+        {
+            throw "No patch was generated for commit $commit." 
+        }
+
+        [System.IO.File]::AppendAllText(
+            $orderPath, 
+            ("{0:D4}`n" -f $number), 
+            [System.Text.UTF8Encoding]($false)
+        )
+    }
+}
+finally
+{
+    if ($worktreeCreated)
     {
-        throw "Unable to enumerate added files for $commit." 
+        Invoke-CheckedCommand git @("-C", $repositoryRoot, "worktree", "remove", "--force", $worktreePath)
     }
-    [System.IO.File]::WriteAllText(
-        (Join-Path $patchPath 'add.txt'), 
-        ([string]::Join("`n", $added) + "`n"),
-        [System.Text.UTF8Encoding]($false)
-    )
-
-    if ($added.Length -gt 0)
-    {
-        & git -C $repositoryRoot archive $commit $added | tar -x -C $addPath
-    }
-
-    $patchFilePath = Join-Path $patchPath "main.patch"
-    Invoke-CheckedCommand git @(
-        '-C', $repositoryRoot, 
-        'format-patch', 
-        '-p', '-B', 
-        '--diff-filter=ad', 
-        '--zero-commit', 
-        '--no-signature', 
-        "--output=$patchFilePath", 
-        "$parent..$commit"
-    )
-    if (-not (Test-Path -LiteralPath $patchFilePath))
-    {
-        throw "No patch was generated for commit $commit." 
-    }
-
-    [System.IO.File]::AppendAllText(
-        $orderPath, 
-        ("{0:D4}`n" -f $number), 
-        [System.Text.UTF8Encoding]($false)
-    )
 }
 
 Write-Host "Exported patches for version '$version' to: $patchDirectory"
