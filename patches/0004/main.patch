@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Sun, 13 Sep 2026 03:32:11 +0800
+Subject: [PATCH] chore: remove debug and playtest modules
+
+- Remove zPlayTest scripts and debug UI components
+
+- Drop design debug flows and obsolete debug helpers
+
+- Simplify startup and music select debug references
+
+diff --git a/src/SinmaiLib.csproj b/src/SinmaiLib.csproj
+index 6c3a887..e0c8c5a 100644
+--- a/src/SinmaiLib.csproj
++++ b/src/SinmaiLib.csproj
+@@ -1,7 +1,7 @@
+ <Project Sdk="Microsoft.NET.Sdk">
+   <PropertyGroup>
+     <TargetFramework>net10.0</TargetFramework>
+-    <ImplicitUsings>enable</ImplicitUsings>
++    <LangVersion>14.0</LangVersion>
+     <Nullable>enable</Nullable>
+   </PropertyGroup>
+ </Project>
+diff --git a/src/SinmaiLib/Monitor/MusicSelectMonitor.cs b/src/SinmaiLib/Monitor/MusicSelectMonitor.cs
+index a772e1e..1037ae9 100644
+--- a/src/SinmaiLib/Monitor/MusicSelectMonitor.cs
++++ b/src/SinmaiLib/Monitor/MusicSelectMonitor.cs
+@@ -317,10 +317,6 @@ public OptionSummaryData(OptionCategoryID category, OptionCateDesignID optionInd
+     [SerializeField]
+     private CanvasGroup _blurCanvas;
+ 
+-    [SerializeField]
+-    [Header("カレイドスコープデバッグ表示")]
+-    private DebugKaleidxScopeReSelectionController debugKaleidxScopeReSelectionController;
+-
+     private bool _isActiveMission;
+ 
+     private MessageMusicData _messageMusic;
+@@ -739,7 +735,6 @@ object value5 in Enum.GetValues(typeof(Manager.MaiStudio.MusicClearRankName.Tabl
+         _genreChainList.StopAnimatoinAll();
+         Singleton<SoundCtrl>.Instance.InitalizeAnalyzer();
+         Singleton<SoundCtrl>.Instance.AttachAnalyzerToExPlayer();
+-        debugKaleidxScopeReSelectionController.SetVisable(visable: false);
+         base.Initialize(playerIndex, isActive);
+     }
+ 
+diff --git a/src/SinmaiLib/Process/StartupProcess.cs b/src/SinmaiLib/Process/StartupProcess.cs
+index f43490f..b0fe4cd 100644
+--- a/src/SinmaiLib/Process/StartupProcess.cs
++++ b/src/SinmaiLib/Process/StartupProcess.cs
+@@ -11,7 +11,6 @@
+ using Monitor;
+ using PartyLink;
+ using UnityEngine;
+-using UnityEngine.SceneManagement;
+ using Util;
+ 
+ namespace Process;
+@@ -564,17 +563,8 @@ public override void OnUpdate()
+                 if (timer.ElapsedMilliseconds > 2000)
+                 {
+                     _state = StartUpState.Released;
+-                    if (SceneManager.GetActiveScene().name == "DebugStartup")
+-                    {
+-                        container
+-                            .monoBehaviour.GetComponent<DebugGameMainObject>()
+-                            .DebugAddProcess(this);
+-                    }
+-                    else
+-                    {
+-                        container.processManager.AddProcess(new WarningProcess(container), 50);
+-                        container.processManager.ReleaseProcess(this);
+-                    }
++                    container.processManager.AddProcess(new WarningProcess(container), 50);
++                    container.processManager.ReleaseProcess(this);
+                     Singleton<OperationManager>.Instance.SetCoinBlockerMode(CoinBlocker.Mode.Game);
+                     GameManager.Initialize();
+                     GameManager.IsInitializeEnd = true;
