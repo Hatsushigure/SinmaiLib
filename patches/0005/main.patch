@@ -1,0 +1,2568 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Wed, 23 Sep 2026 00:56:46 +0800
+Subject: [PATCH] refactor(chimelib): replace native communication layer
+
+
+diff --git a/SinmaiLib.slnx b/SinmaiLib.slnx
+index 2139893..347435a 100644
+--- a/SinmaiLib.slnx
++++ b/SinmaiLib.slnx
+@@ -1,3 +1,5 @@
+ <Solution>
+-  <Project Path="src/SinmaiLib.csproj" />
++  <Project Path="src/SinmaiLib/SinmaiLib.csproj" />
++  <Project Path="src/AMDaemon/AMDaemon.csproj" />
++  <Project Path="src/ChimeLib/ChimeLib.csproj" />
+ </Solution>
+diff --git a/src/SinmaiLib.csproj b/src/AMDaemon/AMDaemon.csproj
+similarity index 81%
+rename from src/SinmaiLib.csproj
+rename to src/AMDaemon/AMDaemon.csproj
+index e0c8c5a..0957a12 100644
+--- a/src/SinmaiLib.csproj
++++ b/src/AMDaemon/AMDaemon.csproj
+@@ -1,7 +1,6 @@
+ <Project Sdk="Microsoft.NET.Sdk">
+   <PropertyGroup>
+     <TargetFramework>net10.0</TargetFramework>
+-    <LangVersion>14.0</LangVersion>
+     <Nullable>enable</Nullable>
+   </PropertyGroup>
+ </Project>
+diff --git a/src/ChimeLib/NET/COMM/CCommGetUserData.cs b/src/ChimeLib/NET/COMM/CCommGetUserData.cs
+dissimilarity index 87%
+index 1b09f9f..a596e82 100644
+--- a/src/ChimeLib/NET/COMM/CCommGetUserData.cs
++++ b/src/ChimeLib/NET/COMM/CCommGetUserData.cs
+@@ -1,114 +1,271 @@
+-using System;
+-using System.Runtime.InteropServices;
+-
+-namespace ChimeLib.NET.COMM;
+-
+-internal class CCommGetUserData : IDisposable
+-{
+-    private CommSafeHandle _instance = CommSafeHandle.InvalidHandle;
+-
+-    [DllImport("chimelib_dll", SetLastError = true)]
+-    [return: MarshalAs(UnmanagedType.U1)]
+-    private static extern bool CCommGetUserData_Destroy(IntPtr instance);
+-
+-    [DllImport(
+-        "chimelib_dll",
+-        CallingConvention = CallingConvention.Cdecl,
+-        CharSet = CharSet.Unicode
+-    )]
+-    private static extern CommSafeHandle CCommGetUserData_Create(
+-        [In] [MarshalAs(UnmanagedType.LPWStr)] string strGameID,
+-        [In] [MarshalAs(UnmanagedType.LPWStr)] string strChipID,
+-        [In] [MarshalAs(UnmanagedType.LPWStr)] string strCommonKey,
+-        [In] [MarshalAs(UnmanagedType.LPWStr)] string strQRData,
+-        [In] [MarshalAs(UnmanagedType.LPWStr)] string strTitleKey,
+-        [In] [MarshalAs(UnmanagedType.SysUInt)] ulong serverURLIndex
+-    );
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern int CCommGetUserData_getErrorID(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    [return: MarshalAs(UnmanagedType.U1)]
+-    private static extern bool CCommGetUserData_isEnd(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern uint CCommGetUserData_getUserID(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommGetUserData_execute(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern IntPtr CCommGetUserData_getToken(CommSafeHandle instance);
+-
+-    internal CCommGetUserData(
+-        string strGameID,
+-        string strChipID,
+-        string strCommonKey,
+-        string strQRData,
+-        string strTitleKey,
+-        ulong serverURLIndex
+-    )
+-    {
+-        Create(strGameID, strChipID, strCommonKey, strQRData, strTitleKey, serverURLIndex);
+-    }
+-
+-    public void Dispose()
+-    {
+-        Destroy();
+-    }
+-
+-    private void Create(
+-        string strGameID,
+-        string strChipID,
+-        string strCommonKey,
+-        string strQRData,
+-        string strTitleKey,
+-        ulong serverURLIndex
+-    )
+-    {
+-        if (!_instance.IsInvalid)
+-        {
+-            Destroy();
+-        }
+-        _instance = CCommGetUserData_Create(
+-            strGameID,
+-            strChipID,
+-            strCommonKey,
+-            strQRData,
+-            strTitleKey,
+-            serverURLIndex
+-        );
+-        _instance.Release = (IntPtr handle) => CCommGetUserData_Destroy(handle);
+-    }
+-
+-    private void Destroy()
+-    {
+-        _instance.Dispose();
+-    }
+-
+-    internal ChimeErrorId GetErrorID()
+-    {
+-        return (ChimeErrorId)CCommGetUserData_getErrorID(_instance);
+-    }
+-
+-    internal bool isEnd()
+-    {
+-        return CCommGetUserData_isEnd(_instance);
+-    }
+-
+-    internal uint GetUserID()
+-    {
+-        return CCommGetUserData_getUserID(_instance);
+-    }
+-
+-    internal void Execute()
+-    {
+-        CCommGetUserData_execute(_instance);
+-    }
+-
+-    internal string getToken()
+-    {
+-        return Marshal.PtrToStringAnsi(CCommGetUserData_getToken(_instance));
+-    }
+-}
++using System;
++using System.Net;
++using System.Net.Http;
++using System.Net.Http.Json;
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using System.Text.RegularExpressions;
++
++namespace ChimeLib.NET.COMM;
++
++internal partial class CCommGetUserData : IDisposable
++{
++    private CCommGetUserDataImpl? _instance;
++
++    internal uint UserId => _instance?.UserId ?? 0;
++
++    internal string Token => _instance?.Token ?? string.Empty;
++
++    internal bool IsEnd => _instance?.IsEnd ?? false;
++
++    internal CCommGetUserData(
++        string strGameId,
++        string strChipId,
++        string strCommonKey,
++        string strQrData,
++        string strTitleKey,
++        ulong serverUrlIndex
++    ) => Create(strGameId, strChipId, strCommonKey, strQrData, strTitleKey, serverUrlIndex);
++
++    public void Dispose()
++    {
++        Destroy();
++    }
++
++    private void Create(
++        string strGameId,
++        string strChipId,
++        string _, //Unused `strCommonKey`
++        string strQrData,
++        string strTitleKey,
++        ulong serverUrlIndex
++    )
++    {
++        if (_instance?.Disposed == false)
++        {
++            Destroy();
++        }
++
++        _instance = new()
++        {
++            GameId = strGameId,
++            ChipId = strChipId,
++            QrData = strQrData,
++            TitleKey = strTitleKey,
++            ServerUrlIndex = serverUrlIndex,
++        };
++    }
++
++    private void Destroy()
++    {
++        _instance?.Dispose();
++        _instance = null;
++    }
++
++    internal ChimeErrorId GetErrorId() => _instance?.ErrorId ?? ChimeErrorId.None;
++
++    internal void Execute() => _instance?.Execute();
++
++    private sealed partial class CCommGetUserDataImpl : IDisposable
++    {
++        private const string FIXED_COMMON_KEY = "XcW5FW4cPArBXEk4vzKz3CIrMuA5EVVW";
++        private const string ENDPOINT = "wc_aime/api/get_data";
++        private static readonly TimeSpan TIMEOUT = TimeSpan.FromSeconds(15);
++        private static readonly string[] SERVER_URL_LIST =
++        [
++            "https://ai.sys-allnet.cn/",
++            "https://ai.sys-all.cn/",
++        ];
++
++        private readonly CCommHttpClient _client = new();
++        private State _state = State.START;
++        private long _lastRequestTimestamp;
++
++        public required string GameId { get; init; }
++
++        public required string ChipId { get; init; }
++
++        public string CommonKey { get; } = FIXED_COMMON_KEY;
++
++        public required string QrData { get; init; }
++
++        public required string TitleKey { get; init; }
++
++        public required ulong ServerUrlIndex { get; init; }
++
++        public ChimeErrorId ErrorId { get; private set; } = ChimeErrorId.None;
++
++        public uint UserId { get; private set; }
++
++        public string Token { get; private set; } = string.Empty;
++
++        public bool Disposed { get; private set; }
++
++        public bool IsEnd => _state == State.END;
++
++        public void Execute()
++        {
++            switch (_state)
++            {
++                case State.START:
++                {
++                    var timestampStr = DateTime.Now.ToString("yyMMddHHmmss");
++                    var validateSource = new UTF8Encoding().GetBytes(
++                        $"{ChipId}{timestampStr}{CommonKey}"
++                    );
++                    var validateKey = Convert.ToHexString(SHA256.HashData(validateSource));
++                    var requestBody = JsonSerializer.Serialize(
++                        new()
++                        {
++                            ChipId = ChipId,
++                            Key = validateKey,
++                            OpenGameId = GameId,
++                            QrCode = QrData,
++                            Timestamp = timestampStr,
++                            TitleKey = TitleKey,
++                        },
++                        CCommJsonContext.Default.GetUserDataRequest
++                    );
++                    _client.OpenSession();
++                    var serverUrlIndex = ServerUrlIndex == ulong.MaxValue ? 0 : ServerUrlIndex;
++                    _client.SendRequest(
++                        SERVER_URL_LIST[serverUrlIndex] + ENDPOINT,
++                        new UTF8Encoding().GetBytes(requestBody)
++                    );
++                    _lastRequestTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
++                    _state = State.WAITING;
++                    break;
++                }
++                case State.WAITING:
++                {
++                    UserId = uint.MaxValue;
++                    Token = string.Empty;
++                    ErrorId = ChimeErrorId.DBAccessFail;
++                    _state = State.END;
++
++                    var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
++                    if (currentTimestamp - _lastRequestTimestamp >= TIMEOUT.TotalSeconds)
++                    {
++                        _client.CloseSession();
++                        ErrorId = ChimeErrorId.DBAccessTimeout;
++                        break;
++                    }
++
++                    if (_client.IsBusy)
++                    {
++                        _state = State.WAITING;
++                        break;
++                    }
++
++                    if (!_client.TryTakeResponse(out var responseRecord))
++                        break;
++
++                    using var _ = responseRecord;
++                    var task = responseRecord.Task;
++                    _client.CloseSession();
++                    if (task.IsCanceled)
++                        break;
++
++                    if (task.IsFaulted)
++                    {
++                        if (task.Exception.InnerException is not HttpRequestException ex)
++                        {
++                            break;
++                        }
++
++                        if (ex.HttpRequestError != HttpRequestError.NameResolutionError)
++                        {
++                            break;
++                        }
++
++                        ErrorId = ChimeErrorId.DBResolveFail;
++                        break;
++                    }
++
++                    var resp = task.Result;
++                    if (resp.StatusCode != HttpStatusCode.OK)
++                    {
++                        break;
++                    }
++
++                    try
++                    {
++                        var respData = resp
++                            .Content.ReadFromJsonAsync(CCommJsonContext.Default.GetUserDataResponse)
++                            .GetAwaiter()
++                            .GetResult();
++                        if (respData is null)
++                        {
++                            break;
++                        }
++
++                        if (respData.ErrorId != 0)
++                        {
++                            ErrorId = respData.ErrorId switch
++                            {
++                                0 => ChimeErrorId.None,
++                                1 => ChimeErrorId.ReaderIncompatible,
++                                2 => ChimeErrorId.AimeIdInvalid,
++                                3 => ChimeErrorId.LockBanSystemUser,
++                                4 => ChimeErrorId.LockBanSystem,
++                                5 => ChimeErrorId.LockBanUser,
++                                6 => ChimeErrorId.LockBan,
++                                7 => ChimeErrorId.LockSystemUser,
++                                8 => ChimeErrorId.LockSystem,
++                                9 => ChimeErrorId.LockUser,
++                                10 => ChimeErrorId.NoBoardInfo,
++                                _ => ChimeErrorId.DBAccessFail,
++                            };
++                            break;
++                        }
++
++                        ErrorId = ChimeErrorId.None;
++                        if (!TokenRegex().IsMatch(respData.Token))
++                        {
++                            break;
++                        }
++
++                        var validateSource = new UTF8Encoding().GetBytes(
++                            $"{respData.UserId}{respData.Timestamp}{CommonKey}"
++                        );
++                        var validateKey = Convert.ToHexString(SHA256.HashData(validateSource));
++                        if (validateKey != respData.Key)
++                        {
++                            break;
++                        }
++
++                        UserId = (uint)respData.UserId;
++                        Token = respData.Token;
++                        break;
++                    }
++                    catch
++                    {
++                        break;
++                    }
++                }
++                case State.END:
++                    break;
++                default:
++                    throw new ArgumentOutOfRangeException();
++            }
++        }
++
++        public void Dispose()
++        {
++            _client.CloseSession();
++            _client.Dispose();
++            Disposed = true;
++        }
++
++        private enum State
++        {
++            START,
++            WAITING,
++            END,
++        }
++
++        [GeneratedRegex(@"^[a-zA-Z\d]{20}$")]
++        private static partial Regex TokenRegex();
++    }
++}
+diff --git a/src/ChimeLib/NET/COMM/CCommQRCode.cs b/src/ChimeLib/NET/COMM/CCommQRCode.cs
+dissimilarity index 89%
+index 48b252a..e66f316 100644
+--- a/src/ChimeLib/NET/COMM/CCommQRCode.cs
++++ b/src/ChimeLib/NET/COMM/CCommQRCode.cs
+@@ -1,60 +1,40 @@
+-namespace ChimeLib.NET.COMM;
+-
+-internal class CCommQRCode
+-{
+-    private string _strGameID;
+-
+-    private string _strQRCode;
+-
+-    private const int ID_INDEX_WECHAT = 0;
+-
+-    private const int ID_INDEX_GAMEID = 4;
+-
+-    internal CCommQRCode(string gameId, string qrCode)
+-    {
+-        _strGameID = gameId;
+-        _strQRCode = qrCode;
+-    }
+-
+-    internal string GetQRCode()
+-    {
+-        return _strQRCode;
+-    }
+-
+-    internal void SetQRCode(string qrCode)
+-    {
+-        _strQRCode = qrCode;
+-    }
+-
+-    internal bool IsValid()
+-    {
+-        bool flag = true;
+-        if (string.IsNullOrEmpty(_strQRCode))
+-        {
+-            return false;
+-        }
+-        flag &= _strQRCode.IndexOf(Chime.WechatID) == 0;
+-        return flag & (_strQRCode.IndexOf(_strGameID) == 4);
+-    }
+-
+-    internal string GetTimeStamp()
+-    {
+-        string result = null;
+-        if (IsValid())
+-        {
+-            result = _strQRCode.Remove(0, 8);
+-            result = result.Remove(12);
+-        }
+-        return result;
+-    }
+-
+-    internal string EraseHashIdentifier()
+-    {
+-        string result = null;
+-        if (IsValid())
+-        {
+-            result = _strQRCode.Remove(0, 20);
+-        }
+-        return result;
+-    }
+-}
++using System;
++using System.Diagnostics.CodeAnalysis;
++
++namespace ChimeLib.NET.COMM;
++
++internal record CCommQrCode
++{
++    private const int ID_INDEX_WECHAT = 0;
++    private const int ID_INDEX_GAME_ID = 4;
++
++    private readonly string _gameId;
++    private readonly string _qrCode;
++
++    public string DataSection => _qrCode[20..];
++
++    private CCommQrCode(string gameId, string qrCode)
++    {
++        _gameId = gameId;
++        _qrCode = qrCode;
++    }
++
++    internal static bool TryCreateValid(
++        string gameId,
++        string qrCode,
++        [NotNullWhen(true)] out CCommQrCode? instance
++    )
++    {
++        if (
++            qrCode.IndexOf(Chime.WECHAT_ID, StringComparison.Ordinal) == ID_INDEX_WECHAT
++            && qrCode.IndexOf(gameId, StringComparison.Ordinal) == ID_INDEX_GAME_ID
++        )
++        {
++            instance = new(gameId, qrCode);
++            return true;
++        }
++
++        instance = null;
++        return false;
++    }
++}
+diff --git a/src/ChimeLib/NET/COMM/CCommServAliveCheck.cs b/src/ChimeLib/NET/COMM/CCommServAliveCheck.cs
+dissimilarity index 93%
+index a474dd7..3cab44d 100644
+--- a/src/ChimeLib/NET/COMM/CCommServAliveCheck.cs
++++ b/src/ChimeLib/NET/COMM/CCommServAliveCheck.cs
+@@ -1,126 +1,302 @@
+-using System;
+-using System.Runtime.InteropServices;
+-
+-namespace ChimeLib.NET.COMM;
+-
+-internal class CCommServAliveCheck : IDisposable
+-{
+-    private CommSafeHandle _instance = CommSafeHandle.InvalidHandle;
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern CommSafeHandle CCommServAliveCheck_Create();
+-
+-    [DllImport("chimelib_dll", SetLastError = true)]
+-    [return: MarshalAs(UnmanagedType.U1)]
+-    private static extern bool CCommServAliveCheck_Destroy(IntPtr instance);
+-
+-    [DllImport("chimelib_dll")]
+-    [return: MarshalAs(UnmanagedType.U1)]
+-    private static extern bool CCommServAliveCheck_isAlive(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_beginPlay(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_endPlay(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_startCheck(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_cancelCheck(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_setCheckResult(
+-        CommSafeHandle instance,
+-        [MarshalAs(UnmanagedType.U1)] bool flag
+-    );
+-
+-    [DllImport("chimelib_dll")]
+-    [return: MarshalAs(UnmanagedType.U1)]
+-    private static extern bool CCommServAliveCheck_isBusy(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_setConnectPermission(
+-        CommSafeHandle instance,
+-        [MarshalAs(UnmanagedType.U1)] bool flag
+-    );
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern void CCommServAliveCheck_execute(CommSafeHandle instance);
+-
+-    [DllImport("chimelib_dll")]
+-    private static extern ulong CCommServAliveCheck_getIndex(CommSafeHandle instance);
+-
+-    internal CCommServAliveCheck()
+-    {
+-        Create();
+-    }
+-
+-    public void Dispose() { }
+-
+-    internal void Create()
+-    {
+-        if (!_instance.IsInvalid)
+-        {
+-            Destroy();
+-        }
+-        _instance = CCommServAliveCheck_Create();
+-        _instance.Release = (IntPtr handle) => CCommServAliveCheck_Destroy(handle);
+-    }
+-
+-    internal void Destroy()
+-    {
+-        _instance.Dispose();
+-    }
+-
+-    internal bool IsAlive()
+-    {
+-        return CCommServAliveCheck_isAlive(_instance);
+-    }
+-
+-    internal void BeginPlay()
+-    {
+-        CCommServAliveCheck_beginPlay(_instance);
+-    }
+-
+-    internal void EndPlay()
+-    {
+-        CCommServAliveCheck_endPlay(_instance);
+-    }
+-
+-    internal void StartCheck()
+-    {
+-        CCommServAliveCheck_startCheck(_instance);
+-    }
+-
+-    internal void CancelCheck()
+-    {
+-        CCommServAliveCheck_cancelCheck(_instance);
+-    }
+-
+-    internal void SetCheckResult(bool flag)
+-    {
+-        CCommServAliveCheck_setCheckResult(_instance, flag);
+-    }
+-
+-    internal bool IsBusy()
+-    {
+-        return CCommServAliveCheck_isBusy(_instance);
+-    }
+-
+-    internal void SetConnectPermission(bool flag)
+-    {
+-        CCommServAliveCheck_setConnectPermission(_instance, flag);
+-    }
+-
+-    internal void Execute()
+-    {
+-        CCommServAliveCheck_execute(_instance);
+-    }
+-
+-    internal ulong GetIndex()
+-    {
+-        return CCommServAliveCheck_getIndex(_instance);
+-    }
+-}
++using System;
++using System.Net;
++using System.Net.Http;
++
++namespace ChimeLib.NET.COMM;
++
++internal class CCommServAliveCheck : IDisposable
++{
++    private CCommServAliveCheckImpl? _instance;
++
++    internal bool IsAlive => _instance?.IsAlive == true;
++
++    internal bool IsBusy => _instance?.IsBusy == true;
++
++    internal ulong Index => _instance?.GetNextServerIndex() == 1 ? 1UL : 0UL;
++
++    internal CCommServAliveCheck() => Create();
++
++    public void Dispose() => Destroy();
++
++    private void Create()
++    {
++        if (_instance?.Disposed == false)
++        {
++            Destroy();
++        }
++
++        _instance = new();
++    }
++
++    internal void Destroy()
++    {
++        _instance?.Dispose();
++        _instance = null;
++    }
++
++    internal void BeginPlay() => _instance?.IsPlaying = true;
++
++    internal void EndPlay() => _instance?.IsPlaying = false;
++
++    internal void StartCheck() => _instance?.StartCheck();
++
++    internal void CancelCheck() => _instance?.CancelCheck();
++
++    internal void SetCheckResult(bool flag) => _instance?.SetCheckResult(flag);
++
++    internal void SetConnectPermission(bool flag) => _instance?.SetConnectPermission(flag);
++
++    internal void Execute() => _instance?.Execute();
++
++    private sealed class CCommServAliveCheckImpl : IDisposable
++    {
++        private const int CHECK_INTERVAL_SECONDS_SHORT = 60;
++        private const int CHECK_INTERVAL_SECONDS_LONG = 900;
++        private const int DEFAULT_TIMEOUT_SECONDS = 15;
++        private static readonly string[] BASE_URL_LIST =
++        [
++            "https://ai.sys-allnet.cn/",
++            "https://ai.sys-all.cn/",
++        ];
++        private static readonly string[] API_PATH_LIST =
++        [
++            "qrcode/api/alive_check",
++            "wc_aime/api/alive_check",
++        ];
++
++        private readonly CCommHttpClient _client = new();
++        private ChimeErrorId _errorId = ChimeErrorId.None;
++        private State _state = State.IDLE;
++        private bool _useCustomHost = false;
++        private string _customHost = string.Empty;
++        private int _pathIndex;
++        private bool _hasConnectPerm;
++        private long _lastRequestTimestamp;
++        private long _lastSetResultTimestamp;
++        private ulong _lastServerIndex = ulong.MaxValue;
++        private ulong _currentServerIndex = ulong.MaxValue;
++        private int _requestTimeoutSeconds = DEFAULT_TIMEOUT_SECONDS;
++
++        public bool IsAlive { get; private set; }
++
++        public bool IsBusy => _state != State.IDLE;
++
++        public bool IsPlaying { get; set; }
++
++        public bool Disposed { get; private set; }
++
++        public void Dispose()
++        {
++            if (Disposed)
++            {
++                return;
++            }
++
++            _client.CloseSession();
++            _client.Dispose();
++            Disposed = true;
++        }
++
++        internal void StartCheck()
++        {
++            _client.CancelRequest();
++            _state = State.START;
++            if (_useCustomHost)
++            {
++                _pathIndex = 1;
++            }
++        }
++
++        internal void SetCheckResult(bool flag)
++        {
++            IsAlive = flag;
++            _lastSetResultTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
++        }
++
++        internal void CancelCheck()
++        {
++            _client.CloseSession();
++            _state = State.IDLE;
++        }
++
++        internal void SetConnectPermission(bool perm)
++        {
++            _hasConnectPerm = perm;
++            IsAlive = false;
++            _client.CancelRequest();
++            _lastRequestTimestamp = 0;
++            _lastSetResultTimestamp = 0;
++            _state = State.IDLE;
++            _lastServerIndex = ulong.MaxValue;
++            _currentServerIndex = ulong.MaxValue;
++        }
++
++        internal void Execute()
++        {
++            switch (_state)
++            {
++                case State.IDLE:
++                {
++                    if (!_hasConnectPerm || IsPlaying)
++                    {
++                        break;
++                    }
++
++                    var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
++                    var secondsSinceLastCheck = currentTimestamp - _lastSetResultTimestamp;
++                    var checkInterval = IsAlive
++                        ? CHECK_INTERVAL_SECONDS_LONG
++                        : CHECK_INTERVAL_SECONDS_SHORT;
++                    if (secondsSinceLastCheck >= checkInterval)
++                    {
++                        _pathIndex = 0;
++                        _state = State.START;
++                    }
++                    break;
++                }
++                case State.START:
++                {
++                    if (!_hasConnectPerm)
++                    {
++                        _state = State.IDLE;
++                        break;
++                    }
++
++                    string baseUrl;
++                    if (_customHost.Length != 0)
++                    {
++                        baseUrl = _customHost;
++                    }
++                    else
++                    {
++                        var nextServerIndex = GetNextServerIndex();
++                        _currentServerIndex = nextServerIndex;
++                        baseUrl = BASE_URL_LIST[_currentServerIndex];
++                    }
++                    var url = baseUrl + API_PATH_LIST[_pathIndex];
++                    _client.OpenSession();
++                    _client.SendRequest(url, []);
++                    IsAlive = false;
++                    _errorId = ChimeErrorId.None;
++                    _lastRequestTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
++                    _state = State.WAITING;
++                    break;
++                }
++                case State.WAITING:
++                {
++                    var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
++                    var timeElapsed = currentTimestamp - _lastRequestTimestamp;
++                    if (_client.IsBusy && timeElapsed < _requestTimeoutSeconds)
++                    {
++                        break;
++                    }
++
++                    var nextServerIndex = GetNextServerIndex();
++                    var hasNextServer = nextServerIndex != ulong.MaxValue;
++                    HttpRequestException? requestException = null;
++                    var statusCode = (HttpStatusCode?)null;
++                    var content = string.Empty;
++
++                    if (!_client.IsBusy)
++                    {
++                        if (_client.TryTakeResponse(out var responseRecord))
++                        {
++                            using var _ = responseRecord;
++                            var responseTask = responseRecord.Task;
++                            if (responseTask.IsCompletedSuccessfully)
++                            {
++                                var response = responseTask.Result;
++                                statusCode = response.StatusCode;
++                                if (statusCode == HttpStatusCode.OK)
++                                {
++                                    content = response
++                                        .Content.ReadAsStringAsync()
++                                        .GetAwaiter()
++                                        .GetResult();
++                                }
++                            }
++                            else
++                            {
++                                requestException =
++                                    responseTask.Exception?.InnerException as HttpRequestException;
++                            }
++
++                            if (statusCode == HttpStatusCode.OK)
++                            {
++                                if (content == "alive")
++                                {
++                                    IsAlive = true;
++                                    _lastServerIndex = _currentServerIndex;
++                                    hasNextServer = false;
++                                }
++
++                                _errorId = ChimeErrorId.None;
++                            }
++                        }
++                    }
++
++                    if (statusCode != HttpStatusCode.OK && !hasNextServer)
++                    {
++                        _errorId =
++                            requestException?.HttpRequestError
++                            == HttpRequestError.NameResolutionError
++                                ? ChimeErrorId.DBResolveFail
++                                : ChimeErrorId.DBAccessFail;
++                    }
++
++                    _lastSetResultTimestamp = currentTimestamp;
++                    _client.CloseSession();
++                    if (!hasNextServer)
++                    {
++                        _currentServerIndex = ulong.MaxValue;
++                        _pathIndex++;
++                        if (_pathIndex >= API_PATH_LIST.Length || _errorId != ChimeErrorId.None)
++                        {
++                            _pathIndex = 0;
++                            _state = State.IDLE;
++                            break;
++                        }
++                    }
++
++                    _state = State.START;
++                    break;
++                }
++                default:
++                    throw new ArgumentOutOfRangeException();
++            }
++        }
++
++        internal ulong GetNextServerIndex()
++        {
++            if (_customHost.Length != 0)
++            {
++                return ulong.MaxValue;
++            }
++
++            if (_currentServerIndex == ulong.MaxValue)
++            {
++                return _lastServerIndex == ulong.MaxValue ? 0 : _lastServerIndex;
++            }
++
++            var result = _currentServerIndex + 1;
++            if (result == 2)
++            {
++                result = _lastServerIndex == ulong.MaxValue ? ulong.MaxValue : 0;
++            }
++
++            if (_lastServerIndex != ulong.MaxValue && result == _lastServerIndex)
++            {
++                return ulong.MaxValue;
++            }
++
++            return result;
++        }
++
++        private enum State
++        {
++            IDLE,
++            START,
++            WAITING,
++        }
++    }
++}
+diff --git a/src/ChimeLib/NET/Chime.cs b/src/ChimeLib/NET/Chime.cs
+dissimilarity index 78%
+index 8ff1738..f3e3909 100644
+--- a/src/ChimeLib/NET/Chime.cs
++++ b/src/ChimeLib/NET/Chime.cs
+@@ -1,176 +1,97 @@
+-using System.Collections.Generic;
+-using System.Globalization;
+-using System.Threading;
+-using ChimeLib.NET.COMM;
+-
+-namespace ChimeLib.NET;
+-
+-public class Chime
+-{
+-    private CultureInfo _originalCulture;
+-
+-    internal static readonly string WechatID = "SGWC";
+-
+-    internal static readonly string LIB_VERSION = "1.0.0";
+-
+-    internal static readonly string HARD_VERSION = "1.0.0";
+-
+-    internal static readonly string FIRM_VERSION = "1.0.0";
+-
+-    private List<ChimeUnit> _units = new List<ChimeUnit>();
+-
+-    private CCommServAliveCheck _servAliveCheck;
+-
+-    public static Chime Instance { get; private set; } = null;
+-
+-    internal List<ChimeErrorMessage> ErrorMessageList { get; private set; }
+-
+-    public static void Create()
+-    {
+-        if (Instance == null)
+-        {
+-            Instance = new Chime();
+-        }
+-    }
+-
+-    public static void Destroy()
+-    {
+-        if (Instance != null)
+-        {
+-            Instance.Dispose();
+-            Instance = null;
+-        }
+-    }
+-
+-    private Chime()
+-    {
+-        _originalCulture = Thread.CurrentThread.CurrentCulture;
+-        Thread.CurrentThread.CurrentCulture = new CultureInfo("zh-CN");
+-    }
+-
+-    private void Dispose()
+-    {
+-        Thread.CurrentThread.CurrentCulture = _originalCulture;
+-        _servAliveCheck?.Dispose();
+-    }
+-
+-    public void SetErrorMessageTable(List<ChimeErrorMessage> list)
+-    {
+-        ErrorMessageList = list;
+-    }
+-
+-    public void Init(string openGameID, string keyChipID, UsbCameraDevice device, string titleKey)
+-    {
+-        _units.Clear();
+-        ChimeUnit chimeUnit = new ChimeUnit();
+-        chimeUnit.Init(openGameID, keyChipID, string.Empty, device, titleKey);
+-        _units.Add(chimeUnit);
+-        _servAliveCheck = new CCommServAliveCheck();
+-    }
+-
+-    public void Init(
+-        string openGameID,
+-        string keyChipID,
+-        UsbCameraDevice[] devices,
+-        string titleKey
+-    )
+-    {
+-        _units.Clear();
+-        foreach (UsbCameraDevice device in devices)
+-        {
+-            ChimeUnit chimeUnit = new ChimeUnit();
+-            chimeUnit.Init(openGameID, keyChipID, string.Empty, device, titleKey);
+-            _units.Add(chimeUnit);
+-        }
+-        _servAliveCheck = new CCommServAliveCheck();
+-    }
+-
+-    public int GetUnitCount()
+-    {
+-        return _units.Count;
+-    }
+-
+-    public ChimeUnit GetUnit(int unitIndex = 0)
+-    {
+-        if (unitIndex >= _units.Count)
+-        {
+-            return null;
+-        }
+-        return _units[unitIndex];
+-    }
+-
+-    public void Execute()
+-    {
+-        foreach (ChimeUnit unit in _units)
+-        {
+-            unit.Execute();
+-        }
+-        _servAliveCheck?.Execute();
+-    }
+-
+-    public bool IsReady(int unitIndex = 0)
+-    {
+-        if (unitIndex >= _units.Count)
+-        {
+-            return false;
+-        }
+-        return _units[unitIndex].IsReady();
+-    }
+-
+-    public void StartDBAliveCheckStart()
+-    {
+-        _servAliveCheck?.StartCheck();
+-    }
+-
+-    public bool IsDBAliveCheckBusy()
+-    {
+-        if (_servAliveCheck == null)
+-        {
+-            return false;
+-        }
+-        return _servAliveCheck.IsBusy();
+-    }
+-
+-    public void SetDBAliveConnectPermission(bool flag)
+-    {
+-        _servAliveCheck?.SetConnectPermission(flag);
+-    }
+-
+-    internal void SetDBAliveCheckResult(bool flag)
+-    {
+-        _servAliveCheck?.SetCheckResult(flag);
+-    }
+-
+-    public bool IsDBAlive()
+-    {
+-        if (_servAliveCheck == null)
+-        {
+-            return false;
+-        }
+-        return _servAliveCheck.IsAlive();
+-    }
+-
+-    public void BeginPlay()
+-    {
+-        _servAliveCheck?.BeginPlay();
+-    }
+-
+-    public void EndPlay()
+-    {
+-        _servAliveCheck?.EndPlay();
+-    }
+-
+-    public static string GetVersion()
+-    {
+-        return LIB_VERSION;
+-    }
+-
+-    public ulong GetIndex()
+-    {
+-        if (_servAliveCheck == null)
+-        {
+-            return 0uL;
+-        }
+-        return _servAliveCheck.GetIndex();
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.Globalization;
++using System.Threading;
++using ChimeLib.NET.COMM;
++
++namespace ChimeLib.NET;
++
++public class Chime : IDisposable
++{
++    internal const string WECHAT_ID = "SGWC";
++    internal const string LIB_VERSION = "1.0.0";
++    internal const string HARD_VERSION = "1.0.0";
++    internal const string FIRM_VERSION = "1.0.0";
++
++    private readonly CultureInfo _originalCulture;
++    private ChimeUnit? _unit;
++    private CCommServAliveCheck? _servAliveCheck;
++
++    public static Chime? Instance { get; private set; }
++
++    public List<ChimeErrorMessage> ErrorMessageList { get; set; } = [];
++
++    public static void Create() => Instance ??= new Chime();
++
++    public static void Destroy()
++    {
++        Instance?.Dispose();
++        Instance = null;
++    }
++
++    private Chime()
++    {
++        _originalCulture = Thread.CurrentThread.CurrentCulture;
++        Thread.CurrentThread.CurrentCulture = new CultureInfo("zh-CN");
++    }
++
++    public void Dispose()
++    {
++        Thread.CurrentThread.CurrentCulture = _originalCulture;
++        _servAliveCheck?.Dispose();
++    }
++
++    public void Init(string openGameId, string keyChipId, IUsbCameraDevice device, string titleKey)
++    {
++        _unit = new(openGameId, keyChipId, string.Empty, device, titleKey);
++        _servAliveCheck?.Dispose();
++        _servAliveCheck = new CCommServAliveCheck();
++    }
++
++    public int GetUnitCount() => _unit is null ? 0 : 1;
++
++    public ChimeUnit? GetUnit(int unitIndex = 0)
++    {
++        if (unitIndex != 0)
++        {
++            return null;
++        }
++
++        return _unit;
++    }
++
++    public void Execute()
++    {
++        _unit?.Execute();
++        _servAliveCheck?.Execute();
++    }
++
++    public bool IsReady(int unitIndex = 0)
++    {
++        if (unitIndex != 0)
++        {
++            return false;
++        }
++
++        return _unit?.IsReady() ?? false;
++    }
++
++    public void StartDBAliveCheckStart() => _servAliveCheck?.StartCheck();
++
++    public bool IsDBAliveCheckBusy() => _servAliveCheck?.IsBusy ?? false;
++
++    public void SetDBAliveConnectPermission(bool flag) =>
++        _servAliveCheck?.SetConnectPermission(flag);
++
++    internal void SetDBAliveCheckResult(bool flag) => _servAliveCheck?.SetCheckResult(flag);
++
++    public bool IsDBAlive() => _servAliveCheck?.IsAlive ?? false;
++
++    public void BeginPlay() => _servAliveCheck?.BeginPlay();
++
++    public void EndPlay() => _servAliveCheck?.EndPlay();
++
++    public static string GetVersion() => LIB_VERSION;
++
++    public ulong GetIndex() => _servAliveCheck?.Index ?? 0;
++}
+diff --git a/src/ChimeLib/NET/ChimeErrorInfo.cs b/src/ChimeLib/NET/ChimeErrorInfo.cs
+dissimilarity index 91%
+index ab17de7..0cd93ef 100644
+--- a/src/ChimeLib/NET/ChimeErrorInfo.cs
++++ b/src/ChimeLib/NET/ChimeErrorInfo.cs
+@@ -1,234 +1,183 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-
+-namespace ChimeLib.NET;
+-
+-public class ChimeErrorInfo : ErrorInfo
+-{
+-    internal class ErrorData
+-    {
+-        public ChimeErrorId id;
+-
+-        public ChimeErrorCategory category;
+-
+-        public uint number;
+-
+-        public uint subNumber;
+-
+-        public string message;
+-    }
+-
+-    private List<ErrorData> _errorList = new List<ErrorData>
+-    {
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.None,
+-            category = ChimeErrorCategory.None,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.ReaderSetupFail,
+-            category = ChimeErrorCategory.Fatal,
+-            number = 6507u,
+-            subNumber = 0u,
+-            message = "Aime Card Reader Unknown Error",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.ReaderAccessFail,
+-            category = ChimeErrorCategory.Warning,
+-            number = 6501u,
+-            subNumber = 0u,
+-            message = "Aime Read failed",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.ReaderIncompatible,
+-            category = ChimeErrorCategory.Warning,
+-            number = 6504u,
+-            subNumber = 0u,
+-            message = "Illegal Card Found",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.DBResolveFail,
+-            category = ChimeErrorCategory.Network,
+-            number = 6508u,
+-            subNumber = 0u,
+-            message = "Aime DB Access failed",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.DBAccessTimeout,
+-            category = ChimeErrorCategory.Network,
+-            number = 6508u,
+-            subNumber = 1u,
+-            message = "Aime DB Access failed",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.DBAccessFail,
+-            category = ChimeErrorCategory.Network,
+-            number = 6508u,
+-            subNumber = 2u,
+-            message = "Aime DB Access failed",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.AimeIdInvalid,
+-            category = ChimeErrorCategory.Warning,
+-            number = 6504u,
+-            subNumber = 1u,
+-            message = "Illegal Card Found",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.NoBoardInfo,
+-            category = ChimeErrorCategory.Unknown,
+-            number = 6501u,
+-            subNumber = 1u,
+-            message = "Aime Read failed",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockBanSystemUser,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockBanSystem,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockBanUser,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockBan,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockSystemUser,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockSystem,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-        new ErrorData
+-        {
+-            id = ChimeErrorId.LockUser,
+-            category = ChimeErrorCategory.Warning,
+-            number = 0u,
+-            subNumber = 0u,
+-            message = "",
+-        },
+-    };
+-
+-    private ChimeErrorId _errorID;
+-
+-    private ErrorData _errorData;
+-
+-    private DateTime _errorTime = DateTime.MinValue;
+-
+-    internal ChimeErrorInfo() { }
+-
+-    public ChimeErrorId GetId()
+-    {
+-        return _errorID;
+-    }
+-
+-    internal void SetId(ChimeErrorId errorId)
+-    {
+-        _errorID = errorId;
+-        _errorData = _errorList.Where((ErrorData x) => x.id == errorId).FirstOrDefault();
+-        _errorTime = DateTime.Now;
+-    }
+-
+-    public ChimeErrorCategory GetCategory()
+-    {
+-        if (_errorData != null)
+-        {
+-            return _errorData.category;
+-        }
+-        return ChimeErrorCategory.None;
+-    }
+-
+-    public override bool IsOccurred()
+-    {
+-        return GetId() != ChimeErrorId.None;
+-    }
+-
+-    public override uint GetNumber()
+-    {
+-        if (_errorData != null)
+-        {
+-            return _errorData.number;
+-        }
+-        return 0u;
+-    }
+-
+-    public override uint GetSubNumber()
+-    {
+-        if (_errorData != null)
+-        {
+-            return _errorData.subNumber;
+-        }
+-        return 0u;
+-    }
+-
+-    public override string GetMessage()
+-    {
+-        if (Chime.Instance.ErrorMessageList != null)
+-        {
+-            ChimeErrorMessage chimeErrorMessage = Chime
+-                .Instance.ErrorMessageList.Where((ChimeErrorMessage x) => x.id == _errorID)
+-                .FirstOrDefault();
+-            if (chimeErrorMessage != null)
+-            {
+-                return chimeErrorMessage.message;
+-            }
+-        }
+-        if (_errorData != null)
+-        {
+-            return _errorData.message;
+-        }
+-        return null;
+-    }
+-
+-    public override DateTime GetTime()
+-    {
+-        return _errorTime;
+-    }
+-
+-    protected override ErrorResetType GetResetType()
+-    {
+-        return ErrorResetType.None;
+-    }
+-}
++using System;
++using System.Linq;
++
++namespace ChimeLib.NET;
++
++public sealed record ChimeErrorInfo
++{
++    private static readonly ErrorDataRecord[] ERROR_LIST =
++    [
++        new()
++        {
++            Id = ChimeErrorId.None,
++            Category = ChimeErrorCategory.None,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.ReaderSetupFail,
++            Category = ChimeErrorCategory.Fatal,
++            Number = 6507u,
++            SubNumber = 0u,
++            Message = "Aime Card Reader Unknown Error",
++        },
++        new()
++        {
++            Id = ChimeErrorId.ReaderAccessFail,
++            Category = ChimeErrorCategory.Warning,
++            Number = 6501u,
++            SubNumber = 0u,
++            Message = "Aime Read failed",
++        },
++        new()
++        {
++            Id = ChimeErrorId.ReaderIncompatible,
++            Category = ChimeErrorCategory.Warning,
++            Number = 6504u,
++            SubNumber = 0u,
++            Message = "Illegal Card Found",
++        },
++        new()
++        {
++            Id = ChimeErrorId.DBResolveFail,
++            Category = ChimeErrorCategory.Network,
++            Number = 6508u,
++            SubNumber = 0u,
++            Message = "Aime DB Access failed",
++        },
++        new()
++        {
++            Id = ChimeErrorId.DBAccessTimeout,
++            Category = ChimeErrorCategory.Network,
++            Number = 6508u,
++            SubNumber = 1u,
++            Message = "Aime DB Access failed",
++        },
++        new()
++        {
++            Id = ChimeErrorId.DBAccessFail,
++            Category = ChimeErrorCategory.Network,
++            Number = 6508u,
++            SubNumber = 2u,
++            Message = "Aime DB Access failed",
++        },
++        new()
++        {
++            Id = ChimeErrorId.AimeIdInvalid,
++            Category = ChimeErrorCategory.Warning,
++            Number = 6504u,
++            SubNumber = 1u,
++            Message = "Illegal Card Found",
++        },
++        new()
++        {
++            Id = ChimeErrorId.NoBoardInfo,
++            Category = ChimeErrorCategory.Unknown,
++            Number = 6501u,
++            SubNumber = 1u,
++            Message = "Aime Read failed",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockBanSystemUser,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockBanSystem,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockBanUser,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockBan,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockSystemUser,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockSystem,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++        new()
++        {
++            Id = ChimeErrorId.LockUser,
++            Category = ChimeErrorCategory.Warning,
++            Number = 0u,
++            SubNumber = 0u,
++            Message = "",
++        },
++    ];
++
++    public ChimeErrorId ErrorId { get; } = ChimeErrorId.None;
++
++    public DateTime ErrorTime { get; } = DateTime.Now;
++
++    public uint Number => ErrorData.Number;
++
++    public uint SubNumber => ErrorData.SubNumber;
++
++    public ChimeErrorCategory Category => ErrorData.Category;
++
++    public ErrorResetType ResetType => ErrorResetType.None;
++
++    private ErrorDataRecord ErrorData => ERROR_LIST[(int)ErrorId];
++
++    internal ChimeErrorInfo() { }
++
++    internal ChimeErrorInfo(ChimeErrorId errorId) => ErrorId = errorId;
++
++    public bool IsOccurred() => ErrorId != ChimeErrorId.None;
++
++    public string GetMessage()
++    {
++        if (Chime.Instance?.ErrorMessageList == null)
++            return ErrorData.Message;
++
++        var chimeErrorMessage = Chime.Instance.ErrorMessageList.FirstOrDefault(x =>
++            x.Id == ErrorId
++        );
++        return chimeErrorMessage is not null ? chimeErrorMessage.Message : ErrorData.Message;
++    }
++
++    private record ErrorDataRecord
++    {
++        public required ChimeErrorId Id { get; init; }
++
++        public required ChimeErrorCategory Category { get; init; }
++
++        public required uint Number { get; init; }
++
++        public required uint SubNumber { get; init; }
++
++        public required string Message { get; init; }
++    }
++}
+diff --git a/src/ChimeLib/NET/ChimeErrorMessage.cs b/src/ChimeLib/NET/ChimeErrorMessage.cs
+index 1a97ba2..1982f7c 100644
+--- a/src/ChimeLib/NET/ChimeErrorMessage.cs
++++ b/src/ChimeLib/NET/ChimeErrorMessage.cs
+@@ -1,8 +1,8 @@
+ namespace ChimeLib.NET;
+ 
+-public class ChimeErrorMessage
++public record ChimeErrorMessage
+ {
+-    public ChimeErrorId id;
++    public required ChimeErrorId Id { get; init; }
+ 
+-    public string message;
+-}
++    public required string Message { get; init; }
++};
+diff --git a/src/ChimeLib/NET/ChimeId.cs b/src/ChimeLib/NET/ChimeId.cs
+dissimilarity index 92%
+index 4d050bb..8f4ea9a 100644
+--- a/src/ChimeLib/NET/ChimeId.cs
++++ b/src/ChimeLib/NET/ChimeId.cs
+@@ -1,50 +1,24 @@
+-namespace ChimeLib.NET;
+-
+-public class ChimeId
+-{
+-    private uint value;
+-
+-    internal static ChimeId Make(uint value)
+-    {
+-        return new ChimeId { value = value };
+-    }
+-
+-    public static ChimeId Zero()
+-    {
+-        return Make(0u);
+-    }
+-
+-    public static ChimeId MakeInvalid()
+-    {
+-        return Make(uint.MaxValue);
+-    }
+-
+-    internal void SetZero()
+-    {
+-        value = 0u;
+-    }
+-
+-    internal void SetInvalid()
+-    {
+-        value = uint.MaxValue;
+-    }
+-
+-    public bool IsValid()
+-    {
+-        if (value != 0)
+-        {
+-            return value != uint.MaxValue;
+-        }
+-        return false;
+-    }
+-
+-    public uint GetValue()
+-    {
+-        return value;
+-    }
+-
+-    public override string ToString()
+-    {
+-        return value.ToString();
+-    }
+-}
++namespace ChimeLib.NET;
++
++public class ChimeId
++{
++    private uint _value;
++
++    private ChimeId(uint value) => _value = value;
++
++    public static ChimeId Zero() => Make(0u);
++
++    public static ChimeId MakeInvalid() => Make(uint.MaxValue);
++
++    internal static ChimeId Make(uint value) => new(value);
++
++    public override string ToString() => _value.ToString();
++
++    public bool IsValid() => _value != 0 && _value != uint.MaxValue;
++
++    public uint GetValue() => _value;
++
++    internal void SetZero() => _value = 0u;
++
++    internal void SetInvalid() => _value = uint.MaxValue;
++}
+diff --git a/src/ChimeLib/NET/ChimeResult.cs b/src/ChimeLib/NET/ChimeResult.cs
+dissimilarity index 93%
+index 4b4d05f..5802cea 100644
+--- a/src/ChimeLib/NET/ChimeResult.cs
++++ b/src/ChimeLib/NET/ChimeResult.cs
+@@ -1,50 +1,22 @@
+-namespace ChimeLib.NET;
+-
+-public class ChimeResult
+-{
+-    private ChimeId _chimeID;
+-
+-    private string _token;
+-
+-    internal ChimeResult() { }
+-
+-    public bool Valid()
+-    {
+-        return true;
+-    }
+-
+-    public bool IsReaderDetected()
+-    {
+-        return true;
+-    }
+-
+-    public string GetHardVersion()
+-    {
+-        return Chime.HARD_VERSION;
+-    }
+-
+-    public string GetFirmVersion()
+-    {
+-        return Chime.FIRM_VERSION;
+-    }
+-
+-    public ChimeId GetChimeId()
+-    {
+-        return _chimeID;
+-    }
+-
+-    internal void SetChimeId(ChimeId chimeID)
+-    {
+-        _chimeID = chimeID;
+-    }
+-
+-    public string GetToken()
+-    {
+-        return _token;
+-    }
+-
+-    internal void SetToken(string token)
+-    {
+-        _token = token;
+-    }
+-}
++namespace ChimeLib.NET;
++
++public sealed record ChimeResult
++{
++    public ChimeId ChimeId { get; }
++
++    public string Token { get; }
++
++    internal ChimeResult(ChimeId chimeId, string token)
++    {
++        ChimeId = chimeId;
++        Token = token;
++    }
++
++    public bool Valid() => true;
++
++    public bool IsReaderDetected() => true;
++
++    public string GetHardVersion() => Chime.HARD_VERSION;
++
++    public string GetFirmVersion() => Chime.FIRM_VERSION;
++}
+diff --git a/src/ChimeLib/NET/ChimeUnit.cs b/src/ChimeLib/NET/ChimeUnit.cs
+dissimilarity index 78%
+index b72a140..5fda8ac 100644
+--- a/src/ChimeLib/NET/ChimeUnit.cs
++++ b/src/ChimeLib/NET/ChimeUnit.cs
+@@ -1,289 +1,243 @@
+-using ChimeLib.NET.COMM;
+-
+-namespace ChimeLib.NET;
+-
+-public class ChimeUnit
+-{
+-    private enum MainLoopPhase
+-    {
+-        Init,
+-        Idle,
+-        ScanQRCodeInit,
+-        ScanQRCodeIdle,
+-        ScanQRCodeBusy,
+-        DBAliveInit,
+-        DBAliveIdle,
+-        GetUserDataInit,
+-        GetUserDataIdle,
+-        End,
+-    }
+-
+-    private ChimeResult _result;
+-
+-    private ChimeErrorInfo _errorInfo;
+-
+-    private MainLoopPhase phase;
+-
+-    private bool errorFlag;
+-
+-    private bool qrOnlyFlag;
+-
+-    private string strGameID;
+-
+-    private string strChipID;
+-
+-    private string strCommonKey;
+-
+-    private string strTitleKey;
+-
+-    private UsbCameraDevice _cameraDevice;
+-
+-    private CCommQRCode pQRCode;
+-
+-    private CCommGetUserData pCommGetUserData;
+-
+-    internal ChimeUnit()
+-    {
+-        errorFlag = false;
+-        qrOnlyFlag = false;
+-        _result = new ChimeResult();
+-        _errorInfo = new ChimeErrorInfo();
+-        phase = MainLoopPhase.Init;
+-    }
+-
+-    internal void Init(
+-        string gameID,
+-        string chipID,
+-        string commonKey,
+-        UsbCameraDevice device,
+-        string titleKey
+-    )
+-    {
+-        strGameID = gameID;
+-        strChipID = chipID;
+-        strCommonKey = commonKey;
+-        _cameraDevice = device;
+-        strTitleKey = titleKey;
+-    }
+-
+-    public bool Start(ChimeCommand command)
+-    {
+-        if (errorFlag)
+-        {
+-            return false;
+-        }
+-        _result.SetChimeId(ChimeId.Zero());
+-        _result.SetToken("");
+-        _errorInfo.SetId(ChimeErrorId.None);
+-        qrOnlyFlag = false;
+-        switch (command)
+-        {
+-            case ChimeCommand.Scan:
+-                phase = MainLoopPhase.ScanQRCodeInit;
+-                qrOnlyFlag = false;
+-                break;
+-            case ChimeCommand.ScanQR:
+-                phase = MainLoopPhase.ScanQRCodeInit;
+-                qrOnlyFlag = true;
+-                break;
+-        }
+-        if (_cameraDevice.HasError())
+-        {
+-            SetLedStatus(ChimeLedStatus.Error);
+-            _errorInfo.SetId(ChimeErrorId.ReaderAccessFail);
+-            phase = MainLoopPhase.End;
+-            errorFlag = true;
+-        }
+-        return true;
+-    }
+-
+-    public bool Cancel()
+-    {
+-        phase = MainLoopPhase.Init;
+-        _cameraDevice.CancelScan();
+-        pCommGetUserData = null;
+-        pQRCode = null;
+-        return true;
+-    }
+-
+-    public bool IsReady()
+-    {
+-        return _cameraDevice.IsReady();
+-    }
+-
+-    internal void Execute()
+-    {
+-        switch (phase)
+-        {
+-            case MainLoopPhase.ScanQRCodeInit:
+-                _cameraDevice.BeginScan();
+-                phase = MainLoopPhase.ScanQRCodeIdle;
+-                break;
+-            case MainLoopPhase.ScanQRCodeIdle:
+-            {
+-                if (_cameraDevice.HasError())
+-                {
+-                    SetLedStatus(ChimeLedStatus.Error);
+-                    _errorInfo.SetId(ChimeErrorId.ReaderAccessFail);
+-                    _cameraDevice.CancelScan();
+-                    errorFlag = true;
+-                    phase = MainLoopPhase.End;
+-                    break;
+-                }
+-                string[] decodeStrings = _cameraDevice.GetDecodeStrings();
+-                if (decodeStrings == null)
+-                {
+-                    break;
+-                }
+-                pQRCode = new CCommQRCode(strGameID, null);
+-                CCommQRCode cCommQRCode = new CCommQRCode(strGameID, null);
+-                string[] array = decodeStrings;
+-                foreach (string qRCode in array)
+-                {
+-                    cCommQRCode.SetQRCode(qRCode);
+-                    if (cCommQRCode.IsValid())
+-                    {
+-                        pQRCode.SetQRCode(qRCode);
+-                        _cameraDevice.EndScan();
+-                        phase = MainLoopPhase.ScanQRCodeBusy;
+-                        break;
+-                    }
+-                }
+-                break;
+-            }
+-            case MainLoopPhase.ScanQRCodeBusy:
+-                if (qrOnlyFlag)
+-                {
+-                    phase = MainLoopPhase.End;
+-                }
+-                else
+-                {
+-                    phase = MainLoopPhase.DBAliveInit;
+-                }
+-                break;
+-            case MainLoopPhase.DBAliveInit:
+-                Chime.Instance.StartDBAliveCheckStart();
+-                phase = MainLoopPhase.DBAliveIdle;
+-                break;
+-            case MainLoopPhase.DBAliveIdle:
+-                if (!Chime.Instance.IsDBAliveCheckBusy())
+-                {
+-                    phase = MainLoopPhase.GetUserDataInit;
+-                }
+-                break;
+-            case MainLoopPhase.GetUserDataInit:
+-                pCommGetUserData = new CCommGetUserData(
+-                    strGameID,
+-                    strChipID,
+-                    strCommonKey,
+-                    pQRCode.EraseHashIdentifier(),
+-                    strTitleKey,
+-                    Chime.Instance.GetIndex()
+-                );
+-                phase = MainLoopPhase.GetUserDataIdle;
+-                break;
+-            case MainLoopPhase.GetUserDataIdle:
+-                if (pCommGetUserData == null || pCommGetUserData.isEnd())
+-                {
+-                    _result.GetChimeId().SetZero();
+-                    if (pCommGetUserData != null)
+-                    {
+-                        ChimeErrorId errorID = pCommGetUserData.GetErrorID();
+-                        _errorInfo.SetId(errorID);
+-                        if (errorID == ChimeErrorId.None)
+-                        {
+-                            uint userID = pCommGetUserData.GetUserID();
+-                            _result.SetChimeId(ChimeId.Make(userID));
+-                            _result.SetToken(pCommGetUserData.getToken());
+-                            Chime.Instance.SetDBAliveCheckResult(flag: true);
+-                        }
+-                        pCommGetUserData.Dispose();
+-                        pCommGetUserData = null;
+-                    }
+-                    phase = MainLoopPhase.End;
+-                }
+-                else
+-                {
+-                    pCommGetUserData.Execute();
+-                }
+-                break;
+-        }
+-        MainLoopPhase mainLoopPhase = phase;
+-        if (
+-            (uint)(mainLoopPhase - 2) <= 1u
+-            && _cameraDevice.IsReady()
+-            && GetLedStatus() != ChimeLedStatus.Scanning
+-        )
+-        {
+-            SetLedStatus(ChimeLedStatus.Scanning);
+-        }
+-        if (_cameraDevice.HasError())
+-        {
+-            SetLedStatus(ChimeLedStatus.Error);
+-            _errorInfo.SetId(ChimeErrorId.ReaderAccessFail);
+-            _cameraDevice.CancelScan();
+-            phase = MainLoopPhase.End;
+-            errorFlag = true;
+-        }
+-    }
+-
+-    public bool IsBusy()
+-    {
+-        MainLoopPhase mainLoopPhase = phase;
+-        if ((uint)mainLoopPhase <= 1u || mainLoopPhase == MainLoopPhase.End)
+-        {
+-            return false;
+-        }
+-        return true;
+-    }
+-
+-    public bool HasConfirm()
+-    {
+-        return GetConfirm() != ChimeConfirm.None;
+-    }
+-
+-    public ChimeConfirm GetConfirm()
+-    {
+-        return ChimeConfirm.None;
+-    }
+-
+-    public bool AcceptConfirm()
+-    {
+-        return false;
+-    }
+-
+-    public bool HasResult()
+-    {
+-        return GetResult().Valid();
+-    }
+-
+-    public ChimeResult GetResult()
+-    {
+-        return _result;
+-    }
+-
+-    public bool HasError()
+-    {
+-        return GetErrorInfo().IsOccurred();
+-    }
+-
+-    public ChimeErrorInfo GetErrorInfo()
+-    {
+-        return _errorInfo;
+-    }
+-
+-    public ChimeLedStatus GetLedStatus()
+-    {
+-        return ChimeLedStatus.None;
+-    }
+-
+-    public bool SetLedStatus(ChimeLedStatus status)
+-    {
+-        return false;
+-    }
+-
+-    public bool SetLed(bool onR, bool onG, bool onB)
+-    {
+-        return false;
+-    }
+-}
++using System;
++using System.Linq;
++using ChimeLib.NET.COMM;
++
++namespace ChimeLib.NET;
++
++public class ChimeUnit
++{
++    private ChimeResult? _result;
++    private ChimeErrorInfo _errorInfo = new();
++    private bool _hasError;
++    private readonly string _gameId;
++    private readonly string _chipId;
++    private readonly string _commonKey;
++    private readonly string _titleKey;
++    private readonly IUsbCameraDevice _cameraDevice;
++    private MainLoopPhase _phase = MainLoopPhase.INIT;
++    private CCommQrCode? _qrCode;
++    private CCommGetUserData? _pCommGetUserData;
++    private bool _qrOnlyFlag;
++
++    internal ChimeUnit(
++        string gameId,
++        string chipId,
++        string commonKey,
++        IUsbCameraDevice cameraDevice,
++        string titleKey
++    )
++    {
++        _gameId = gameId;
++        _chipId = chipId;
++        _commonKey = commonKey;
++        _cameraDevice = cameraDevice;
++        _qrOnlyFlag = false;
++        _titleKey = titleKey;
++    }
++
++    public bool Start(ChimeCommand command)
++    {
++        if (_hasError)
++        {
++            return false;
++        }
++
++        _result = new(ChimeId.Zero(), string.Empty);
++        _errorInfo = new(ChimeErrorId.None);
++        _qrOnlyFlag = false;
++        switch (command)
++        {
++            case ChimeCommand.Scan:
++                _phase = MainLoopPhase.SCAN_QR_CODE_INIT;
++                _qrOnlyFlag = false;
++                break;
++            case ChimeCommand.ScanQR:
++                _phase = MainLoopPhase.SCAN_QR_CODE_INIT;
++                _qrOnlyFlag = true;
++                break;
++            default:
++                throw new ArgumentOutOfRangeException(nameof(command), command, null);
++        }
++
++        if (!_cameraDevice.HasError())
++            return true;
++
++        // Original implementation: SetLedStatus(ChimeLedStatus.Error);
++        _errorInfo = new(ChimeErrorId.ReaderAccessFail);
++        _phase = MainLoopPhase.END;
++        _hasError = true;
++        return true;
++    }
++
++    public bool Cancel()
++    {
++        _phase = MainLoopPhase.INIT;
++        _cameraDevice.CancelScan();
++        _pCommGetUserData?.Dispose();
++        _pCommGetUserData = null;
++        _qrCode = null;
++        return true;
++    }
++
++    public bool IsReady() => _cameraDevice.IsReady();
++
++    internal void Execute()
++    {
++        switch (_phase)
++        {
++            case MainLoopPhase.INIT:
++            case MainLoopPhase.IDLE:
++                break;
++            case MainLoopPhase.SCAN_QR_CODE_INIT:
++                _cameraDevice.BeginScan();
++                _phase = MainLoopPhase.SCAN_QR_CODE_IDLE;
++                break;
++            case MainLoopPhase.SCAN_QR_CODE_IDLE:
++            {
++                if (_cameraDevice.HasError())
++                {
++                    // Original implementation: SetLedStatus(ChimeLedStatus.Error);
++                    _errorInfo = new(ChimeErrorId.ReaderAccessFail);
++                    _cameraDevice.CancelScan();
++                    _hasError = true;
++                    _phase = MainLoopPhase.END;
++                    break;
++                }
++
++                var decodeStrings = _cameraDevice.GetDecodeStrings();
++                if (
++                    decodeStrings.Any(qRCode =>
++                        CCommQrCode.TryCreateValid(_gameId, qRCode, out _qrCode)
++                    )
++                )
++                {
++                    _cameraDevice.EndScan();
++                    _phase = MainLoopPhase.SCAN_QR_CODE_BUSY;
++                }
++
++                break;
++            }
++            case MainLoopPhase.SCAN_QR_CODE_BUSY:
++                _phase = _qrOnlyFlag ? MainLoopPhase.END : MainLoopPhase.DB_ALIVE_INIT;
++                break;
++            case MainLoopPhase.DB_ALIVE_INIT:
++                Chime.Instance!.StartDBAliveCheckStart();
++                _phase = MainLoopPhase.DB_ALIVE_IDLE;
++                break;
++            case MainLoopPhase.DB_ALIVE_IDLE:
++                if (!Chime.Instance!.IsDBAliveCheckBusy())
++                {
++                    _phase = MainLoopPhase.GET_USER_DATA_INIT;
++                }
++                break;
++            case MainLoopPhase.GET_USER_DATA_INIT:
++                _pCommGetUserData = new(
++                    _gameId,
++                    _chipId,
++                    _commonKey,
++                    _qrCode!.DataSection,
++                    _titleKey,
++                    Chime.Instance!.GetIndex()
++                );
++                _phase = MainLoopPhase.GET_USER_DATA_IDLE;
++                break;
++            case MainLoopPhase.GET_USER_DATA_IDLE:
++                if (_pCommGetUserData?.IsEnd ?? true)
++                {
++                    _result?.ChimeId.SetZero();
++                    if (_pCommGetUserData != null)
++                    {
++                        var errorId = _pCommGetUserData.GetErrorId();
++                        _errorInfo = new(errorId);
++                        if (errorId == ChimeErrorId.None)
++                        {
++                            _result = new(
++                                ChimeId.Make(_pCommGetUserData.UserId),
++                                _pCommGetUserData.Token
++                            );
++                            Chime.Instance!.SetDBAliveCheckResult(flag: true);
++                        }
++
++                        _pCommGetUserData.Dispose();
++                        _pCommGetUserData = null;
++                    }
++
++                    _phase = MainLoopPhase.END;
++                }
++                else
++                {
++                    _pCommGetUserData.Execute();
++                }
++                break;
++            case MainLoopPhase.END:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++
++        if (
++            _phase is MainLoopPhase.SCAN_QR_CODE_INIT or MainLoopPhase.SCAN_QR_CODE_IDLE
++            && _cameraDevice.IsReady()
++            && GetLedStatus() != ChimeLedStatus.Scanning
++        )
++        {
++            // Original implementation: SetLedStatus(ChimeLedStatus.Scanning);
++        }
++
++        if (!_cameraDevice.HasError())
++            return;
++
++        // Original implementation: SetLedStatus(ChimeLedStatus.Error);
++        _errorInfo = new(ChimeErrorId.ReaderAccessFail);
++        _cameraDevice.CancelScan();
++        _phase = MainLoopPhase.END;
++        _hasError = true;
++    }
++
++    public bool IsBusy()
++    {
++        return _phase != MainLoopPhase.INIT
++            && _phase != MainLoopPhase.IDLE
++            && _phase != MainLoopPhase.END;
++    }
++
++    public bool HasConfirm()
++    {
++        return GetConfirm() != ChimeConfirm.None;
++    }
++
++    public ChimeConfirm GetConfirm() => ChimeConfirm.None;
++
++    public bool AcceptConfirm() => false;
++
++    public bool HasResult()
++    {
++        return GetResult().Valid();
++    }
++
++    public ChimeResult GetResult() => _result ?? new(ChimeId.Zero(), string.Empty);
++
++    public bool HasError() => GetErrorInfo().IsOccurred();
++
++    public ChimeErrorInfo GetErrorInfo() => _errorInfo;
++
++    public ChimeLedStatus GetLedStatus() => ChimeLedStatus.None;
++
++    public bool SetLedStatus(ChimeLedStatus status) => false;
++
++    public bool SetLed(bool onR, bool onG, bool onB) => false;
++
++    private enum MainLoopPhase
++    {
++        INIT,
++        IDLE,
++        SCAN_QR_CODE_INIT,
++        SCAN_QR_CODE_IDLE,
++        SCAN_QR_CODE_BUSY,
++        DB_ALIVE_INIT,
++        DB_ALIVE_IDLE,
++        GET_USER_DATA_INIT,
++        GET_USER_DATA_IDLE,
++        END,
++    }
++}
+diff --git a/src/ChimeLib/NET/UsbCameraDevice.cs b/src/ChimeLib/NET/IUsbCameraDevice.cs
+similarity index 83%
+rename from src/ChimeLib/NET/UsbCameraDevice.cs
+rename to src/ChimeLib/NET/IUsbCameraDevice.cs
+index ae78960..b6d0f94 100644
+--- a/src/ChimeLib/NET/UsbCameraDevice.cs
++++ b/src/ChimeLib/NET/IUsbCameraDevice.cs
+@@ -1,6 +1,6 @@
+ namespace ChimeLib.NET;
+ 
+-public interface UsbCameraDevice
++public interface IUsbCameraDevice
+ {
+     bool HasError();
+ 
+diff --git a/src/SinmaiLib/Manager/ChimeDevice.cs b/src/SinmaiLib/Manager/ChimeDevice.cs
+index 22a9fe6..8c6aa54 100644
+--- a/src/SinmaiLib/Manager/ChimeDevice.cs
++++ b/src/SinmaiLib/Manager/ChimeDevice.cs
+@@ -2,14 +2,13 @@
+ using System.Collections.Generic;
+ using System.Linq;
+ using ChimeLib.NET;
+-using UnityEngine;
+ using ZXing;
+ using ZXing.Common;
+ using ZXing.Multi.QrCode;
+ 
+ namespace Manager;
+ 
+-public class ChimeDevice : UsbCameraDevice
++public class ChimeDevice : IUsbCameraDevice
+ {
+     private QRCodeMultiReader _reader;
+ 
+@@ -26,10 +25,7 @@ public class ChimeDevice : UsbCameraDevice
+ 
+     private int _counter;
+ 
+-    private static readonly Dictionary<DecodeHintType, object> DecodeHints = new Dictionary<
+-        DecodeHintType,
+-        object
+-    >
++    private static readonly Dictionary<DecodeHintType, object> DecodeHints = new()
+     {
+         { DecodeHintType.TRY_HARDER, true },
+         { DecodeHintType.POSSIBLE_FORMATS, new object[1] { BarcodeFormat.QR_CODE } },
+@@ -77,24 +73,18 @@ public void CancelScan()
+ 
+     public string[] GetDecodeStrings()
+     {
+-        string[] result = null;
++        string[] result = [];
+         try
+         {
+-            if (_texture == null || !_texture.isPlaying)
++            if (_texture == null || !_texture.isPlaying || _counter++ <= 3)
+             {
+-                return null;
+-            }
+-            if (_counter++ <= 3)
+-            {
+-                return null;
++                return [];
+             }
++
+             _texture.GetPixels32(_colors);
+             _sourceCameraID.SetPixels(_colors);
+-            BinaryBitmap image = new BinaryBitmap(new HybridBinarizer(_sourceCameraID));
+-            result = _reader
+-                .decodeMultiple(image, DecodeHints)
+-                ?.Select((Result x) => x.Text)
+-                .ToArray();
++            var image = new BinaryBitmap(new HybridBinarizer(_sourceCameraID));
++            result = [.. _reader.decodeMultiple(image, DecodeHints).Select(x => x.Text)];
+         }
+         catch (Exception) { }
+         return result;
+diff --git a/src/SinmaiLib/Manager/ChimeReaderManager.cs b/src/SinmaiLib/Manager/ChimeReaderManager.cs
+index 28ab0e1..fb0b601 100644
+--- a/src/SinmaiLib/Manager/ChimeReaderManager.cs
++++ b/src/SinmaiLib/Manager/ChimeReaderManager.cs
+@@ -54,7 +54,7 @@ private enum State
+ 
+     private string _token;
+ 
+-    private ChimeErrorInfo _errorInfo;
++    private ChimeErrorInfo? _errorInfo;
+ 
+     private int _isAccepted;
+ 
+@@ -138,11 +138,7 @@ public Result GetResult()
+ 
+     public ChimeErrorCategory GetErrorCategory()
+     {
+-        if (_errorInfo != null)
+-        {
+-            return _errorInfo.GetCategory();
+-        }
+-        return ChimeErrorCategory.None;
++        return _errorInfo?.Category ?? ChimeErrorCategory.None;
+     }
+ 
+     public string GetAccessCode()
+@@ -198,30 +194,17 @@ public void EnableRead(bool flag)
+     public void Initialize()
+     {
+         Chime.Create();
+-        List<ChimeErrorMessage> errorMessageTable = new List<ChimeErrorMessage>
+-        {
+-            new ChimeErrorMessage
+-            {
+-                id = ChimeErrorId.ReaderSetupFail,
+-                message = "失败扫描仪初始化",
+-            },
+-            new ChimeErrorMessage
+-            {
+-                id = ChimeErrorId.ReaderAccessFail,
+-                message = "失败扫描仪初始化",
+-            },
+-            new ChimeErrorMessage
+-            {
+-                id = ChimeErrorId.ReaderIncompatible,
+-                message = "扫描的ID不是\"舞萌DX\"的",
+-            },
+-            new ChimeErrorMessage { id = ChimeErrorId.DBResolveFail, message = "服务器访问错误" },
+-            new ChimeErrorMessage { id = ChimeErrorId.DBAccessTimeout, message = "服务器访问错误" },
+-            new ChimeErrorMessage { id = ChimeErrorId.DBAccessFail, message = "服务器访问错误" },
+-            new ChimeErrorMessage { id = ChimeErrorId.AimeIdInvalid, message = "扫描无效的ID" },
+-            new ChimeErrorMessage { id = ChimeErrorId.NoBoardInfo, message = "失败提取QR扫描仪" },
+-        };
+-        Chime.Instance.SetErrorMessageTable(errorMessageTable);
++        Chime.Instance.ErrorMessageList =
++        [
++            new() { Id = ChimeErrorId.ReaderSetupFail, Message = "失败扫描仪初始化" },
++            new() { Id = ChimeErrorId.ReaderAccessFail, Message = "失败扫描仪初始化" },
++            new() { Id = ChimeErrorId.ReaderIncompatible, Message = "扫描的ID不是\"舞萌DX\"的" },
++            new() { Id = ChimeErrorId.DBResolveFail, Message = "服务器访问错误" },
++            new() { Id = ChimeErrorId.DBAccessTimeout, Message = "服务器访问错误" },
++            new() { Id = ChimeErrorId.DBAccessFail, Message = "服务器访问错误" },
++            new() { Id = ChimeErrorId.AimeIdInvalid, Message = "扫描无效的ID" },
++            new() { Id = ChimeErrorId.NoBoardInfo, Message = "失败提取QR扫描仪" },
++        ];
+         Init();
+     }
+ 
+@@ -253,8 +236,8 @@ public void Execute()
+                     _errorInfo = null;
+                     _isAccepted = 0;
+                     currentState = State.Idle;
+-                    ChimeErrorInfo errorInfo = _unit.GetErrorInfo();
+-                    if (_unit.HasError() && errorInfo.GetCategory() == ChimeErrorCategory.Fatal)
++                    var errorInfo = _unit.GetErrorInfo();
++                    if (_unit.HasError() && errorInfo.Category == ChimeErrorCategory.Fatal)
+                     {
+                         Singleton<OperationManager>.Instance.IsAliveAimeReader = false;
+                     }
+@@ -316,9 +299,9 @@ public void Execute()
+                 if (_unit.HasError())
+                 {
+                     _errorInfo = _unit.GetErrorInfo();
+-                    if (_errorInfo.GetCategory() != ChimeErrorCategory.Warning)
++                    if (_errorInfo.Category != ChimeErrorCategory.Warning)
+                     {
+-                        _errorInfo.GetCategory();
++                        _ = _errorInfo.Category;
+                         _ = 2;
+                     }
+                     _result = Result.Error;
+@@ -326,8 +309,8 @@ public void Execute()
+                 if (_unit.HasResult())
+                 {
+                     _readResult = _unit.GetResult();
+-                    _aimeId = _readResult.GetChimeId();
+-                    _token = _readResult.GetToken();
++                    _aimeId = _readResult.ChimeId;
++                    _token = _readResult.Token;
+                     if (!_aimeId.IsValid())
+                     {
+                         _result = Result.Error;
+@@ -368,7 +351,7 @@ public bool AnyRead()
+             && _enableFlag
+             && _readFlag
+             && (
+-                _unit.GetResult().GetChimeId().IsValid()
++                _unit.GetResult().ChimeId.IsValid()
+                 || (_unit.HasError() && currentState != State.First && currentState != State.Idle)
+             )
+         )

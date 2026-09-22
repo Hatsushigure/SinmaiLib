@@ -1,0 +1,6 @@
+src/ChimeLib/ChimeLib.csproj
+src/ChimeLib/NET/COMM/CCommHttpClient.cs
+src/ChimeLib/NET/COMM/CCommJsonContext.cs
+src/ChimeLib/NET/COMM/DTO/GetUserDataRequest.cs
+src/ChimeLib/NET/COMM/DTO/GetUserDataResponse.cs
+src/SinmaiLib/SinmaiLib.csproj

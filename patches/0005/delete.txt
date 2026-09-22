@@ -1,0 +1,2 @@
+src/ChimeLib/NET/COMM/CommSafeHandle.cs
+src/ChimeLib/NET/ErrorInfo.cs
