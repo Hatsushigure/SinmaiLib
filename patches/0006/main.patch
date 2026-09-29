@@ -1,0 +1,5884 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Tue, 29 Sep 2026 13:10:54 +0800
+Subject: [PATCH] refactor(vo): migrate serialization to System.Text.Json
+
+
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientBookkeeping.cs b/src/SinmaiLib/Net/VO/Mai2/ClientBookkeeping.cs
+dissimilarity index 93%
+index fd6167b..4f0ef13 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientBookkeeping.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientBookkeeping.cs
+@@ -1,76 +1,74 @@
+-using System;
+-using Manager;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct ClientBookkeeping
+-{
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public string updateDate;
+-
+-    public int creditSetting0;
+-
+-    public int creditSetting1;
+-
+-    public int creditSetting2;
+-
+-    public int credits1P;
+-
+-    public int credits2P;
+-
+-    public int creditsFreedom;
+-
+-    public int creditsTicket;
+-
+-    public int creditCoin;
+-
+-    public int creditService;
+-
+-    public int creditEmoney;
+-
+-    public int timeTotal;
+-
+-    public int timeTotalPlay;
+-
+-    public int timeLongest1P;
+-
+-    public int timeShortest1P;
+-
+-    public int timeLongest2P;
+-
+-    public int timeShortest2P;
+-
+-    public int timeLongestFreedom;
+-
+-    public int timeShortestFreedom;
+-
+-    public int newFreeUserNum;
+-
+-    public int tutorialPlay;
+-
+-    public int play1PNum;
+-
+-    public int play2PNum;
+-
+-    public int playFreedomNum;
+-
+-    public int aimeLoginNum;
+-
+-    public int guestLoginNum;
+-
+-    public int regionId;
+-
+-    public int playCount;
+-
+-    public int coinToCredit;
+-
+-    public int[] errorNum;
+-
+-    public int[] error2Num;
+-
+-    public BackupNetworkInformationRecord.PingResult[] pingResult;
+-}
++using Manager;
++
++namespace Net.VO.Mai2;
++
++internal sealed record ClientBookkeeping
++{
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required string UpdateDate { get; init; }
++
++    public required int CreditSetting0 { get; init; }
++
++    public required int CreditSetting1 { get; init; }
++
++    public required int CreditSetting2 { get; init; }
++
++    public required int Credits1P { get; init; }
++
++    public required int Credits2P { get; init; }
++
++    public required int CreditsFreedom { get; init; }
++
++    public required int CreditsTicket { get; init; }
++
++    public required int CreditCoin { get; init; }
++
++    public required int CreditService { get; init; }
++
++    public required int CreditEmoney { get; init; }
++
++    public required int TimeTotal { get; init; }
++
++    public required int TimeTotalPlay { get; init; }
++
++    public required int TimeLongest1P { get; init; }
++
++    public required int TimeShortest1P { get; init; }
++
++    public required int TimeLongest2P { get; init; }
++
++    public required int TimeShortest2P { get; init; }
++
++    public required int TimeLongestFreedom { get; init; }
++
++    public required int TimeShortestFreedom { get; init; }
++
++    public required int NewFreeUserNum { get; init; }
++
++    public required int TutorialPlay { get; init; }
++
++    public required int Play1PNum { get; init; }
++
++    public required int Play2PNum { get; init; }
++
++    public required int PlayFreedomNum { get; init; }
++
++    public required int AimeLoginNum { get; init; }
++
++    public required int GuestLoginNum { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required int PlayCount { get; init; }
++
++    public required int CoinToCredit { get; init; }
++
++    public required int[] ErrorNum { get; init; }
++
++    public required int[] Error2Num { get; init; }
++
++    public required BackupNetworkInformationRecord.PingResult[] PingResult { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientBookkeepingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/ClientBookkeepingRequestVO.cs
+index deee859..f9fd4a7 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientBookkeepingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientBookkeepingRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class ClientBookkeepingRequestVO : VOSerializer
++internal sealed record ClientBookkeepingRequestVO : ISerializable<ClientBookkeepingRequestVO>
+ {
+-    public ClientBookkeeping clientBookkeeping;
++    public required ClientBookkeeping ClientBookkeeping { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientPlayTime.cs b/src/SinmaiLib/Net/VO/Mai2/ClientPlayTime.cs
+dissimilarity index 90%
+index 424d588..45b6129 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientPlayTime.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientPlayTime.cs
+@@ -1,27 +1,24 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct ClientPlayTime
+-{
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public string updateDate;
+-
+-    public int playTimeTrack3;
+-
+-    public int playTimeTrack4;
+-
+-    public int playTime2P;
+-
+-    public int playTrack3Num;
+-
+-    public int playTrack4Num;
+-
+-    public int play2PNum;
+-
+-    public int regionId;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record ClientPlayTime
++{
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required string UpdateDate { get; init; }
++
++    public required int PlayTimeTrack3 { get; init; }
++
++    public required int PlayTimeTrack4 { get; init; }
++
++    public required int PlayTime2P { get; init; }
++
++    public required int PlayTrack3Num { get; init; }
++
++    public required int PlayTrack4Num { get; init; }
++
++    public required int Play2PNum { get; init; }
++
++    public required int RegionId { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientPlayTimeRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/ClientPlayTimeRequestVO.cs
+index b92f444..9bcc819 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientPlayTimeRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientPlayTimeRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class ClientPlayTimeRequestVO : VOSerializer
++internal sealed record ClientPlayTimeRequestVO : ISerializable<ClientPlayTimeRequestVO>
+ {
+-    public ClientPlayTime clientPlayTime;
++    public required ClientPlayTime ClientPlayTime { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientSetting.cs b/src/SinmaiLib/Net/VO/Mai2/ClientSetting.cs
+dissimilarity index 89%
+index 0450d4e..235323a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientSetting.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientSetting.cs
+@@ -1,25 +1,22 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct ClientSetting
+-{
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public string placeName;
+-
+-    public int regionId;
+-
+-    public string regionName;
+-
+-    public string bordId;
+-
+-    public int romVersion;
+-
+-    public bool isDevelop;
+-
+-    public bool isAou;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record ClientSetting
++{
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required string PlaceName { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required string RegionName { get; init; }
++
++    public required string BordId { get; init; }
++
++    public required int RomVersion { get; init; }
++
++    public required bool IsDevelop { get; init; }
++
++    public required bool IsAou { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientSettingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/ClientSettingRequestVO.cs
+index d056e73..c5c93a5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientSettingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientSettingRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class ClientSettingRequestVO : VOSerializer
++internal sealed record ClientSettingRequestVO : ISerializable<ClientSettingRequestVO>
+ {
+-    public ClientSetting clientSetting;
++    public required ClientSetting ClientSetting { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientTestmode.cs b/src/SinmaiLib/Net/VO/Mai2/ClientTestmode.cs
+dissimilarity index 88%
+index de33da2..b35ad7d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientTestmode.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientTestmode.cs
+@@ -1,23 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct ClientTestmode
+-{
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public int trackSingle;
+-
+-    public int trackMulti;
+-
+-    public int trackEvent;
+-
+-    public int totalMachine;
+-
+-    public int satelliteId;
+-
+-    public int cameraPosition;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record ClientTestmode
++{
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required int TrackSingle { get; init; }
++
++    public required int TrackMulti { get; init; }
++
++    public required int TrackEvent { get; init; }
++
++    public required int TotalMachine { get; init; }
++
++    public required int SatelliteId { get; init; }
++
++    public required int CameraPosition { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientTestmodeRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/ClientTestmodeRequestVO.cs
+index c6f00ee..6db04b6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientTestmodeRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientTestmodeRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class ClientTestmodeRequestVO : VOSerializer
++internal sealed record ClientTestmodeRequestVO : ISerializable<ClientTestmodeRequestVO>
+ {
+-    public ClientTestmode clientTestmode;
++    public required ClientTestmode ClientTestmode { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientUpload.cs b/src/SinmaiLib/Net/VO/Mai2/ClientUpload.cs
+dissimilarity index 88%
+index 983a1cc..012b98b 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientUpload.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientUpload.cs
+@@ -1,23 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct ClientUpload
+-{
+-    public int orderId;
+-
+-    public int divNumber;
+-
+-    public int divLength;
+-
+-    public string divData;
+-
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public string uploadDate;
+-
+-    public string fileName;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record ClientUpload
++{
++    public required int OrderId { get; init; }
++
++    public required int DivNumber { get; init; }
++
++    public required int DivLength { get; init; }
++
++    public required string DivData { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required string UploadDate { get; init; }
++
++    public required string FileName { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ClientUploadRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/ClientUploadRequestVO.cs
+index 6b1b90b..0ad0557 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ClientUploadRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/ClientUploadRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class ClientUploadRequestVO : VOSerializer
++internal sealed record ClientUploadRequestVO : ISerializable<ClientUploadRequestVO>
+ {
+-    public ClientUpload clientUpload;
++    public required ClientUpload ClientUpload { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/DelayLog.cs b/src/SinmaiLib/Net/VO/Mai2/DelayLog.cs
+dissimilarity index 94%
+index dcb2d35..7dfc01c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/DelayLog.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/DelayLog.cs
+@@ -1,43 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class DelayLog
+-{
+-    public int dlRequests;
+-
+-    public int dlSize;
+-
+-    public int dlRetry;
+-
+-    public int loginMsec;
+-
+-    public int saveMsec;
+-
+-    public int reductionMusic;
+-
+-    public int reductionItem;
+-
+-    public RequestAPI[] request = new RequestAPI[26];
+-
+-    public DelayLog()
+-    {
+-        Clear();
+-    }
+-
+-    public void Clear()
+-    {
+-        dlRequests = 0;
+-        dlSize = 0;
+-        dlRetry = 0;
+-        loginMsec = 0;
+-        saveMsec = 0;
+-        reductionMusic = 0;
+-        reductionItem = 0;
+-        for (int i = 0; i < 26; i++)
+-        {
+-            request[i].Clear();
+-        }
+-    }
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record DelayLog
++{
++    public required int DlRequests { get; set; }
++
++    public required int DlSize { get; set; }
++
++    public required int DlRetry { get; set; }
++
++    public required int LoginMsec { get; set; }
++
++    public required int SaveMsec { get; set; }
++
++    public required int ReductionMusic { get; set; }
++
++    public required int ReductionItem { get; set; }
++
++    public required RequestAPI[] Request { get; set; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameCharge.cs b/src/SinmaiLib/Net/VO/Mai2/GameCharge.cs
+index 0f8df24..75789b1 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameCharge.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameCharge.cs
+@@ -1,17 +1,14 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct GameCharge
++internal readonly record struct GameCharge
+ {
+-    public int orderId;
++    public required int OrderId { get; init; }
+ 
+-    public int chargeId;
++    public required int ChargeId { get; init; }
+ 
+-    public int price;
++    public required int Price { get; init; }
+ 
+-    public string startDate;
++    public required string StartDate { get; init; }
+ 
+-    public string endDate;
++    public required string EndDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameChargeRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameChargeRequestVO.cs
+index 8328e21..114cc1e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameChargeRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameChargeRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameChargeRequestVO : VOSerializer
++internal sealed record GameChargeRequestVO : ISerializable<GameChargeRequestVO>
+ {
+-    public bool isAll;
++    public required bool IsAll { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameChargeResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameChargeResponseVO.cs
+index 63c28d0..4f243dc 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameChargeResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameChargeResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameChargeResponseVO : VOSerializer
++internal sealed record GameChargeResponseVO : ISerializable<GameChargeResponseVO>
+ {
+-    public long length;
++    public required long Length { get; init; }
+ 
+-    public GameCharge[] gameChargeList;
++    public required GameCharge[] GameChargeList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameEvent.cs b/src/SinmaiLib/Net/VO/Mai2/GameEvent.cs
+index 58b36a5..78dbb52 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameEvent.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameEvent.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct GameEvent
++internal sealed record GameEvent
+ {
+-    public int type;
++    public required int Type { get; init; }
+ 
+-    public int id;
++    public required int Id { get; init; }
+ 
+-    public string startDate;
++    public required string StartDate { get; init; }
+ 
+-    public string endDate;
++    public required string EndDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameEventRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameEventRequestVO.cs
+index dc302ea..9f61fa0 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameEventRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameEventRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameEventRequestVO : VOSerializer
++internal sealed record GameEventRequestVO : ISerializable<GameEventRequestVO>
+ {
+-    public int type;
++    public required int Type { get; init; }
+ 
+-    public bool isAllEvent;
++    public required bool IsAllEvent { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameEventResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameEventResponseVO.cs
+index aa56e19..dd24ab5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameEventResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameEventResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameEventResponseVO : VOSerializer
++internal sealed record GameEventResponseVO : ISerializable<GameEventResponseVO>
+ {
+-    public int type;
++    public required int Type { get; init; }
+ 
+-    public GameEvent[] gameEventList;
++    public required GameEvent[] GameEventList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScope.cs b/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScope.cs
+index 74f4174..8a25b0d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScope.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScope.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct GameKaleidxScope
++internal sealed record GameKaleidxScope
+ {
+-    public int gateId;
++    public required int GateId { get; init; }
+ 
+-    public int phaseId;
++    public required int PhaseId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeRequestVO.cs
+index 1b03db2..e04c505 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeRequestVO.cs
+@@ -1,6 +1,3 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameKaleidxScopeRequestVO : VOSerializer { }
++internal sealed record GameKaleidxScopeRequestVO : ISerializable<GameKaleidxScopeRequestVO>;
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeResponseVO.cs
+index 41736d5..85d6c6d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameKaleidxScopeResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameKaleidxScopeResponseVO : VOSerializer
++internal sealed record GameKaleidxScopeResponseVO : ISerializable<GameKaleidxScopeResponseVO>
+ {
+-    public GameKaleidxScope[] gameKaleidxScopeList;
++    public required GameKaleidxScope[] GameKaleidxScopeList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreRequestVO.cs
+index 9c5e94f..002d94d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameMusicScoreRequestVO : VOSerializer
++internal sealed record GameMusicScoreRequestVO : ISerializable<GameMusicScoreRequestVO>
+ {
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public int type;
++    public required int Type { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreResponseVO.cs
+index ded6dd0..b8b9789 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameMusicScoreResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameMusicScoreResponseVO : VOSerializer
++internal sealed record GameMusicScoreResponseVO : ISerializable<GameMusicScoreResponseVO>
+ {
+-    public MusicScore gameMusicScore;
++    public required MusicScore GameMusicScore { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdRequestVO.cs
+index f22ffe5..713ed9f 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdRequestVO.cs
+@@ -1,6 +1,3 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameNgMusicIdRequestVO : VOSerializer { }
++internal sealed record GameNgMusicIdRequestVO : ISerializable<GameNgMusicIdRequestVO>;
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdResponseVO.cs
+index a5b7771..dba3985 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameNgMusicIdResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameNgMusicIdResponseVO : VOSerializer
++internal sealed record GameNgMusicIdResponseVO : ISerializable<GameNgMusicIdResponseVO>
+ {
+-    public long length;
++    public required long Length { get; init; }
+ 
+-    public int[] musicIdList;
++    public required int[] MusicIdList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameRanking.cs b/src/SinmaiLib/Net/VO/Mai2/GameRanking.cs
+index 92a2bdd..8c6ef33 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameRanking.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameRanking.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct GameRanking
++internal sealed record GameRanking
+ {
+-    public long id;
++    public required long Id { get; init; }
+ 
+-    public long point;
++    public required long Point { get; init; }
+ 
+-    public string userName;
++    public required string UserName { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameRankingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameRankingRequestVO.cs
+index d6ac1b2..432f636 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameRankingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameRankingRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameRankingRequestVO : VOSerializer
++internal sealed record GameRankingRequestVO : ISerializable<GameRankingRequestVO>
+ {
+-    public long type;
++    public required long Type { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameRankingResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameRankingResponseVO.cs
+index 7af42f3..5c0a389 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameRankingResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameRankingResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameRankingResponseVO : VOSerializer
++internal sealed record GameRankingResponseVO : ISerializable<GameRankingResponseVO>
+ {
+-    public long type;
++    public required long Type { get; init; }
+ 
+-    public GameRanking[] gameRankingList;
++    public required GameRanking[] GameRankingList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameSetting.cs b/src/SinmaiLib/Net/VO/Mai2/GameSetting.cs
+dissimilarity index 94%
+index 7fda638..d267d8a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameSetting.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameSetting.cs
+@@ -1,57 +1,54 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct GameSetting
+-{
+-    public bool isMaintenance;
+-
+-    public int requestInterval;
+-
+-    public string rebootStartTime;
+-
+-    public string rebootEndTime;
+-
+-    public int movieUploadLimit;
+-
+-    public int movieStatus;
+-
+-    public string movieServerUri;
+-
+-    public string deliverServerUri;
+-
+-    public string oldServerUri;
+-
+-    public string usbDlServerUri;
+-
+-    public int rebootInterval;
+-
+-    public bool pingDisable;
+-
+-    public int packetTimeout;
+-
+-    public int packetTimeoutLong;
+-
+-    public int packetRetryCount;
+-
+-    public int userDataDlErrTimeout;
+-
+-    public int userDataDlErrRetryCount;
+-
+-    public int userDataDlErrSamePacketRetryCount;
+-
+-    public int userDataUpSkipTimeout;
+-
+-    public int userDataUpSkipRetryCount;
+-
+-    public bool iconPhotoDisable;
+-
+-    public bool uploadPhotoDisable;
+-
+-    public bool nameEntryDisable;
+-
+-    public int packetRecreateCount;
+-
+-    public bool collectDelayInfoDisable;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record GameSetting
++{
++    public required bool IsMaintenance { get; init; }
++
++    public required int RequestInterval { get; init; }
++
++    public required string RebootStartTime { get; init; }
++
++    public required string RebootEndTime { get; init; }
++
++    public required int MovieUploadLimit { get; init; }
++
++    public required int MovieStatus { get; init; }
++
++    public required string MovieServerUri { get; init; }
++
++    public required string DeliverServerUri { get; init; }
++
++    public required string OldServerUri { get; init; }
++
++    public required string UsbDlServerUri { get; init; }
++
++    public required int RebootInterval { get; init; }
++
++    public required bool PingDisable { get; init; }
++
++    public required int PacketTimeout { get; init; }
++
++    public required int PacketTimeoutLong { get; init; }
++
++    public required int PacketRetryCount { get; init; }
++
++    public required int UserDataDlErrTimeout { get; init; }
++
++    public required int UserDataDlErrRetryCount { get; init; }
++
++    public required int UserDataDlErrSamePacketRetryCount { get; init; }
++
++    public required int UserDataUpSkipTimeout { get; init; }
++
++    public required int UserDataUpSkipRetryCount { get; init; }
++
++    public required bool IconPhotoDisable { get; init; }
++
++    public required bool UploadPhotoDisable { get; init; }
++
++    public required bool NameEntryDisable { get; init; }
++
++    public required int PacketRecreateCount { get; init; }
++
++    public required bool CollectDelayInfoDisable { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs
+index eacaac3..b30bfbb 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameSettingRequestVO : VOSerializer
++internal sealed record GameSettingRequestVO : ISerializable<GameSettingRequestVO>
+ {
+-    public int placeId;
++    public required int PlaceId { get; init; }
+ 
+-    public string clientId;
++    public required string ClientId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameSettingResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameSettingResponseVO.cs
+index efd9240..2bf540c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameSettingResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameSettingResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameSettingResponseVO : VOSerializer
++internal sealed record GameSettingResponseVO : ISerializable<GameSettingResponseVO>
+ {
+-    public bool isAouAccession;
++    public required bool IsAouAccession { get; init; }
+ 
+-    public GameSetting gameSetting;
++    public required GameSetting GameSetting { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfo.cs b/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfo.cs
+dissimilarity index 91%
+index 3c8dffa..dc3d568 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfo.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfo.cs
+@@ -1,29 +1,26 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct GameTournamentInfo
+-{
+-    public int tournamentId;
+-
+-    public string tournamentName;
+-
+-    public int rankingKind;
+-
+-    public int scoreType;
+-
+-    public string noticeStartDate;
+-
+-    public string noticeEndDate;
+-
+-    public string startDate;
+-
+-    public string endDate;
+-
+-    public string entryStartDate;
+-
+-    public string entryEndDate;
+-
+-    public GameTournamentMusic[] gameTournamentMusicList;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record GameTournamentInfo
++{
++    public required int TournamentId { get; init; }
++
++    public required string TournamentName { get; init; }
++
++    public required int RankingKind { get; init; }
++
++    public required int ScoreType { get; init; }
++
++    public required string NoticeStartDate { get; init; }
++
++    public required string NoticeEndDate { get; init; }
++
++    public required string StartDate { get; init; }
++
++    public required string EndDate { get; init; }
++
++    public required string EntryStartDate { get; init; }
++
++    public required string EntryEndDate { get; init; }
++
++    public required GameTournamentMusic[] GameTournamentMusicList { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoRequestVO.cs
+index 2a1c796..3a5a02b 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoRequestVO.cs
+@@ -1,6 +1,3 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameTournamentInfoRequestVO : VOSerializer { }
++internal sealed record GameTournamentInfoRequestVO : ISerializable<GameTournamentInfoRequestVO>;
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoResponseVO.cs
+index 04cccb8..5649eaa 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameTournamentInfoResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameTournamentInfoResponseVO : VOSerializer
++internal sealed record GameTournamentInfoResponseVO : ISerializable<GameTournamentInfoResponseVO>
+ {
+-    public long length;
++    public required long Length { get; init; }
+ 
+-    public GameTournamentInfo[] gameTournamentInfoList;
++    public required GameTournamentInfo[] GameTournamentInfoList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameTournamentMusic.cs b/src/SinmaiLib/Net/VO/Mai2/GameTournamentMusic.cs
+index b388d34..87c071a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameTournamentMusic.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameTournamentMusic.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct GameTournamentMusic
++internal sealed record GameTournamentMusic
+ {
+-    public int tournamentId;
++    public required int TournamentId { get; init; }
+ 
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public bool isFirstLock;
++    public required bool IsFirstLock { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameWeeklyData.cs b/src/SinmaiLib/Net/VO/Mai2/GameWeeklyData.cs
+index e36d2f1..d55281e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameWeeklyData.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameWeeklyData.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct GameWeeklyData
++internal sealed record GameWeeklyData
+ {
+-    public int missionCategory;
++    public required int MissionCategory { get; init; }
+ 
+-    public string updateDate;
++    public required string UpdateDate { get; init; }
+ 
+-    public string beforeDate;
++    public required string BeforeDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameWeeklyRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameWeeklyRequestVO.cs
+index 5702271..dfe5d58 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameWeeklyRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameWeeklyRequestVO.cs
+@@ -1,6 +1,3 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameWeeklyRequestVO : VOSerializer { }
++internal sealed record GameWeeklyRequestVO : ISerializable<GameWeeklyRequestVO>;
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameWeeklyResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameWeeklyResponseVO.cs
+index 51a7b1d..a56deba 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameWeeklyResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameWeeklyResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GameWeeklyResponseVO : VOSerializer
++internal sealed record GameWeeklyResponseVO : ISerializable<GameWeeklyResponseVO>
+ {
+-    public GameWeeklyData gameWeeklyData;
++    public required GameWeeklyData GameWeeklyData { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitRequestVO.cs
+index 6dcd431..9925804 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GetUserPortraitRequestVO : VOSerializer
++internal sealed record GetUserPortraitRequestVO : ISerializable<GetUserPortraitRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitResponseVO.cs
+index 2f6df62..ae90b99 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GetUserPortraitResponseVO.cs
+@@ -1,12 +1,8 @@
+-using System;
+-using System.Collections.Generic;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class GetUserPortraitResponseVO : VOSerializer
++internal sealed record GetUserPortraitResponseVO : ISerializable<GetUserPortraitResponseVO>
+ {
+-    public int length;
++    public required int Length { get; init; }
+ 
+-    public List<UserPortrait> userPortraitList;
++    public required UserPortrait[] UserPortraitList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/MapEncountNpc.cs b/src/SinmaiLib/Net/VO/Mai2/MapEncountNpc.cs
+index eee708b..a882b96 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/MapEncountNpc.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/MapEncountNpc.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct MapEncountNpc
++internal sealed record MapEncountNpc
+ {
+-    public int npcId;
++    public required int NpcId { get; init; }
+ 
+-    public int musicId;
++    public required int MusicId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/MusicScore.cs b/src/SinmaiLib/Net/VO/Mai2/MusicScore.cs
+index eeeb55b..81b35d3 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/MusicScore.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/MusicScore.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct MusicScore
++internal sealed record MusicScore
+ {
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public int type;
++    public required int Type { get; init; }
+ 
+-    public string scoreData;
++    public required string ScoreData { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/PingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/PingRequestVO.cs
+index 2fba4ae..d0d46d4 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/PingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/PingRequestVO.cs
+@@ -1,6 +1,3 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class PingRequestVO : VOSerializer { }
++internal sealed record PingRequestVO : ISerializable<PingRequestVO>;
+diff --git a/src/SinmaiLib/Net/VO/Mai2/PingResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/PingResponseVO.cs
+index a09ddfc..89a7692 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/PingResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/PingResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class PingResponseVO : VOSerializer
++internal sealed record PingResponseVO : ISerializable<PingResponseVO>
+ {
+-    public string result;
++    public required string Result { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/RequestAPI.cs b/src/SinmaiLib/Net/VO/Mai2/RequestAPI.cs
+index 7655e5c..4e6bc15 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/RequestAPI.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/RequestAPI.cs
+@@ -1,23 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct RequestAPI
++internal sealed record RequestAPI
+ {
+-    public int count;
+-
+-    public int size;
++    public required int Count { get; set; }
+ 
+-    public int msec;
++    public required int Size { get; set; }
+ 
+-    public int retry;
++    public required int Msec { get; set; }
+ 
+-    public void Clear()
+-    {
+-        count = 0;
+-        size = 0;
+-        msec = 0;
+-        retry = 0;
+-    }
++    public required int Retry { get; set; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/TransferFriend.cs b/src/SinmaiLib/Net/VO/Mai2/TransferFriend.cs
+index 53a66ed..2ff59a6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/TransferFriend.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/TransferFriend.cs
+@@ -1,17 +1,14 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct TransferFriend
++internal sealed record TransferFriend
+ {
+-    public ulong playUserId;
++    public required ulong PlayUserId { get; init; }
+ 
+-    public string playUserName;
++    public required string PlayUserName { get; init; }
+ 
+-    public string playDate;
++    public required string PlayDate { get; init; }
+ 
+-    public int friendPoint;
++    public required int FriendPoint { get; init; }
+ 
+-    public bool isFavorite;
++    public required bool IsFavorite { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/TransferFriendRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/TransferFriendRequestVO.cs
+index 2936e8c..76975b6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/TransferFriendRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/TransferFriendRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class TransferFriendRequestVO : VOSerializer
++internal sealed record TransferFriendRequestVO : ISerializable<TransferFriendRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/TransferFriendResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/TransferFriendResponseVO.cs
+index 0ba2cf2..4d06770 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/TransferFriendResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/TransferFriendResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class TransferFriendResponseVO : VOSerializer
++internal sealed record TransferFriendResponseVO : ISerializable<TransferFriendResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public TransferFriend[] transferFriendList;
++    public required TransferFriend[] TransferFriendList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/TransferRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/TransferRequestVO.cs
+index 0f7e63e..8f78a4b 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/TransferRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/TransferRequestVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class TransferRequestVO : VOSerializer
++internal sealed record TransferRequestVO : ISerializable<TransferRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserDetail[] userData;
++    public required UserDetail[] UserData { get; init; }
+ 
+-    public UserMusicDetail[] userMusicDetailList;
++    public required UserMusicDetail[] UserMusicDetailList { get; init; }
+ 
+-    public string isNewMusicDetailList;
++    public required string IsNewMusicDetailList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UploadUserPortraitRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UploadUserPortraitRequestVO.cs
+index c3faeaf..9345300 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UploadUserPortraitRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UploadUserPortraitRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UploadUserPortraitRequestVO : VOSerializer
++internal sealed record UploadUserPortraitRequestVO : ISerializable<UploadUserPortraitRequestVO>
+ {
+-    public UserPortrait userPortrait;
++    public required UserPortrait UserPortrait { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs
+dissimilarity index 90%
+index 0623fb0..c3a1136 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs
+@@ -1,22 +1,18 @@
+-using System;
+-using System.Collections.Generic;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class User2pPlaylog
+-{
+-    public ulong userId1;
+-
+-    public ulong userId2;
+-
+-    public string userName1;
+-
+-    public string userName2;
+-
+-    public int regionId;
+-
+-    public int placeId;
+-
+-    public List<User2pPlaylogDetail> user2pPlaylogDetailList;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record User2pPlaylog
++{
++    public required ulong UserId1 { get; init; }
++
++    public required ulong UserId2 { get; init; }
++
++    public required string UserName1 { get; init; }
++
++    public required string UserName2 { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required User2pPlaylogDetail[] User2pPlaylogDetailList { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs
+index 6e32563..ebc6678 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs
+@@ -1,17 +1,14 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct User2pPlaylogDetail
++internal sealed record User2pPlaylogDetail
+ {
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public int achievement;
++    public required int Achievement { get; init; }
+ 
+-    public int deluxscore;
++    public required int Deluxscore { get; init; }
+ 
+-    public string userPlayDate;
++    public required string UserPlayDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserAct.cs b/src/SinmaiLib/Net/VO/Mai2/UserAct.cs
+index d57bd68..c595134 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserAct.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserAct.cs
+@@ -1,21 +1,18 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserAct
++internal sealed record UserAct
+ {
+-    public int kind;
++    public required ActivityKind Kind { get; init; }
+ 
+-    public int id;
++    public required int Id { get; init; }
+ 
+-    public long sortNumber;
++    public required long SortNumber { get; init; }
+ 
+-    public int param1;
++    public required int Param1 { get; init; }
+ 
+-    public int param2;
++    public required int Param2 { get; init; }
+ 
+-    public int param3;
++    public required int Param3 { get; init; }
+ 
+-    public int param4;
++    public required int Param4 { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserActivity.cs b/src/SinmaiLib/Net/VO/Mai2/UserActivity.cs
+index 089e493..f53b11f 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserActivity.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserActivity.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserActivity
++internal sealed record UserActivity
+ {
+-    public UserAct[] playList;
++    public required UserAct[] PlayList { get; init; }
+ 
+-    public UserAct[] musicList;
++    public required UserAct[] MusicList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserActivityRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserActivityRequestVO.cs
+index 07df6d4..470b432 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserActivityRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserActivityRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserActivityRequestVO : VOSerializer
++internal sealed record UserActivityRequestVO : ISerializable<UserActivityRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserActivityResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserActivityResponseVO.cs
+index 321bbec..529e52e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserActivityResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserActivityResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserActivityResponseVO : VOSerializer
++internal sealed record UserActivityResponseVO : ISerializable<UserActivityResponseVO>
+ {
+-    public UserActivity userActivity;
++    public required UserActivity UserActivity { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserAll.cs b/src/SinmaiLib/Net/VO/Mai2/UserAll.cs
+dissimilarity index 96%
+index 65d6a8b..0ed1186 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserAll.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserAll.cs
+@@ -1,79 +1,76 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserAll
+-{
+-    public UserDetail[] userData;
+-
+-    public UserExtend[] userExtend;
+-
+-    public UserOption[] userOption;
+-
+-    public UserCharacter[] userCharacterList;
+-
+-    public UserGhost[] userGhost;
+-
+-    public UserMap[] userMapList;
+-
+-    public UserLoginBonus[] userLoginBonusList;
+-
+-    public UserRating[] userRatingList;
+-
+-    public UserItem[] userItemList;
+-
+-    public UserMusicDetail[] userMusicDetailList;
+-
+-    public UserCourse[] userCourseList;
+-
+-    public UserFriendSeasonRanking[] userFriendSeasonRankingList;
+-
+-    public UserCharge[] userChargeList;
+-
+-    public UserFavorite[] userFavoriteList;
+-
+-    public UserActivity[] userActivityList;
+-
+-    public UserMissionData[] userMissionDataList;
+-
+-    public UserWeeklyData userWeeklyData;
+-
+-    public UserGamePlaylog[] userGamePlaylogList;
+-
+-    public User2pPlaylog user2pPlaylog;
+-
+-    public UserIntimate[] userIntimateList;
+-
+-    public UserShopStock[] userShopItemStockList;
+-
+-    public UserGetPoint[] userGetPointList;
+-
+-    public UserTradeItem[] userTradeItemList;
+-
+-    public UserFavoriteItem[] userFavoritemusicList;
+-
+-    public UserKaleidxScope[] userKaleidxScopeList;
+-
+-    public string isNewCharacterList;
+-
+-    public string isNewMapList;
+-
+-    public string isNewLoginBonusList;
+-
+-    public string isNewItemList;
+-
+-    public string isNewMusicDetailList;
+-
+-    public string isNewCourseList;
+-
+-    public string isNewFavoriteList;
+-
+-    public string isNewFriendSeasonRankingList;
+-
+-    public string isNewUserIntimateList;
+-
+-    public string isNewFavoritemusicList;
+-
+-    public string isNewKaleidxScopeList;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserAll
++{
++    public required UserDetail[] UserData { get; init; }
++
++    public required UserExtend[] UserExtend { get; init; }
++
++    public required UserOption[] UserOption { get; init; }
++
++    public required UserCharacter[] UserCharacterList { get; init; }
++
++    public required UserGhost[] UserGhost { get; init; }
++
++    public required UserMap[] UserMapList { get; init; }
++
++    public required UserLoginBonus[] UserLoginBonusList { get; init; }
++
++    public required UserRating[] UserRatingList { get; init; }
++
++    public required UserItem[] UserItemList { get; init; }
++
++    public required UserMusicDetail[] UserMusicDetailList { get; init; }
++
++    public required UserCourse[] UserCourseList { get; init; }
++
++    public required UserFriendSeasonRanking[] UserFriendSeasonRankingList { get; init; }
++
++    public required UserCharge[] UserChargeList { get; init; }
++
++    public required UserFavorite[] UserFavoriteList { get; init; }
++
++    public required UserActivity[] UserActivityList { get; init; }
++
++    public required UserMissionData[] UserMissionDataList { get; init; }
++
++    public required UserWeeklyData UserWeeklyData { get; init; }
++
++    public required UserGamePlaylog[] UserGamePlaylogList { get; init; }
++
++    public required User2pPlaylog User2pPlaylog { get; init; }
++
++    public required UserIntimate[] UserIntimateList { get; init; }
++
++    public required UserShopStock[] UserShopItemStockList { get; init; }
++
++    public required UserGetPoint[] UserGetPointList { get; init; }
++
++    public required UserTradeItem[] UserTradeItemList { get; init; }
++
++    public required UserFavoriteItem[] UserFavoritemusicList { get; init; }
++
++    public required UserKaleidxScope[] UserKaleidxScopeList { get; init; }
++
++    public required string IsNewCharacterList { get; init; }
++
++    public required string IsNewMapList { get; init; }
++
++    public required string IsNewLoginBonusList { get; init; }
++
++    public required string IsNewItemList { get; init; }
++
++    public required string IsNewMusicDetailList { get; init; }
++
++    public required string IsNewCourseList { get; init; }
++
++    public required string IsNewFavoriteList { get; init; }
++
++    public required string IsNewFriendSeasonRankingList { get; init; }
++
++    public required string IsNewUserIntimateList { get; init; }
++
++    public required string IsNewFavoritemusicList { get; init; }
++
++    public required string IsNewKaleidxScopeList { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserAllRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserAllRequestVO.cs
+dissimilarity index 89%
+index 8f36c41..49d2447 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserAllRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserAllRequestVO.cs
+@@ -1,21 +1,18 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserAllRequestVO : VOSerializer
+-{
+-    public ulong userId;
+-
+-    public ulong playlogId;
+-
+-    public bool isEventMode;
+-
+-    public bool isFreePlay;
+-
+-    public long loginDateTime;
+-
+-    public UserPlaylog[] userPlaylogList;
+-
+-    public UserAll upsertUserAll;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserAllRequestVO : ISerializable<UserAllRequestVO>
++{
++    public required ulong UserId { get; init; }
++
++    public required ulong PlaylogId { get; init; }
++
++    public required bool IsEventMode { get; init; }
++
++    public required bool IsFreePlay { get; init; }
++
++    public required long LoginDateTime { get; init; }
++
++    public required UserPlaylog[] UserPlaylogList { get; init; }
++
++    public required UserAll UpsertUserAll { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCard.cs b/src/SinmaiLib/Net/VO/Mai2/UserCard.cs
+index 03c9b17..7a2b975 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCard.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCard.cs
+@@ -1,19 +1,16 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserCard
++internal sealed record UserCard
+ {
+-    public int cardId;
++    public required int CardId { get; init; }
+ 
+-    public int cardTypeId;
++    public required int CardTypeId { get; init; }
+ 
+-    public int charaId;
++    public required int CharaId { get; init; }
+ 
+-    public int mapId;
++    public required int MapId { get; init; }
+ 
+-    public string startDate;
++    public required string StartDate { get; init; }
+ 
+-    public string endDate;
++    public required string EndDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCardRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserCardRequestVO.cs
+index 083ea76..2c34913 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCardRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCardRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserCardRequestVO : VOSerializer
++internal sealed record UserCardRequestVO : ISerializable<UserCardRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int nextIndex;
++    public required int NextIndex { get; init; }
+ 
+-    public int maxCount = 20;
++    public int MaxCount { get; set; } = 20;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCardResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserCardResponseVO.cs
+index 4ebe1c1..dc9cd0c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCardResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCardResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserCardResponseVO : VOSerializer
++internal sealed record UserCardResponseVO : ISerializable<UserCardResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int nextIndex;
++    public required int NextIndex { get; init; }
+ 
+-    public UserCard[] userCardList;
++    public required UserCard[] UserCardList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCharacter.cs b/src/SinmaiLib/Net/VO/Mai2/UserCharacter.cs
+index c6afedd..ce3d4b5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCharacter.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCharacter.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserCharacter
++internal sealed record UserCharacter
+ {
+-    public int characterId;
++    public required int CharacterId { get; init; }
+ 
+-    public uint level;
++    public required uint Level { get; init; }
+ 
+-    public uint awakening;
++    public required uint Awakening { get; init; }
+ 
+-    public uint useCount;
++    public required uint UseCount { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCharacterRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserCharacterRequestVO.cs
+index 58ab3c7..1efb3b5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCharacterRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCharacterRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserCharacterRequestVO : VOSerializer
++internal sealed record UserCharacterRequestVO : ISerializable<UserCharacterRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCharacterResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserCharacterResponseVO.cs
+index ca0d08a..4057834 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCharacterResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCharacterResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserCharacterResponseVO : VOSerializer
++internal sealed record UserCharacterResponseVO : ISerializable<UserCharacterResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserCharacter[] userCharacterList;
++    public required UserCharacter[] UserCharacterList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCharge.cs b/src/SinmaiLib/Net/VO/Mai2/UserCharge.cs
+index 5873ba8..3a6585e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCharge.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCharge.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserCharge
++internal sealed record UserCharge
+ {
+-    public int chargeId;
++    public required int ChargeId { get; init; }
+ 
+-    public int stock;
++    public required int Stock { get; init; }
+ 
+-    public string purchaseDate;
++    public required string PurchaseDate { get; init; }
+ 
+-    public string validDate;
++    public required string ValidDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserChargeRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserChargeRequestVO.cs
+index 554d60c..8df6880 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserChargeRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserChargeRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserChargeRequestVO : VOSerializer
++internal sealed record UserChargeRequestVO : ISerializable<UserChargeRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserChargeResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserChargeResponseVO.cs
+index 2d2e4fc..f4806e1 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserChargeResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserChargeResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserChargeResponseVO : VOSerializer
++internal sealed record UserChargeResponseVO : ISerializable<UserChargeResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long length;
++    public required long Length { get; init; }
+ 
+-    public UserCharge[] userChargeList;
++    public required UserCharge[] UserChargeList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserChargelog.cs b/src/SinmaiLib/Net/VO/Mai2/UserChargelog.cs
+dissimilarity index 88%
+index 6f7d791..3e74a61 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserChargelog.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserChargelog.cs
+@@ -1,23 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserChargelog
+-{
+-    public int chargeId;
+-
+-    public int price;
+-
+-    public string purchaseDate;
+-
+-    public int playCount;
+-
+-    public int playerRating;
+-
+-    public int placeId;
+-
+-    public int regionId;
+-
+-    public string clientId;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserChargelog
++{
++    public required int ChargeId { get; init; }
++
++    public required int Price { get; init; }
++
++    public required string PurchaseDate { get; init; }
++
++    public required int PlayCount { get; init; }
++
++    public required int PlayerRating { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required string ClientId { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserChargelogRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserChargelogRequestVO.cs
+index 3808361..1e37dde 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserChargelogRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserChargelogRequestVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserChargelogRequestVO : VOSerializer
++internal sealed record UserChargelogRequestVO : ISerializable<UserChargelogRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserChargelog userChargelog;
++    public required UserChargelog UserChargelog { get; init; }
+ 
+-    public UserCharge userCharge;
++    public required UserCharge UserCharge { get; init; }
+ 
+-    public long loginDateTime;
++    public required long LoginDateTime { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCourse.cs b/src/SinmaiLib/Net/VO/Mai2/UserCourse.cs
+dissimilarity index 91%
+index 985bc04..55ee560 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCourse.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCourse.cs
+@@ -1,31 +1,28 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserCourse
+-{
+-    public int courseId;
+-
+-    public bool isLastClear;
+-
+-    public uint totalRestlife;
+-
+-    public uint totalAchievement;
+-
+-    public uint totalDeluxscore;
+-
+-    public uint playCount;
+-
+-    public string clearDate;
+-
+-    public string lastPlayDate;
+-
+-    public uint bestAchievement;
+-
+-    public string bestAchievementDate;
+-
+-    public uint bestDeluxscore;
+-
+-    public string bestDeluxscoreDate;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserCourse
++{
++    public required int CourseId { get; init; }
++
++    public required bool IsLastClear { get; init; }
++
++    public required uint TotalRestlife { get; init; }
++
++    public required uint TotalAchievement { get; init; }
++
++    public required uint TotalDeluxscore { get; init; }
++
++    public required uint PlayCount { get; init; }
++
++    public required string ClearDate { get; init; }
++
++    public required string LastPlayDate { get; init; }
++
++    public required uint BestAchievement { get; init; }
++
++    public required string BestAchievementDate { get; init; }
++
++    public required uint BestDeluxscore { get; init; }
++
++    public required string BestDeluxscoreDate { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCourseRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserCourseRequestVO.cs
+index 5d1b124..2e57271 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCourseRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCourseRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserCourseRequestVO : VOSerializer
++internal sealed record UserCourseRequestVO : ISerializable<UserCourseRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserCourseResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserCourseResponseVO.cs
+index e8fa30a..c073aae 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserCourseResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserCourseResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserCourseResponseVO : VOSerializer
++internal sealed record UserCourseResponseVO : ISerializable<UserCourseResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public UserCourse[] userCourseList;
++    public required UserCourse[] UserCourseList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserDetail.cs b/src/SinmaiLib/Net/VO/Mai2/UserDetail.cs
+dissimilarity index 95%
+index 2cd420e..9526d02 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserDetail.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserDetail.cs
+@@ -1,171 +1,168 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserDetail
+-{
+-    public string accessCode;
+-
+-    public string userName;
+-
+-    public int isNetMember;
+-
+-    public int point;
+-
+-    public int totalPoint;
+-
+-    public int iconId;
+-
+-    public int plateId;
+-
+-    public int titleId;
+-
+-    public int partnerId;
+-
+-    public int frameId;
+-
+-    public int selectMapId;
+-
+-    public int totalAwake;
+-
+-    public int gradeRating;
+-
+-    public int musicRating;
+-
+-    public int playerRating;
+-
+-    public int highestRating;
+-
+-    public int gradeRank;
+-
+-    public int classRank;
+-
+-    public int courseRank;
+-
+-    public int[] charaSlot;
+-
+-    public int[] charaLockSlot;
+-
+-    public ulong contentBit;
+-
+-    public int playCount;
+-
+-    public int currentPlayCount;
+-
+-    public int renameCredit;
+-
+-    public int mapStock;
+-
+-    public string eventWatchedDate;
+-
+-    public string lastGameId;
+-
+-    public string lastRomVersion;
+-
+-    public string lastDataVersion;
+-
+-    public string lastLoginDate;
+-
+-    public string lastPlayDate;
+-
+-    public int lastPlayCredit;
+-
+-    public int lastPlayMode;
+-
+-    public int lastPlaceId;
+-
+-    public string lastPlaceName;
+-
+-    public int lastAllNetId;
+-
+-    public int lastRegionId;
+-
+-    public string lastRegionName;
+-
+-    public string lastClientId;
+-
+-    public string lastCountryCode;
+-
+-    public int lastSelectEMoney;
+-
+-    public int lastSelectTicket;
+-
+-    public int lastSelectCourse;
+-
+-    public int lastCountCourse;
+-
+-    public string firstGameId;
+-
+-    public string firstRomVersion;
+-
+-    public string firstDataVersion;
+-
+-    public string firstPlayDate;
+-
+-    public string compatibleCmVersion;
+-
+-    public string dailyBonusDate;
+-
+-    public string dailyCourseBonusDate;
+-
+-    public string lastPairLoginDate;
+-
+-    public string lastTrialPlayDate;
+-
+-    public int playVsCount;
+-
+-    public int playSyncCount;
+-
+-    public int winCount;
+-
+-    public int helpCount;
+-
+-    public int comboCount;
+-
+-    public long totalDeluxscore;
+-
+-    public long totalBasicDeluxscore;
+-
+-    public long totalAdvancedDeluxscore;
+-
+-    public long totalExpertDeluxscore;
+-
+-    public long totalMasterDeluxscore;
+-
+-    public long totalReMasterDeluxscore;
+-
+-    public int totalSync;
+-
+-    public int totalBasicSync;
+-
+-    public int totalAdvancedSync;
+-
+-    public int totalExpertSync;
+-
+-    public int totalMasterSync;
+-
+-    public int totalReMasterSync;
+-
+-    public long totalAchievement;
+-
+-    public long totalBasicAchievement;
+-
+-    public long totalAdvancedAchievement;
+-
+-    public long totalExpertAchievement;
+-
+-    public long totalMasterAchievement;
+-
+-    public long totalReMasterAchievement;
+-
+-    public long playerOldRating;
+-
+-    public long playerNewRating;
+-
+-    public int banState;
+-
+-    public int friendRegistSkip;
+-
+-    public long dateTime;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserDetail
++{
++    public required string AccessCode { get; init; }
++
++    public required string UserName { get; init; }
++
++    public required int IsNetMember { get; init; }
++
++    public required int Point { get; init; }
++
++    public required int TotalPoint { get; init; }
++
++    public required int IconId { get; init; }
++
++    public required int PlateId { get; init; }
++
++    public required int TitleId { get; init; }
++
++    public required int PartnerId { get; init; }
++
++    public required int FrameId { get; init; }
++
++    public required int SelectMapId { get; init; }
++
++    public required int TotalAwake { get; init; }
++
++    public required int GradeRating { get; init; }
++
++    public required int MusicRating { get; init; }
++
++    public required int PlayerRating { get; init; }
++
++    public required int HighestRating { get; init; }
++
++    public required int GradeRank { get; init; }
++
++    public required int ClassRank { get; init; }
++
++    public required int CourseRank { get; init; }
++
++    public required int[] CharaSlot { get; init; }
++
++    public required int[] CharaLockSlot { get; init; }
++
++    public required ulong ContentBit { get; init; }
++
++    public required int PlayCount { get; init; }
++
++    public required int CurrentPlayCount { get; init; }
++
++    public required int RenameCredit { get; init; }
++
++    public required int MapStock { get; init; }
++
++    public required string EventWatchedDate { get; init; }
++
++    public required string LastGameId { get; init; }
++
++    public required string LastRomVersion { get; init; }
++
++    public required string LastDataVersion { get; init; }
++
++    public required string LastLoginDate { get; init; }
++
++    public required string LastPlayDate { get; init; }
++
++    public required int LastPlayCredit { get; init; }
++
++    public required int LastPlayMode { get; init; }
++
++    public required int LastPlaceId { get; init; }
++
++    public required string LastPlaceName { get; init; }
++
++    public required int LastAllNetId { get; init; }
++
++    public required int LastRegionId { get; init; }
++
++    public required string LastRegionName { get; init; }
++
++    public required string LastClientId { get; init; }
++
++    public required string LastCountryCode { get; init; }
++
++    public required int LastSelectEMoney { get; init; }
++
++    public required int LastSelectTicket { get; init; }
++
++    public required int LastSelectCourse { get; init; }
++
++    public required int LastCountCourse { get; init; }
++
++    public required string FirstGameId { get; init; }
++
++    public required string FirstRomVersion { get; init; }
++
++    public required string FirstDataVersion { get; init; }
++
++    public required string FirstPlayDate { get; init; }
++
++    public required string CompatibleCmVersion { get; init; }
++
++    public required string DailyBonusDate { get; init; }
++
++    public required string DailyCourseBonusDate { get; init; }
++
++    public required string LastPairLoginDate { get; init; }
++
++    public required string LastTrialPlayDate { get; init; }
++
++    public required int PlayVsCount { get; init; }
++
++    public required int PlaySyncCount { get; init; }
++
++    public required int WinCount { get; init; }
++
++    public required int HelpCount { get; init; }
++
++    public required int ComboCount { get; init; }
++
++    public required long TotalDeluxscore { get; init; }
++
++    public required long TotalBasicDeluxscore { get; init; }
++
++    public required long TotalAdvancedDeluxscore { get; init; }
++
++    public required long TotalExpertDeluxscore { get; init; }
++
++    public required long TotalMasterDeluxscore { get; init; }
++
++    public required long TotalReMasterDeluxscore { get; init; }
++
++    public required int TotalSync { get; init; }
++
++    public required int TotalBasicSync { get; init; }
++
++    public required int TotalAdvancedSync { get; init; }
++
++    public required int TotalExpertSync { get; init; }
++
++    public required int TotalMasterSync { get; init; }
++
++    public required int TotalReMasterSync { get; init; }
++
++    public required long TotalAchievement { get; init; }
++
++    public required long TotalBasicAchievement { get; init; }
++
++    public required long TotalAdvancedAchievement { get; init; }
++
++    public required long TotalExpertAchievement { get; init; }
++
++    public required long TotalMasterAchievement { get; init; }
++
++    public required long TotalReMasterAchievement { get; init; }
++
++    public required long PlayerOldRating { get; init; }
++
++    public required long PlayerNewRating { get; init; }
++
++    public required int BanState { get; init; }
++
++    public required int FriendRegistSkip { get; init; }
++
++    public required long DateTime { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserDetailRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserDetailRequestVO.cs
+index 853c95b..fe7680d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserDetailRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserDetailRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserDetailRequestVO : VOSerializer
++internal sealed record UserDetailRequestVO : ISerializable<UserDetailRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserDetailResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserDetailResponseVO.cs
+index e76b40a..4ba0845 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserDetailResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserDetailResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserDetailResponseVO : VOSerializer
++internal sealed record UserDetailResponseVO : ISerializable<UserDetailResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserDetail userData;
++    public required UserDetail UserData { get; init; }
+ 
+-    public int banState;
++    public required int BanState { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserExtend.cs b/src/SinmaiLib/Net/VO/Mai2/UserExtend.cs
+dissimilarity index 91%
+index f428aec..23eed88 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserExtend.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserExtend.cs
+@@ -1,40 +1,38 @@
+-using System;
+-using DB;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserExtend
+-{
+-    public int selectMusicId;
+-
+-    public int selectDifficultyId;
+-
+-    public int categoryIndex;
+-
+-    public int musicIndex;
+-
+-    public int extraFlag;
+-
+-    public int selectScoreType;
+-
+-    public ulong extendContentBit;
+-
+-    public bool isPhotoAgree;
+-
+-    public bool isGotoCodeRead;
+-
+-    public bool selectResultDetails;
+-
+-    public int selectResultScoreViewType;
+-
+-    public SortTabID sortCategorySetting;
+-
+-    public SortMusicID sortMusicSetting;
+-
+-    public PlaystatusTabID playStatusSetting;
+-
+-    public int[] selectedCardList;
+-
+-    public MapEncountNpc[] encountMapNpcList;
+-}
++using DB;
++
++namespace Net.VO.Mai2;
++
++internal sealed record UserExtend
++{
++    public required int SelectMusicId { get; init; }
++
++    public required int SelectDifficultyId { get; init; }
++
++    public required int CategoryIndex { get; init; }
++
++    public required int MusicIndex { get; init; }
++
++    public required int ExtraFlag { get; init; }
++
++    public required int SelectScoreType { get; init; }
++
++    public required ulong ExtendContentBit { get; init; }
++
++    public required bool IsPhotoAgree { get; init; }
++
++    public required bool IsGotoCodeRead { get; init; }
++
++    public required bool SelectResultDetails { get; init; }
++
++    public required int SelectResultScoreViewType { get; init; }
++
++    public required SortTabID SortCategorySetting { get; init; }
++
++    public required SortMusicID SortMusicSetting { get; init; }
++
++    public required PlaystatusTabID PlayStatusSetting { get; init; }
++
++    public required int[] SelectedCardList { get; init; }
++
++    public required MapEncountNpc[] EncountMapNpcList { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserExtendRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserExtendRequestVO.cs
+index 47fa465..4f82851 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserExtendRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserExtendRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserExtendRequestVO : VOSerializer
++internal sealed record UserExtendRequestVO : ISerializable<UserExtendRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserExtendResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserExtendResponseVO.cs
+index eea137f..1bec381 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserExtendResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserExtendResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserExtendResponseVO : VOSerializer
++internal sealed record UserExtendResponseVO : ISerializable<UserExtendResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserExtend userExtend;
++    public required UserExtend UserExtend { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavorite.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavorite.cs
+index 6e45f95..2273235 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavorite.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavorite.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserFavorite
++internal sealed record UserFavorite
+ {
+-    public int itemKind;
++    public required int ItemKind { get; init; }
+ 
+-    public int[] itemIdList;
++    public required int[] ItemIdList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItem.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItem.cs
+index bd10af4..622d851 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItem.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItem.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserFavoriteItem
++internal sealed record UserFavoriteItem
+ {
+-    public ulong orderId;
++    public required ulong OrderId { get; init; }
+ 
+-    public ulong id;
++    public required ulong Id { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs
+index 060bc8f..4c98d7a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs
+@@ -1,17 +1,14 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFavoriteItemRequestVO : VOSerializer
++internal sealed record UserFavoriteItemRequestVO : ISerializable<UserFavoriteItemRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int kind;
++    public required FavoriteItemKind Kind { get; init; }
+ 
+-    public ulong nextIndex;
++    public required ulong NextIndex { get; init; }
+ 
+-    public int maxCount = 100;
++    public int MaxCount { get; init; } = 100;
+ 
+-    public bool isAllFavoriteItem;
++    public required bool IsAllFavoriteItem { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemResponseVO.cs
+index 5177d7f..6ea5cfa 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemResponseVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFavoriteItemResponseVO : VOSerializer
++internal sealed record UserFavoriteItemResponseVO : ISerializable<UserFavoriteItemResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int kind;
++    public required FavoriteItemKind Kind { get; init; }
+ 
+-    public ulong nextIndex;
++    public required ulong NextIndex { get; init; }
+ 
+-    public UserFavoriteItem[] userFavoriteItemList;
++    public required UserFavoriteItem[] UserFavoriteItemList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteRequestVO.cs
+index 84f76c3..5e5be3f 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFavoriteRequestVO : VOSerializer
++internal sealed record UserFavoriteRequestVO : ISerializable<UserFavoriteRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int itemKind;
++    public required int ItemKind { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteResponseVO.cs
+index 149485a..00477f5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFavoriteResponseVO : VOSerializer
++internal sealed record UserFavoriteResponseVO : ISerializable<UserFavoriteResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserFavorite userFavorite;
++    public required UserFavorite UserFavorite { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendBonus.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendBonus.cs
+index dcaa813..18fb004 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendBonus.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendBonus.cs
+@@ -1,8 +1,8 @@
+ namespace Net.VO.Mai2;
+ 
+-public struct UserFriendBonus
++internal sealed record UserFriendBonus
+ {
+-    public int returnCode;
++    public required int ReturnCode { get; init; }
+ 
+-    public ulong getMiles;
++    public required ulong GetMiles { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusRequestVO.cs
+index 956d656..1186f26 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendBonusRequestVO : VOSerializer
++internal sealed record UserFriendBonusRequestVO : ISerializable<UserFriendBonusRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusResponseVO.cs
+index cdbe425..60f02f1 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendBonusResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendBonusResponseVO : VOSerializer
++internal sealed record UserFriendBonusResponseVO : ISerializable<UserFriendBonusResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int returnCode;
++    public required int ReturnCode { get; init; }
+ 
+-    public ulong getMiles;
++    public required ulong GetMiles { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckRequestVO.cs
+index 77c78f7..5840662 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendCheckRequestVO : VOSerializer
++internal sealed record UserFriendCheckRequestVO : ISerializable<UserFriendCheckRequestVO>
+ {
+-    public ulong userId1;
++    public required ulong UserId1 { get; init; }
+ 
+-    public ulong userId2;
++    public required ulong UserId2 { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckResponseVO.cs
+index 1897ac2..62298ca 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendCheckResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendCheckResponseVO : VOSerializer
++internal sealed record UserFriendCheckResponseVO : ISerializable<UserFriendCheckResponseVO>
+ {
+-    public int returnCode;
++    public required int ReturnCode { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistRequestVO.cs
+index 4554212..6f89224 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendRegistRequestVO : VOSerializer
++internal sealed record UserFriendRegistRequestVO : ISerializable<UserFriendRegistRequestVO>
+ {
+-    public ulong userId1;
++    public required ulong UserId1 { get; init; }
+ 
+-    public ulong userId2;
++    public required ulong UserId2 { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistResponseVO.cs
+index dd2b300..d0f761e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendRegistResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendRegistResponseVO : VOSerializer
++internal sealed record UserFriendRegistResponseVO : ISerializable<UserFriendRegistResponseVO>
+ {
+-    public int returnCode1;
++    public required int ReturnCode1 { get; init; }
+ 
+-    public int returnCode2;
++    public required int ReturnCode2 { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRanking.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRanking.cs
+index 4cddc64..27ee7c3 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRanking.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRanking.cs
+@@ -1,19 +1,16 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserFriendSeasonRanking
++internal sealed record UserFriendSeasonRanking
+ {
+-    public int seasonId;
++    public required int SeasonId { get; init; }
+ 
+-    public int point;
++    public required int Point { get; init; }
+ 
+-    public int rank;
++    public required int Rank { get; init; }
+ 
+-    public bool rewardGet;
++    public required bool RewardGet { get; init; }
+ 
+-    public string userName;
++    public required string UserName { get; init; }
+ 
+-    public string recordDate;
++    public required string RecordDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs
+index d177f33..3a84c76 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs
+@@ -1,13 +1,11 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendSeasonRankingRequestVO : VOSerializer
++internal sealed record UserFriendSeasonRankingRequestVO
++    : ISerializable<UserFriendSeasonRankingRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public int maxCount = 20;
++    public int MaxCount { get; init; } = 20;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingResponseVO.cs
+index 70d7a9b..e121d25 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingResponseVO.cs
+@@ -1,13 +1,11 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserFriendSeasonRankingResponseVO : VOSerializer
++internal sealed record UserFriendSeasonRankingResponseVO
++    : ISerializable<UserFriendSeasonRankingResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public UserFriendSeasonRanking[] userFriendSeasonRankingList;
++    public required UserFriendSeasonRanking[] UserFriendSeasonRankingList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylog.cs b/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylog.cs
+dissimilarity index 91%
+index 012a66f..96dc2e8 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylog.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylog.cs
+@@ -1,35 +1,32 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserGamePlaylog
+-{
+-    public ulong playlogId;
+-
+-    public string version;
+-
+-    public string playDate;
+-
+-    public int playMode;
+-
+-    public int useTicketId;
+-
+-    public int playCredit;
+-
+-    public int playTrack;
+-
+-    public string clientId;
+-
+-    public bool isPlayTutorial;
+-
+-    public bool isEventMode;
+-
+-    public bool isNewFree;
+-
+-    public int playCount;
+-
+-    public int playSpecial;
+-
+-    public ulong playOtherUserId;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserGamePlaylog
++{
++    public required ulong PlaylogId { get; init; }
++
++    public required string Version { get; init; }
++
++    public required string PlayDate { get; init; }
++
++    public required int PlayMode { get; init; }
++
++    public required int UseTicketId { get; init; }
++
++    public required int PlayCredit { get; init; }
++
++    public required int PlayTrack { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required bool IsPlayTutorial { get; init; }
++
++    public required bool IsEventMode { get; init; }
++
++    public required bool IsNewFree { get; init; }
++
++    public required int PlayCount { get; init; }
++
++    public required int PlaySpecial { get; init; }
++
++    public required ulong PlayOtherUserId { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylogRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylogRequestVO.cs
+index 03ae636..d712d20 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylogRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGamePlaylogRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserGamePlaylogRequestVO : VOSerializer
++internal sealed record UserGamePlaylogRequestVO : ISerializable<UserGamePlaylogRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserGamePlaylog userChargelog;
++    public required UserGamePlaylog UserChargelog { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGetPoint.cs b/src/SinmaiLib/Net/VO/Mai2/UserGetPoint.cs
+index b10e3fd..018bb87 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGetPoint.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGetPoint.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserGetPoint
++internal sealed record UserGetPoint
+ {
+-    public int getKind;
++    public required int GetKind { get; init; }
+ 
+-    public long point;
++    public required long Point { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs b/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs
+dissimilarity index 90%
+index c238ffa..f531644 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs
+@@ -1,46 +1,45 @@
+-using System;
+-using Manager;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserGhost
+-{
+-    public string name;
+-
+-    public int iconId;
+-
+-    public int plateId;
+-
+-    public int titleId;
+-
+-    public int rate;
+-
+-    public int udemaeRate;
+-
+-    public uint courseRank;
+-
+-    public uint classRank;
+-
+-    public int classValue;
+-
+-    public string playDatetime;
+-
+-    public uint shopId;
+-
+-    public int regionCode;
+-
+-    public MusicDifficultyID typeId;
+-
+-    public int musicId;
+-
+-    public int difficulty;
+-
+-    public int version;
+-
+-    public byte[] resultBitList;
+-
+-    public int resultNum;
+-
+-    public int achievement;
+-}
++using System.Collections.Generic;
++using Manager;
++
++namespace Net.VO.Mai2;
++
++internal sealed record UserGhost
++{
++    public required string Name { get; init; }
++
++    public required int IconId { get; init; }
++
++    public required int PlateId { get; init; }
++
++    public required int TitleId { get; init; }
++
++    public required int Rate { get; init; }
++
++    public required int UdemaeRate { get; init; }
++
++    public required uint CourseRank { get; init; }
++
++    public required uint ClassRank { get; init; }
++
++    public required int ClassValue { get; init; }
++
++    public required string PlayDatetime { get; init; }
++
++    public required uint ShopId { get; init; }
++
++    public required int RegionCode { get; init; }
++
++    public required MusicDifficultyID TypeId { get; init; }
++
++    public required int MusicId { get; init; }
++
++    public required int Difficulty { get; init; }
++
++    public required int Version { get; init; }
++
++    public required List<byte> ResultBitList { get; init; }
++
++    public required int ResultNum { get; init; }
++
++    public required int Achievement { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGhostRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserGhostRequestVO.cs
+index 25c7ebd..4e72259 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGhostRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGhostRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserGhostRequestVO : VOSerializer
++internal sealed record UserGhostRequestVO : ISerializable<UserGhostRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGhostResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserGhostResponseVO.cs
+index a6c6156..fa0192c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGhostResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGhostResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserGhostResponseVO : VOSerializer
++internal sealed record UserGhostResponseVO : ISerializable<UserGhostResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserGhost[] userGhostList;
++    public required UserGhost[] UserGhostList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserIntimate.cs b/src/SinmaiLib/Net/VO/Mai2/UserIntimate.cs
+index d4081c1..a2e7fbf 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserIntimate.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserIntimate.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserIntimate
++internal sealed record UserIntimate
+ {
+-    public int partnerId;
++    public required int PartnerId { get; init; }
+ 
+-    public int intimateLevel;
++    public required int IntimateLevel { get; init; }
+ 
+-    public int intimateCountRewarded;
++    public required int IntimateCountRewarded { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserIntimateRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserIntimateRequestVO.cs
+index b2f7b39..b5ce016 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserIntimateRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserIntimateRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserIntimateRequestVO : VOSerializer
++internal sealed record UserIntimateRequestVO : ISerializable<UserIntimateRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserIntimateResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserIntimateResponseVO.cs
+index c3ad5f5..3cb46ca 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserIntimateResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserIntimateResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserIntimateResponseVO : VOSerializer
++internal sealed record UserIntimateResponseVO : ISerializable<UserIntimateResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int length;
++    public required int Length { get; init; }
+ 
+-    public UserIntimate[] userIntimateList;
++    public required UserIntimate[] UserIntimateList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserItem.cs b/src/SinmaiLib/Net/VO/Mai2/UserItem.cs
+index efba9c7..36ced16 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserItem.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserItem.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserItem
++internal sealed record UserItem
+ {
+-    public int itemKind;
++    public required ItemKind ItemKind { get; init; }
+ 
+-    public int itemId;
++    public required int ItemId { get; init; }
+ 
+-    public int stock;
++    public required int Stock { get; init; }
+ 
+-    public bool isValid;
++    public required bool IsValid { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs
+index 7cc283b..65f8970 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserItemRequestVO : VOSerializer
++internal sealed record UserItemRequestVO : ISerializable<UserItemRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public int maxCount = 100;
++    public int MaxCount { get; init; } = 100;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserItemResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserItemResponseVO.cs
+index 0335e2c..e70ac9d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserItemResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserItemResponseVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserItemResponseVO : VOSerializer
++internal sealed record UserItemResponseVO : ISerializable<UserItemResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public int itemKind;
++    public required ItemKind ItemKind { get; init; }
+ 
+-    public UserItem[] userItemList;
++    public required UserItem[] UserItemList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScope.cs b/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScope.cs
+dissimilarity index 92%
+index 325851c..64e1f87 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScope.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScope.cs
+@@ -1,37 +1,34 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserKaleidxScope
+-{
+-    public int gateId;
+-
+-    public bool isGateFound;
+-
+-    public bool isKeyFound;
+-
+-    public bool isClear;
+-
+-    public int totalRestLife;
+-
+-    public int totalAchievement;
+-
+-    public int totalDeluxscore;
+-
+-    public int bestAchievement;
+-
+-    public int bestDeluxscore;
+-
+-    public string bestAchievementDate;
+-
+-    public string bestDeluxscoreDate;
+-
+-    public int playCount;
+-
+-    public string clearDate;
+-
+-    public string lastPlayDate;
+-
+-    public bool isInfoWatched;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserKaleidxScope
++{
++    public required int GateId { get; init; }
++
++    public required bool IsGateFound { get; init; }
++
++    public required bool IsKeyFound { get; init; }
++
++    public required bool IsClear { get; init; }
++
++    public required int TotalRestLife { get; init; }
++
++    public required int TotalAchievement { get; init; }
++
++    public required int TotalDeluxscore { get; init; }
++
++    public required int BestAchievement { get; init; }
++
++    public required int BestDeluxscore { get; init; }
++
++    public required string BestAchievementDate { get; init; }
++
++    public required string BestDeluxscoreDate { get; init; }
++
++    public required int PlayCount { get; init; }
++
++    public required string ClearDate { get; init; }
++
++    public required string LastPlayDate { get; init; }
++
++    public required bool IsInfoWatched { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeRequestVO.cs
+index fb4850e..50c0951 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserKaleidxScopeRequestVO : VOSerializer
++internal sealed record UserKaleidxScopeRequestVO : ISerializable<UserKaleidxScopeRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeResponseVO.cs
+index c296fee..4ab289c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserKaleidxScopeResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserKaleidxScopeResponseVO : VOSerializer
++internal sealed record UserKaleidxScopeResponseVO : ISerializable<UserKaleidxScopeResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserKaleidxScope[] userKaleidxScopeList;
++    public required UserKaleidxScope[] UserKaleidxScopeList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonus.cs b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonus.cs
+index 962e229..887ac7a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonus.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonus.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserLoginBonus
++internal sealed record UserLoginBonus
+ {
+-    public int bonusId;
++    public required int BonusId { get; init; }
+ 
+-    public uint point;
++    public required uint Point { get; init; }
+ 
+-    public bool isCurrent;
++    public required bool IsCurrent { get; init; }
+ 
+-    public bool isComplete;
++    public required bool IsComplete { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs
+index c620444..28a72f8 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserLoginBonusRequestVO : VOSerializer
++internal sealed record UserLoginBonusRequestVO : ISerializable<UserLoginBonusRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public int maxCount = 20;
++    public int MaxCount { get; init; } = 20;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusResponseVO.cs
+index 2a75816..d07a4b4 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserLoginBonusResponseVO : VOSerializer
++internal sealed record UserLoginBonusResponseVO : ISerializable<UserLoginBonusResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public UserLoginBonus[] userLoginBonusList;
++    public required UserLoginBonus[] UserLoginBonusList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLoginRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLoginRequestVO.cs
+dissimilarity index 90%
+index f67cbdf..c57d214 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLoginRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLoginRequestVO.cs
+@@ -1,27 +1,24 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserLoginRequestVO : VOSerializer
+-{
+-    public ulong userId;
+-
+-    public string accessCode;
+-
+-    public int regionId;
+-
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public long dateTime;
+-
+-    public long loginDateTime;
+-
+-    public bool isContinue;
+-
+-    public int genericFlag;
+-
+-    public string token;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserLoginRequestVO : ISerializable<UserLoginRequestVO>
++{
++    public required ulong UserId { get; init; }
++
++    public required string AccessCode { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required long DateTime { get; init; }
++
++    public required long LoginDateTime { get; init; }
++
++    public required bool IsContinue { get; init; }
++
++    public required int GenericFlag { get; init; }
++
++    public required string Token { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLoginResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLoginResponseVO.cs
+dissimilarity index 89%
+index 46939d7..5c12490 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLoginResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLoginResponseVO.cs
+@@ -1,21 +1,18 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserLoginResponseVO : VOSerializer
+-{
+-    public int returnCode;
+-
+-    public string lastLoginDate;
+-
+-    public int loginCount;
+-
+-    public int consecutiveLoginCount;
+-
+-    public ulong loginId;
+-
+-    public long loginDateTime;
+-
+-    public string token;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserLoginResponseVO : ISerializable<UserLoginResponseVO>
++{
++    public required int ReturnCode { get; init; }
++
++    public required string LastLoginDate { get; init; }
++
++    public required int LoginCount { get; init; }
++
++    public required int ConsecutiveLoginCount { get; init; }
++
++    public required ulong LoginId { get; init; }
++
++    public required long LoginDateTime { get; init; }
++
++    public required string Token { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequest2VO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequest2VO.cs
+dissimilarity index 89%
+index e4d3a81..1f9683e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequest2VO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequest2VO.cs
+@@ -1,23 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserLogoutRequest2VO : VOSerializer
+-{
+-    public ulong userId;
+-
+-    public string accessCode;
+-
+-    public int regionId;
+-
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public long loginDateTime;
+-
+-    public int type;
+-
+-    public DelayLog delayLog;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserLogoutRequest2VO : ISerializable<UserLogoutRequest2VO>
++{
++    public required ulong UserId { get; init; }
++
++    public required string AccessCode { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required long LoginDateTime { get; init; }
++
++    public required LogoutType Type { get; init; }
++
++    public required DelayLog DelayLog { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequestVO.cs
+dissimilarity index 88%
+index 823a043..b8c11e5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLogoutRequestVO.cs
+@@ -1,21 +1,18 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserLogoutRequestVO : VOSerializer
+-{
+-    public ulong userId;
+-
+-    public string accessCode;
+-
+-    public int regionId;
+-
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public long loginDateTime;
+-
+-    public int type;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserLogoutRequestVO : ISerializable<UserLogoutRequestVO>
++{
++    public required ulong UserId { get; init; }
++
++    public required string AccessCode { get; init; }
++
++    public required int RegionId { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required long LoginDateTime { get; init; }
++
++    public required LogoutType Type { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLogoutResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLogoutResponseVO.cs
+index 67a799a..2a719c5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLogoutResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLogoutResponseVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserLogoutResponseVO : VOSerializer
++internal sealed record UserLogoutResponseVO : ISerializable<UserLogoutResponseVO>
+ {
+-    public int returnCode;
++    public required int ReturnCode { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMap.cs b/src/SinmaiLib/Net/VO/Mai2/UserMap.cs
+index c67a4db..847d839 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMap.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMap.cs
+@@ -1,19 +1,16 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserMap
++internal sealed record UserMap
+ {
+-    public int mapId;
++    public required int MapId { get; init; }
+ 
+-    public uint distance;
++    public required uint Distance { get; init; }
+ 
+-    public bool isLock;
++    public required bool IsLock { get; init; }
+ 
+-    public bool isClear;
++    public required bool IsClear { get; init; }
+ 
+-    public bool isComplete;
++    public required bool IsComplete { get; init; }
+ 
+-    public int unlockFlag;
++    public required int UnlockFlag { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs
+index 38b25da..2718c20 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserMapRequestVO : VOSerializer
++internal sealed record UserMapRequestVO : ISerializable<UserMapRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public int maxCount = 1000;
++    public int MaxCount { get; init; } = 1000;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMapResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMapResponseVO.cs
+index 39b3d9e..c88a697 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMapResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMapResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserMapResponseVO : VOSerializer
++internal sealed record UserMapResponseVO : ISerializable<UserMapResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public long nextIndex;
++    public required long NextIndex { get; init; }
+ 
+-    public UserMap[] userMapList;
++    public required UserMap[] UserMapList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMissionData.cs b/src/SinmaiLib/Net/VO/Mai2/UserMissionData.cs
+dissimilarity index 88%
+index bb1b9e1..45f24a6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMissionData.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMissionData.cs
+@@ -1,21 +1,18 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserMissionData
+-{
+-    public int type;
+-
+-    public int difficulty;
+-
+-    public int targetGenreId;
+-
+-    public int targetGenreTableId;
+-
+-    public int conditionGenreId;
+-
+-    public int conditionGenreTableId;
+-
+-    public bool clearFlag;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserMissionData
++{
++    public required int Type { get; init; }
++
++    public required int Difficulty { get; init; }
++
++    public required int TargetGenreId { get; init; }
++
++    public required int TargetGenreTableId { get; init; }
++
++    public required int ConditionGenreId { get; init; }
++
++    public required int ConditionGenreTableId { get; init; }
++
++    public required bool ClearFlag { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMissionRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMissionRequestVO.cs
+index 80f48e1..caf495c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMissionRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMissionRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserMissionRequestVO : VOSerializer
++internal sealed record UserMissionRequestVO : ISerializable<UserMissionRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseData.cs b/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseData.cs
+index 234d31f..a9d4af4 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseData.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseData.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserMissionResponseData
++internal sealed record UserMissionResponseData
+ {
+-    public UserWeeklyData userWeeklyData;
++    public required UserWeeklyData UserWeeklyData { get; init; }
+ 
+-    public UserMissionData[] userMissionDataList;
++    public required UserMissionData[] UserMissionDataList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseVO.cs
+index 1c0119f..e011947 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMissionResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserMissionResponseVO : VOSerializer
++internal sealed record UserMissionResponseVO : ISerializable<UserMissionResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserWeeklyData userWeeklyData;
++    public required UserWeeklyData UserWeeklyData { get; init; }
+ 
+-    public UserMissionData[] userMissionDataList;
++    public required UserMissionData[] UserMissionDataList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMusic.cs b/src/SinmaiLib/Net/VO/Mai2/UserMusic.cs
+index f3cebd6..acaaa8e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMusic.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMusic.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserMusic
++internal sealed record UserMusic
+ {
+-    public UserMusicDetail[] userMusicDetailList;
++    public required UserMusicDetail[] UserMusicDetailList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMusicDetail.cs b/src/SinmaiLib/Net/VO/Mai2/UserMusicDetail.cs
+dissimilarity index 84%
+index ad1d080..7b7f667 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMusicDetail.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMusicDetail.cs
+@@ -1,27 +1,25 @@
+-using System;
+-using DB;
+-using Manager;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserMusicDetail
+-{
+-    public int musicId;
+-
+-    public MusicDifficultyID level;
+-
+-    public uint playCount;
+-
+-    public uint achievement;
+-
+-    public PlayComboflagID comboStatus;
+-
+-    public PlaySyncflagID syncStatus;
+-
+-    public uint deluxscoreMax;
+-
+-    public MusicClearrankID scoreRank;
+-
+-    public uint extNum1;
+-}
++using DB;
++using Manager;
++
++namespace Net.VO.Mai2;
++
++internal sealed record UserMusicDetail
++{
++    public required int MusicId { get; init; }
++
++    public required MusicDifficultyID Level { get; init; }
++
++    public required uint PlayCount { get; init; }
++
++    public required uint Achievement { get; init; }
++
++    public required PlayComboflagID ComboStatus { get; init; }
++
++    public required PlaySyncflagID SyncStatus { get; init; }
++
++    public required uint DeluxscoreMax { get; init; }
++
++    public required MusicClearrankID ScoreRank { get; init; }
++
++    public required uint ExtNum1 { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs
+index 3e25995..8eaeab6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserMusicRequestVO : VOSerializer
++internal sealed record UserMusicRequestVO : ISerializable<UserMusicRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int nextIndex;
++    public required int NextIndex { get; init; }
+ 
+-    public int maxCount = 50;
++    public int MaxCount { get; init; } = 50;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMusicResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMusicResponseVO.cs
+index 48123b1..0d6ce96 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMusicResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMusicResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserMusicResponseVO : VOSerializer
++internal sealed record UserMusicResponseVO : ISerializable<UserMusicResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int nextIndex;
++    public required int NextIndex { get; init; }
+ 
+-    public UserMusic[] userMusicList;
++    public required UserMusic[] UserMusicList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserNewItemListRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserNewItemListRequestVO.cs
+index 4da6fd3..342aae2 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserNewItemListRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserNewItemListRequestVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserNewItemListRequestVO : VOSerializer
++internal sealed record UserNewItemListRequestVO : ISerializable<UserNewItemListRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int version;
++    public required int Version { get; init; }
+ 
+-    public UserDetail[] userData;
++    public required UserDetail[] UserData { get; init; }
+ 
+-    public UserPlaylog[] userPlaylogList;
++    public required UserPlaylog[] UserPlaylogList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserNewItemListResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserNewItemListResponseVO.cs
+index dfa1291..18c775a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserNewItemListResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserNewItemListResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserNewItemListResponseVO : VOSerializer
++internal sealed record UserNewItemListResponseVO : ISerializable<UserNewItemListResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserItem[] userItemList;
++    public required UserItem[] UserItemList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserNewItemRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserNewItemRequestVO.cs
+index b6e253e..710d0d0 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserNewItemRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserNewItemRequestVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserNewItemRequestVO : VOSerializer
++internal sealed record UserNewItemRequestVO : ISerializable<UserNewItemRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int version;
++    public required int Version { get; init; }
+ 
+-    public UserPlaylog[] userPlaylogList;
++    public required UserPlaylog[] UserPlaylogList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserNewItemResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserNewItemResponseVO.cs
+index 750c845..be62074 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserNewItemResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserNewItemResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserNewItemResponseVO : VOSerializer
++internal sealed record UserNewItemResponseVO : ISerializable<UserNewItemResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int itemKind;
++    public required ItemKind ItemKind { get; init; }
+ 
+-    public int itemId;
++    public required int ItemId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserOption.cs b/src/SinmaiLib/Net/VO/Mai2/UserOption.cs
+dissimilarity index 95%
+index 4a7bd9a..6b52984 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserOption.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserOption.cs
+@@ -1,104 +1,102 @@
+-using System;
+-using DB;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserOption
+-{
+-    public OptionKindID optionKind;
+-
+-    public OptionNotespeedID noteSpeed;
+-
+-    public OptionSlidespeedID slideSpeed;
+-
+-    public OptionTouchspeedID touchSpeed;
+-
+-    public OptionGametapID tapDesign;
+-
+-    public OptionGameholdID holdDesign;
+-
+-    public OptionGameslideID slideDesign;
+-
+-    public OptionStartypeID starType;
+-
+-    public OptionGameoutlineID outlineDesign;
+-
+-    public OptionNotesizeID noteSize;
+-
+-    public OptionSlidesizeID slideSize;
+-
+-    public OptionTouchsizeID touchSize;
+-
+-    public OptionStarrotateID starRotate;
+-
+-    public OptionCenterdisplayID dispCenter;
+-
+-    public OptionOutframedisplayID outFrameType;
+-
+-    public OptionDispchainID dispChain;
+-
+-    public OptionDisprateID dispRate;
+-
+-    public OptionDispbarlineID dispBar;
+-
+-    public OptionToucheffectID touchEffect;
+-
+-    public OptionSubmonitorID submonitorAnimation;
+-
+-    public OptionSubmonAchiveID submonitorAchive;
+-
+-    public OptionAppealID submonitorAppeal;
+-
+-    public OptionMatchingID matching;
+-
+-    public OptionTrackskipID trackSkip;
+-
+-    public OptionMoviebrightnessID brightness;
+-
+-    public OptionMirrorID mirrorMode;
+-
+-    public OptionDispjudgeID dispJudge;
+-
+-    public OptionDispjudgeposID dispJudgePos;
+-
+-    public OptionDispjudgetouchposID dispJudgeTouchPos;
+-
+-    public OptionJudgetimingID adjustTiming;
+-
+-    public OptionJudgetimingID judgeTiming;
+-
+-    public OptionVolumeAnswerSoundID ansVolume;
+-
+-    public OptionVolumeID tapHoldVolume;
+-
+-    public OptionCriticalID criticalSe;
+-
+-    public OptionTapSuccessSeID tapSe;
+-
+-    public OptionBreakseID breakSe;
+-
+-    public OptionVolumeID breakVolume;
+-
+-    public OptionExseID exSe;
+-
+-    public OptionVolumeID exVolume;
+-
+-    public OptionSlideseID slideSe;
+-
+-    public OptionVolumeID slideVolume;
+-
+-    public OptionVolumeID breakSlideVolume;
+-
+-    public OptionVolumeID touchVolume;
+-
+-    public OptionVolumeID touchHoldVolume;
+-
+-    public OptionVolumeID damageSeVolume;
+-
+-    public OptionHeadphonevolumeID headPhoneVolume;
+-
+-    public SortTabID sortTab;
+-
+-    public SortMusicID sortMusic;
+-}
++using DB;
++
++namespace Net.VO.Mai2;
++
++internal sealed record UserOption
++{
++    public required OptionKindID OptionKind { get; init; }
++
++    public required OptionNotespeedID NoteSpeed { get; init; }
++
++    public required OptionSlidespeedID SlideSpeed { get; init; }
++
++    public required OptionTouchspeedID TouchSpeed { get; init; }
++
++    public required OptionGametapID TapDesign { get; init; }
++
++    public required OptionGameholdID HoldDesign { get; init; }
++
++    public required OptionGameslideID SlideDesign { get; init; }
++
++    public required OptionStartypeID StarType { get; init; }
++
++    public required OptionGameoutlineID OutlineDesign { get; init; }
++
++    public required OptionNotesizeID NoteSize { get; init; }
++
++    public required OptionSlidesizeID SlideSize { get; init; }
++
++    public required OptionTouchsizeID TouchSize { get; init; }
++
++    public required OptionStarrotateID StarRotate { get; init; }
++
++    public required OptionCenterdisplayID DispCenter { get; init; }
++
++    public required OptionOutframedisplayID OutFrameType { get; init; }
++
++    public required OptionDispchainID DispChain { get; init; }
++
++    public required OptionDisprateID DispRate { get; init; }
++
++    public required OptionDispbarlineID DispBar { get; init; }
++
++    public required OptionToucheffectID TouchEffect { get; init; }
++
++    public required OptionSubmonitorID SubmonitorAnimation { get; init; }
++
++    public required OptionSubmonAchiveID SubmonitorAchive { get; init; }
++
++    public required OptionAppealID SubmonitorAppeal { get; init; }
++
++    public required OptionMatchingID Matching { get; init; }
++
++    public required OptionTrackskipID TrackSkip { get; init; }
++
++    public required OptionMoviebrightnessID Brightness { get; init; }
++
++    public required OptionMirrorID MirrorMode { get; init; }
++
++    public required OptionDispjudgeID DispJudge { get; init; }
++
++    public required OptionDispjudgeposID DispJudgePos { get; init; }
++
++    public required OptionDispjudgetouchposID DispJudgeTouchPos { get; init; }
++
++    public required OptionJudgetimingID AdjustTiming { get; init; }
++
++    public required OptionJudgetimingID JudgeTiming { get; init; }
++
++    public required OptionVolumeAnswerSoundID AnsVolume { get; init; }
++
++    public required OptionVolumeID TapHoldVolume { get; init; }
++
++    public required OptionCriticalID CriticalSe { get; init; }
++
++    public required OptionTapSuccessSeID TapSe { get; init; }
++
++    public required OptionBreakseID BreakSe { get; init; }
++
++    public required OptionVolumeID BreakVolume { get; init; }
++
++    public required OptionExseID ExSe { get; init; }
++
++    public required OptionVolumeID ExVolume { get; init; }
++
++    public required OptionSlideseID SlideSe { get; init; }
++
++    public required OptionVolumeID SlideVolume { get; init; }
++
++    public required OptionVolumeID BreakSlideVolume { get; init; }
++
++    public required OptionVolumeID TouchVolume { get; init; }
++
++    public required OptionVolumeID TouchHoldVolume { get; init; }
++
++    public required OptionVolumeID DamageSeVolume { get; init; }
++
++    public required OptionHeadphonevolumeID HeadPhoneVolume { get; init; }
++
++    public required SortTabID SortTab { get; init; }
++
++    public required SortMusicID SortMusic { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserOptionRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserOptionRequestVO.cs
+index 6153d52..a02fdd4 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserOptionRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserOptionRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserOptionRequestVO : VOSerializer
++internal sealed record UserOptionRequestVO : ISerializable<UserOptionRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserOptionResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserOptionResponseVO.cs
+index 0183d2c..27f78c2 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserOptionResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserOptionResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserOptionResponseVO : VOSerializer
++internal sealed record UserOptionResponseVO : ISerializable<UserOptionResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserOption userOption;
++    public required UserOption UserOption { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPhoto.cs b/src/SinmaiLib/Net/VO/Mai2/UserPhoto.cs
+dissimilarity index 89%
+index 73e0501..4b8421e 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPhoto.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPhoto.cs
+@@ -1,27 +1,24 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserPhoto
+-{
+-    public int orderId;
+-
+-    public ulong userId;
+-
+-    public int divNumber;
+-
+-    public int divLength;
+-
+-    public string divData;
+-
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public string uploadDate;
+-
+-    public ulong playlogId;
+-
+-    public int trackNo;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserPhoto
++{
++    public required int OrderId { get; init; }
++
++    public required ulong UserId { get; init; }
++
++    public required int DivNumber { get; init; }
++
++    public required int DivLength { get; init; }
++
++    public required string DivData { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required string UploadDate { get; init; }
++
++    public required ulong PlaylogId { get; init; }
++
++    public required int TrackNo { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPhotoRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserPhotoRequestVO.cs
+index aa08bf6..1b576fb 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPhotoRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPhotoRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserPhotoRequestVO : VOSerializer
++internal sealed record UserPhotoRequestVO : ISerializable<UserPhotoRequestVO>
+ {
+-    public UserPhoto userPhoto;
++    public required UserPhoto UserPhoto { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPlaylog.cs b/src/SinmaiLib/Net/VO/Mai2/UserPlaylog.cs
+dissimilarity index 95%
+index 2a9789a..87ae755 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPlaylog.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPlaylog.cs
+@@ -1,227 +1,224 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserPlaylog
+-{
+-    public ulong userId;
+-
+-    public int orderId;
+-
+-    public ulong playlogId;
+-
+-    public int version;
+-
+-    public int placeId;
+-
+-    public string placeName;
+-
+-    public long loginDate;
+-
+-    public string playDate;
+-
+-    public string userPlayDate;
+-
+-    public int type;
+-
+-    public int musicId;
+-
+-    public int level;
+-
+-    public int trackNo;
+-
+-    public int vsMode;
+-
+-    public string vsUserName;
+-
+-    public int vsStatus;
+-
+-    public int vsUserRating;
+-
+-    public int vsUserAchievement;
+-
+-    public int vsUserGradeRank;
+-
+-    public int vsRank;
+-
+-    public int playerNum;
+-
+-    public ulong playedUserId1;
+-
+-    public string playedUserName1;
+-
+-    public int playedMusicLevel1;
+-
+-    public ulong playedUserId2;
+-
+-    public string playedUserName2;
+-
+-    public int playedMusicLevel2;
+-
+-    public ulong playedUserId3;
+-
+-    public string playedUserName3;
+-
+-    public int playedMusicLevel3;
+-
+-    public int characterId1;
+-
+-    public int characterLevel1;
+-
+-    public int characterAwakening1;
+-
+-    public int characterId2;
+-
+-    public int characterLevel2;
+-
+-    public int characterAwakening2;
+-
+-    public int characterId3;
+-
+-    public int characterLevel3;
+-
+-    public int characterAwakening3;
+-
+-    public int characterId4;
+-
+-    public int characterLevel4;
+-
+-    public int characterAwakening4;
+-
+-    public int characterId5;
+-
+-    public int characterLevel5;
+-
+-    public int characterAwakening5;
+-
+-    public int achievement;
+-
+-    public int deluxscore;
+-
+-    public int scoreRank;
+-
+-    public int maxCombo;
+-
+-    public int totalCombo;
+-
+-    public int maxSync;
+-
+-    public int totalSync;
+-
+-    public int tapCriticalPerfect;
+-
+-    public int tapPerfect;
+-
+-    public int tapGreat;
+-
+-    public int tapGood;
+-
+-    public int tapMiss;
+-
+-    public int holdCriticalPerfect;
+-
+-    public int holdPerfect;
+-
+-    public int holdGreat;
+-
+-    public int holdGood;
+-
+-    public int holdMiss;
+-
+-    public int slideCriticalPerfect;
+-
+-    public int slidePerfect;
+-
+-    public int slideGreat;
+-
+-    public int slideGood;
+-
+-    public int slideMiss;
+-
+-    public int touchCriticalPerfect;
+-
+-    public int touchPerfect;
+-
+-    public int touchGreat;
+-
+-    public int touchGood;
+-
+-    public int touchMiss;
+-
+-    public int breakCriticalPerfect;
+-
+-    public int breakPerfect;
+-
+-    public int breakGreat;
+-
+-    public int breakGood;
+-
+-    public int breakMiss;
+-
+-    public bool isTap;
+-
+-    public bool isHold;
+-
+-    public bool isSlide;
+-
+-    public bool isTouch;
+-
+-    public bool isBreak;
+-
+-    public bool isCriticalDisp;
+-
+-    public bool isFastLateDisp;
+-
+-    public int fastCount;
+-
+-    public int lateCount;
+-
+-    public bool isAchieveNewRecord;
+-
+-    public bool isDeluxscoreNewRecord;
+-
+-    public int comboStatus;
+-
+-    public int syncStatus;
+-
+-    public bool isClear;
+-
+-    public int beforeRating;
+-
+-    public int afterRating;
+-
+-    public int beforeGrade;
+-
+-    public int afterGrade;
+-
+-    public int afterGradeRank;
+-
+-    public int beforeDeluxRating;
+-
+-    public int afterDeluxRating;
+-
+-    public bool isPlayTutorial;
+-
+-    public bool isEventMode;
+-
+-    public bool isFreedomMode;
+-
+-    public int playMode;
+-
+-    public bool isNewFree;
+-
+-    public int trialPlayAchievement;
+-
+-    public int extNum1;
+-
+-    public int extNum2;
+-
+-    public int extNum4;
+-
+-    public bool extBool1;
+-
+-    public bool extBool2;
+-
+-    public bool extBool3;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserPlaylog
++{
++    public required ulong UserId { get; init; }
++
++    public required int OrderId { get; init; }
++
++    public required ulong PlaylogId { get; init; }
++
++    public required int Version { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string PlaceName { get; init; }
++
++    public required long LoginDate { get; init; }
++
++    public required string PlayDate { get; init; }
++
++    public required string UserPlayDate { get; init; }
++
++    public required int Type { get; init; }
++
++    public required int MusicId { get; init; }
++
++    public required int Level { get; init; }
++
++    public required int TrackNo { get; init; }
++
++    public required int VsMode { get; init; }
++
++    public required string VsUserName { get; init; }
++
++    public required int VsStatus { get; init; }
++
++    public required int VsUserRating { get; init; }
++
++    public required int VsUserAchievement { get; init; }
++
++    public required int VsUserGradeRank { get; init; }
++
++    public required int VsRank { get; init; }
++
++    public required int PlayerNum { get; init; }
++
++    public required ulong PlayedUserId1 { get; init; }
++
++    public required string PlayedUserName1 { get; init; }
++
++    public required int PlayedMusicLevel1 { get; init; }
++
++    public required ulong PlayedUserId2 { get; init; }
++
++    public required string PlayedUserName2 { get; init; }
++
++    public required int PlayedMusicLevel2 { get; init; }
++
++    public required ulong PlayedUserId3 { get; init; }
++
++    public required string PlayedUserName3 { get; init; }
++
++    public required int PlayedMusicLevel3 { get; init; }
++
++    public required int CharacterId1 { get; init; }
++
++    public required int CharacterLevel1 { get; init; }
++
++    public required int CharacterAwakening1 { get; init; }
++
++    public required int CharacterId2 { get; init; }
++
++    public required int CharacterLevel2 { get; init; }
++
++    public required int CharacterAwakening2 { get; init; }
++
++    public required int CharacterId3 { get; init; }
++
++    public required int CharacterLevel3 { get; init; }
++
++    public required int CharacterAwakening3 { get; init; }
++
++    public required int CharacterId4 { get; init; }
++
++    public required int CharacterLevel4 { get; init; }
++
++    public required int CharacterAwakening4 { get; init; }
++
++    public required int CharacterId5 { get; init; }
++
++    public required int CharacterLevel5 { get; init; }
++
++    public required int CharacterAwakening5 { get; init; }
++
++    public required int Achievement { get; init; }
++
++    public required int Deluxscore { get; init; }
++
++    public required int ScoreRank { get; init; }
++
++    public required int MaxCombo { get; init; }
++
++    public required int TotalCombo { get; init; }
++
++    public required int MaxSync { get; init; }
++
++    public required int TotalSync { get; init; }
++
++    public required int TapCriticalPerfect { get; init; }
++
++    public required int TapPerfect { get; init; }
++
++    public required int TapGreat { get; init; }
++
++    public required int TapGood { get; init; }
++
++    public required int TapMiss { get; init; }
++
++    public required int HoldCriticalPerfect { get; init; }
++
++    public required int HoldPerfect { get; init; }
++
++    public required int HoldGreat { get; init; }
++
++    public required int HoldGood { get; init; }
++
++    public required int HoldMiss { get; init; }
++
++    public required int SlideCriticalPerfect { get; init; }
++
++    public required int SlidePerfect { get; init; }
++
++    public required int SlideGreat { get; init; }
++
++    public required int SlideGood { get; init; }
++
++    public required int SlideMiss { get; init; }
++
++    public required int TouchCriticalPerfect { get; init; }
++
++    public required int TouchPerfect { get; init; }
++
++    public required int TouchGreat { get; init; }
++
++    public required int TouchGood { get; init; }
++
++    public required int TouchMiss { get; init; }
++
++    public required int BreakCriticalPerfect { get; init; }
++
++    public required int BreakPerfect { get; init; }
++
++    public required int BreakGreat { get; init; }
++
++    public required int BreakGood { get; init; }
++
++    public required int BreakMiss { get; init; }
++
++    public required bool IsTap { get; init; }
++
++    public required bool IsHold { get; init; }
++
++    public required bool IsSlide { get; init; }
++
++    public required bool IsTouch { get; init; }
++
++    public required bool IsBreak { get; init; }
++
++    public required bool IsCriticalDisp { get; init; }
++
++    public required bool IsFastLateDisp { get; init; }
++
++    public required int FastCount { get; init; }
++
++    public required int LateCount { get; init; }
++
++    public required bool IsAchieveNewRecord { get; init; }
++
++    public required bool IsDeluxscoreNewRecord { get; init; }
++
++    public required int ComboStatus { get; init; }
++
++    public required int SyncStatus { get; init; }
++
++    public required bool IsClear { get; init; }
++
++    public required int BeforeRating { get; init; }
++
++    public required int AfterRating { get; init; }
++
++    public required int BeforeGrade { get; init; }
++
++    public required int AfterGrade { get; init; }
++
++    public required int AfterGradeRank { get; init; }
++
++    public required int BeforeDeluxRating { get; init; }
++
++    public required int AfterDeluxRating { get; init; }
++
++    public required bool IsPlayTutorial { get; init; }
++
++    public required bool IsEventMode { get; init; }
++
++    public required bool IsFreedomMode { get; init; }
++
++    public required int PlayMode { get; init; }
++
++    public required bool IsNewFree { get; init; }
++
++    public required int TrialPlayAchievement { get; init; }
++
++    public required int ExtNum1 { get; init; }
++
++    public required int ExtNum2 { get; init; }
++
++    public required int ExtNum4 { get; init; }
++
++    public required bool ExtBool1 { get; init; }
++
++    public required bool ExtBool2 { get; init; }
++
++    public required bool ExtBool3 { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPlaylogRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserPlaylogRequestVO.cs
+index ef1465a..ce21b84 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPlaylogRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPlaylogRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserPlaylogRequestVO : VOSerializer
++internal sealed record UserPlaylogRequestVO : ISerializable<UserPlaylogRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserPlaylog userPlaylog;
++    public required UserPlaylog UserPlaylog { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPortrait.cs b/src/SinmaiLib/Net/VO/Mai2/UserPortrait.cs
+dissimilarity index 88%
+index 79d2198..6f1104d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPortrait.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPortrait.cs
+@@ -1,23 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserPortrait
+-{
+-    public ulong userId;
+-
+-    public int divNumber;
+-
+-    public int divLength;
+-
+-    public string divData;
+-
+-    public int placeId;
+-
+-    public string clientId;
+-
+-    public string uploadDate;
+-
+-    public string fileName;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserPortrait
++{
++    public required ulong UserId { get; init; }
++
++    public required int DivNumber { get; init; }
++
++    public required int DivLength { get; init; }
++
++    public required string DivData { get; init; }
++
++    public required int PlaceId { get; init; }
++
++    public required string ClientId { get; init; }
++
++    public required string UploadDate { get; init; }
++
++    public required string FileName { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPreviewRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserPreviewRequestVO.cs
+index 1f784be..6e05567 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPreviewRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPreviewRequestVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserPreviewRequestVO : VOSerializer
++internal sealed record UserPreviewRequestVO : ISerializable<UserPreviewRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public string segaIdAuthKey;
++    public required string SegaIdAuthKey { get; init; }
+ 
+-    public string token;
++    public required string Token { get; init; }
+ 
+-    public string clientId;
++    public required string ClientId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserPreviewResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserPreviewResponseVO.cs
+dissimilarity index 95%
+index f07a0d8..f3b48c7 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserPreviewResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserPreviewResponseVO.cs
+@@ -1,65 +1,48 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserPreviewResponseVO : VOSerializer
+-{
+-    public ulong userId;
+-
+-    public string userName;
+-
+-    public bool isLogin;
+-
+-    public string lastGameId;
+-
+-    public string lastDataVersion;
+-
+-    public string lastRomVersion;
+-
+-    public string lastLoginDate;
+-
+-    public string lastPlayDate;
+-
+-    public int playerRating;
+-
+-    public int nameplateId;
+-
+-    public int iconId;
+-
+-    public int trophyId;
+-
+-    public int partnerId;
+-
+-    public int frameId;
+-
+-    public int dispRate;
+-
+-    public int totalAwake;
+-
+-    public int isNetMember;
+-
+-    public string dailyBonusDate;
+-
+-    public int headPhoneVolume;
+-
+-    public bool isInherit;
+-
+-    public int banState;
+-
+-    public int errorId;
+-
+-    public bool IsNewUser()
+-    {
+-        if (!string.IsNullOrEmpty(userName))
+-        {
+-            return string.IsNullOrEmpty(lastPlayDate);
+-        }
+-        return true;
+-    }
+-
+-    public bool IsInheritUser()
+-    {
+-        return isInherit;
+-    }
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserPreviewResponseVO : ISerializable<UserPreviewResponseVO>
++{
++    public required ulong UserId { get; init; }
++
++    public required string UserName { get; init; }
++
++    public required bool IsLogin { get; init; }
++
++    public required string LastGameId { get; init; }
++
++    public required string LastDataVersion { get; init; }
++
++    public required string LastRomVersion { get; init; }
++
++    public required string LastLoginDate { get; init; }
++
++    public required string LastPlayDate { get; init; }
++
++    public required int PlayerRating { get; init; }
++
++    public required int NameplateId { get; init; }
++
++    public required int IconId { get; init; }
++
++    public required int TrophyId { get; init; }
++
++    public required int PartnerId { get; init; }
++
++    public required int FrameId { get; init; }
++
++    public required int DispRate { get; init; }
++
++    public required int TotalAwake { get; init; }
++
++    public required int IsNetMember { get; init; }
++
++    public required string DailyBonusDate { get; init; }
++
++    public required int HeadPhoneVolume { get; init; }
++
++    public required bool IsInherit { get; init; }
++
++    public required int BanState { get; init; }
++
++    public required int ErrorId { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRate.cs b/src/SinmaiLib/Net/VO/Mai2/UserRate.cs
+index d51c244..8a5d8e6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRate.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRate.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRate
++internal sealed record UserRate
+ {
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public uint romVersion;
++    public required uint RomVersion { get; init; }
+ 
+-    public uint achievement;
++    public required uint Achievement { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRating.cs b/src/SinmaiLib/Net/VO/Mai2/UserRating.cs
+dissimilarity index 88%
+index 91eef9c..64c6b47 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRating.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRating.cs
+@@ -1,19 +1,16 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserRating
+-{
+-    public int rating;
+-
+-    public UserRate[] ratingList;
+-
+-    public UserRate[] newRatingList;
+-
+-    public UserRate[] nextRatingList;
+-
+-    public UserRate[] nextNewRatingList;
+-
+-    public UserUdemae udemae;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserRating
++{
++    public required int Rating { get; init; }
++
++    public required UserRate[] RatingList { get; init; }
++
++    public required UserRate[] NewRatingList { get; init; }
++
++    public required UserRate[] NextRatingList { get; init; }
++
++    public required UserRate[] NextNewRatingList { get; init; }
++
++    public required UserUdemae Udemae { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRatingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRatingRequestVO.cs
+index aaaa251..74d2f51 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRatingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRatingRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRatingRequestVO : VOSerializer
++internal sealed record UserRatingRequestVO : ISerializable<UserRatingRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRatingResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRatingResponseVO.cs
+index a2bf256..2074d45 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRatingResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRatingResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRatingResponseVO : VOSerializer
++internal sealed record UserRatingResponseVO : ISerializable<UserRatingResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserRating userRating;
++    public required UserRating UserRating { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusic.cs b/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusic.cs
+index 1b120fc..4a26b76 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusic.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusic.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRecommendRateMusic
++internal sealed record UserRecommendRateMusic
+ {
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public int averageAchievement;
++    public required int AverageAchievement { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicRequestVO.cs
+index 9661a93..268eece 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicRequestVO.cs
+@@ -1,9 +1,7 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRecommendRateMusicRequestVO : VOSerializer
++internal sealed record UserRecommendRateMusicRequestVO
++    : ISerializable<UserRecommendRateMusicRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicResponseVO.cs
+index 902cd0d..e5ae67b 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRecommendRateMusicResponseVO.cs
+@@ -1,11 +1,9 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRecommendRateMusicResponseVO : VOSerializer
++internal sealed record UserRecommendRateMusicResponseVO
++    : ISerializable<UserRecommendRateMusicResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserRecommendRateMusic[] userRecommendRateMusicIdList;
++    public required UserRecommendRateMusic[] UserRecommendRateMusicIdList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicRequestVO.cs
+index 346fd12..b273fdf 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicRequestVO.cs
+@@ -1,9 +1,7 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRecommendSelectionMusicRequestVO : VOSerializer
++internal sealed record UserRecommendSelectionMusicRequestVO
++    : ISerializable<UserRecommendSelectionMusicRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicResponseVO.cs
+index e6a13fc..9b06d2b 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRecommendSelectionMusicResponseVO.cs
+@@ -1,11 +1,9 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRecommendSelectionMusicResponseVO : VOSerializer
++internal sealed record UserRecommendSelectionMusicResponseVO
++    : ISerializable<UserRecommendSelectionMusicResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int[] userRecommendSelectionMusicIdList;
++    public required int[] UserRecommendSelectionMusicIdList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRegion.cs b/src/SinmaiLib/Net/VO/Mai2/UserRegion.cs
+index 15b7d4f..24ae99a 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRegion.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRegion.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRegion
++internal sealed record UserRegion
+ {
+-    public int regionId;
++    public required int RegionId { get; init; }
+ 
+-    public int playCount;
++    public required int PlayCount { get; init; }
+ 
+-    public string created;
++    public required string Created { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRegionRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRegionRequestVO.cs
+index f0dc291..edba231 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRegionRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRegionRequestVO.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRegionRequestVO : VOSerializer
++internal sealed record UserRegionRequestVO : ISerializable<UserRegionRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRegionResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRegionResponseVO.cs
+index 7531243..94517d7 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRegionResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRegionResponseVO.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRegionResponseVO : VOSerializer
++internal sealed record UserRegionResponseVO : ISerializable<UserRegionResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public ulong length;
++    public required ulong Length { get; init; }
+ 
+-    public UserRegion[] userRegionList;
++    public required UserRegion[] UserRegionList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalData.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalData.cs
+index 35e0e62..08e58b3 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalData.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalData.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRivalData
++internal sealed record UserRivalData
+ {
+-    public ulong rivalId;
++    public required ulong RivalId { get; init; }
+ 
+-    public string rivalName;
++    public required string RivalName { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusic.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusic.cs
+index fa21491..a9089fc 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusic.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusic.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRivalMusic
++internal sealed record UserRivalMusic
+ {
+-    public int musicId;
++    public required int MusicId { get; init; }
+ 
+-    public UserRivalMusicDetail[] userRivalMusicDetailList;
++    public required UserRivalMusicDetail[] UserRivalMusicDetailList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicDetail.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicDetail.cs
+index 4412c60..529774d 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicDetail.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicDetail.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRivalMusicDetail
++internal sealed record UserRivalMusicDetail
+ {
+-    public int level;
++    public required int Level { get; init; }
+ 
+-    public int achievement;
++    public required int Achievement { get; init; }
+ 
+-    public int deluxscoreMax;
++    public required int DeluxscoreMax { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicLevel.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicLevel.cs
+index b510035..24d8251 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicLevel.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicLevel.cs
+@@ -1,9 +1,6 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserRivalMusicLevel
++internal sealed record UserRivalMusicLevel
+ {
+-    public int level;
++    public required int Level { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs
+dissimilarity index 94%
+index b8b379d..7d8b0cf 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs
+@@ -1,23 +1,20 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public class UserRivalMusicRequestVO : VOSerializer
+-{
+-    public ulong userId;
+-
+-    public ulong rivalId;
+-
+-    public int nextIndex;
+-
+-    public UserRivalMusicLevel[] userRivalMusicLevelList = new UserRivalMusicLevel[6]
+-    {
+-        new UserRivalMusicLevel { level = 0 },
+-        new UserRivalMusicLevel { level = 1 },
+-        new UserRivalMusicLevel { level = 2 },
+-        new UserRivalMusicLevel { level = 3 },
+-        new UserRivalMusicLevel { level = 4 },
+-        new UserRivalMusicLevel { level = 10 },
+-    };
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserRivalMusicRequestVO : ISerializable<UserRivalMusicRequestVO>
++{
++    public required ulong UserId { get; init; }
++
++    public required ulong RivalId { get; init; }
++
++    public required int NextIndex { get; init; }
++
++    public UserRivalMusicLevel[] UserRivalMusicLevelList { get; init; } =
++    [
++        new() { Level = 0 },
++        new() { Level = 1 },
++        new() { Level = 2 },
++        new() { Level = 3 },
++        new() { Level = 4 },
++        new() { Level = 10 },
++    ];
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicResponseVO.cs
+index 22f0bf5..fddcf8f 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicResponseVO.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRivalMusicResponseVO : VOSerializer
++internal sealed record UserRivalMusicResponseVO : ISerializable<UserRivalMusicResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public ulong rivalId;
++    public required ulong RivalId { get; init; }
+ 
+-    public int nextIndex;
++    public required int NextIndex { get; init; }
+ 
+-    public UserRivalMusic[] userRivalMusicList;
++    public required UserRivalMusic[] UserRivalMusicList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalRequestVO.cs
+index 443780a..09e8f98 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRivalRequestVO : VOSerializer
++internal sealed record UserRivalRequestVO : ISerializable<UserRivalRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public ulong rivalId;
++    public required ulong RivalId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalResponseVO.cs
+index 97fe96b..d103bef 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserRivalResponseVO : VOSerializer
++internal sealed record UserRivalResponseVO : ISerializable<UserRivalResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserRivalData userRivalData;
++    public required UserRivalData UserRivalData { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserScoreRanking.cs b/src/SinmaiLib/Net/VO/Mai2/UserScoreRanking.cs
+index 68073a5..f08f7fc 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserScoreRanking.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserScoreRanking.cs
+@@ -1,15 +1,12 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserScoreRanking
++internal sealed record UserScoreRanking
+ {
+-    public int tournamentId;
++    public required int TournamentId { get; init; }
+ 
+-    public long totalScore;
++    public required long TotalScore { get; init; }
+ 
+-    public int ranking;
++    public required int Ranking { get; init; }
+ 
+-    public string rankingDate;
++    public required string RankingDate { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingRequestVO.cs
+index aa7d670..dcade81 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingRequestVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserScoreRankingRequestVO : VOSerializer
++internal sealed record UserScoreRankingRequestVO : ISerializable<UserScoreRankingRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public int competitionId;
++    public required int CompetitionId { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingResponseVO.cs
+index f4528b9..a1609b3 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserScoreRankingResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserScoreRankingResponseVO : VOSerializer
++internal sealed record UserScoreRankingResponseVO : ISerializable<UserScoreRankingResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserScoreRanking userScoreRanking;
++    public required UserScoreRanking UserScoreRanking { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserShopStock.cs b/src/SinmaiLib/Net/VO/Mai2/UserShopStock.cs
+index e9649c8..738e699 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserShopStock.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserShopStock.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserShopStock
++internal sealed record UserShopStock
+ {
+-    public int shopItemId;
++    public required int ShopItemId { get; init; }
+ 
+-    public int tradeCount;
++    public required int TradeCount { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserShopStockRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserShopStockRequestVO.cs
+index 6098f39..fe322ff 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserShopStockRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserShopStockRequestVO.cs
+@@ -1,12 +1,8 @@
+-using System;
+-using System.Collections.Generic;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserShopStockRequestVO : VOSerializer
++internal sealed record UserShopStockRequestVO : ISerializable<UserShopStockRequestVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public List<long> shopItemIdList;
++    public required long[] ShopItemIdList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserShopStockResponseVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserShopStockResponseVO.cs
+index b746db8..50058d3 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserShopStockResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserShopStockResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public class UserShopStockResponseVO : VOSerializer
++internal sealed record UserShopStockResponseVO : ISerializable<UserShopStockResponseVO>
+ {
+-    public ulong userId;
++    public required ulong UserId { get; init; }
+ 
+-    public UserShopStock[] userShopStockList;
++    public required UserShopStock[] UserShopStockList { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserTradeItem.cs b/src/SinmaiLib/Net/VO/Mai2/UserTradeItem.cs
+index 31ce09d..b7d0f1b 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserTradeItem.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserTradeItem.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserTradeItem
++internal sealed record UserTradeItem
+ {
+-    public long shopItemId;
++    public required long ShopItemId { get; init; }
+ 
+-    public long point;
++    public required long Point { get; init; }
+ 
+-    public int tradeCount;
++    public required int TradeCount { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs b/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs
+dissimilarity index 92%
+index 695118c..7c3f672 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs
+@@ -1,39 +1,36 @@
+-using System;
+-
+-namespace Net.VO.Mai2;
+-
+-[Serializable]
+-public struct UserUdemae
+-{
+-    public int rate;
+-
+-    public int maxRate;
+-
+-    public int classValue;
+-
+-    public int maxClassValue;
+-
+-    public uint totalWinNum;
+-
+-    public uint totalLoseNum;
+-
+-    public uint maxWinNum;
+-
+-    public uint maxLoseNum;
+-
+-    public uint winNum;
+-
+-    public uint loseNum;
+-
+-    public uint npcTotalWinNum;
+-
+-    public uint npcTotalLoseNum;
+-
+-    public uint npcMaxWinNum;
+-
+-    public uint npcMaxLoseNum;
+-
+-    public uint npcWinNum;
+-
+-    public uint npcLoseNum;
+-}
++namespace Net.VO.Mai2;
++
++internal sealed record UserUdemae
++{
++    public required int Rate { get; init; }
++
++    public required int MaxRate { get; init; }
++
++    public required int ClassValue { get; init; }
++
++    public required int MaxClassValue { get; init; }
++
++    public required uint TotalWinNum { get; init; }
++
++    public required uint TotalLoseNum { get; init; }
++
++    public required uint MaxWinNum { get; init; }
++
++    public required uint MaxLoseNum { get; init; }
++
++    public required uint WinNum { get; init; }
++
++    public required uint LoseNum { get; init; }
++
++    public required uint NpcTotalWinNum { get; init; }
++
++    public required uint NpcTotalLoseNum { get; init; }
++
++    public required uint NpcMaxWinNum { get; init; }
++
++    public required uint NpcMaxLoseNum { get; init; }
++
++    public required uint NpcWinNum { get; init; }
++
++    public required uint NpcLoseNum { get; init; }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserWeeklyData.cs b/src/SinmaiLib/Net/VO/Mai2/UserWeeklyData.cs
+index 0c073d4..e7dea77 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserWeeklyData.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserWeeklyData.cs
+@@ -1,13 +1,10 @@
+-using System;
+-
+ namespace Net.VO.Mai2;
+ 
+-[Serializable]
+-public struct UserWeeklyData
++internal sealed record UserWeeklyData
+ {
+-    public string lastLoginWeek;
++    public required string LastLoginWeek { get; init; }
+ 
+-    public string beforeLoginWeek;
++    public required string BeforeLoginWeek { get; init; }
+ 
+-    public bool friendBonusFlag;
++    public required bool FriendBonusFlag { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/NetQuery.cs b/src/SinmaiLib/Net/VO/NetQuery.cs
+dissimilarity index 73%
+index c634ffd..35730bf 100644
+--- a/src/SinmaiLib/Net/VO/NetQuery.cs
++++ b/src/SinmaiLib/Net/VO/NetQuery.cs
+@@ -1,37 +1,27 @@
+-namespace Net.VO;
+-
+-public class NetQuery<T0, T1> : INetQuery
+-    where T0 : VOSerializer, new()
+-    where T1 : VOSerializer, new()
+-{
+-    public string Api { get; }
+-
+-    public ulong UserId { get; }
+-
+-    public T0 Request { get; }
+-
+-    public T1 Response { get; }
+-
+-    public NetQuery(string api, ulong userId = 0uL)
+-    {
+-        Api = api + "MaimaiChn";
+-        UserId = userId;
+-        Request = new T0();
+-        Response = new T1();
+-    }
+-
+-    public string GetRequest()
+-    {
+-        return Request.Serialize();
+-    }
+-
+-    public bool SetResponse(string str)
+-    {
+-        if (string.IsNullOrEmpty(str))
+-        {
+-            return false;
+-        }
+-        Response.Deserialize(str);
+-        return true;
+-    }
+-}
++namespace Net.VO;
++
++internal class NetQuery<TRequest, TResponse>(string api, ulong userId = 0uL) : INetQuery
++    where TRequest : class, ISerializable<TRequest>
++    where TResponse : class, ISerializable<TResponse>
++{
++    public string Api { get; } = api + "MaimaiChn";
++
++    public ulong UserId { get; } = userId;
++
++    public required TRequest Request { get; init; }
++
++    public TResponse? Response { get; private set; }
++
++    public string GetRequest() => Request.Serialize();
++
++    public bool SetResponse(string str)
++    {
++        if (string.IsNullOrEmpty(str))
++        {
++            return false;
++        }
++
++        Response = ISerializable<TResponse>.Deserialize(str);
++        return true;
++    }
++}
+diff --git a/src/SinmaiLib/Net/VO/UpsertResponseVO.cs b/src/SinmaiLib/Net/VO/UpsertResponseVO.cs
+index 20c12df..4a1318a 100644
+--- a/src/SinmaiLib/Net/VO/UpsertResponseVO.cs
++++ b/src/SinmaiLib/Net/VO/UpsertResponseVO.cs
+@@ -1,11 +1,8 @@
+-using System;
+-
+ namespace Net.VO;
+ 
+-[Serializable]
+-public class UpsertResponseVO : VOSerializer
++internal sealed record UpsertResponseVO : ISerializable<UpsertResponseVO>
+ {
+-    public int returnCode;
++    public required int ReturnCode { get; init; }
+ 
+-    public string apiName;
++    public required string ApiName { get; init; }
+ }

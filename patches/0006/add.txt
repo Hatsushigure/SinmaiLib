@@ -1,0 +1,7 @@
+src/SinmaiLib/Net/VO/ISerializable.cs
+src/SinmaiLib/Net/VO/JsonContext.cs
+src/SinmaiLib/Net/VO/Mai2/ClientTestmodeExtensions.cs
+src/SinmaiLib/Net/VO/Mai2/DelayLogExtensions.cs
+src/SinmaiLib/Net/VO/Mai2/RequestApiExtensions.cs
+src/SinmaiLib/Net/VO/Mai2/UserPreviewResponseVOExtensions.cs
+src/SinmaiLib/Net/VO/SerializableExtensions.cs
