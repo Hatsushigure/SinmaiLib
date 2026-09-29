@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Tue, 29 Sep 2026 14:47:38 +0800
+Subject: [PATCH] fix(vo): make request fields settable for deserialization
+
+
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs
+index 4c98d7a..3d40a1f 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFavoriteItemRequestVO.cs
+@@ -8,7 +8,7 @@ internal sealed record UserFavoriteItemRequestVO : ISerializable<UserFavoriteIte
+ 
+     public required ulong NextIndex { get; init; }
+ 
+-    public int MaxCount { get; init; } = 100;
++    public int MaxCount { get; set; } = 100;
+ 
+     public required bool IsAllFavoriteItem { get; init; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs
+index 3a84c76..cdcd076 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserFriendSeasonRankingRequestVO.cs
+@@ -7,5 +7,5 @@ internal sealed record UserFriendSeasonRankingRequestVO
+ 
+     public required long NextIndex { get; init; }
+ 
+-    public int MaxCount { get; init; } = 20;
++    public int MaxCount { get; set; } = 20;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs
+index 65f8970..ff9fde5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserItemRequestVO.cs
+@@ -6,5 +6,5 @@ internal sealed record UserItemRequestVO : ISerializable<UserItemRequestVO>
+ 
+     public required long NextIndex { get; init; }
+ 
+-    public int MaxCount { get; init; } = 100;
++    public int MaxCount { get; set; } = 100;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs
+index 28a72f8..7e3cdb8 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserLoginBonusRequestVO.cs
+@@ -6,5 +6,5 @@ internal sealed record UserLoginBonusRequestVO : ISerializable<UserLoginBonusReq
+ 
+     public required long NextIndex { get; init; }
+ 
+-    public int MaxCount { get; init; } = 20;
++    public int MaxCount { get; set; } = 20;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs
+index 2718c20..fba2f61 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMapRequestVO.cs
+@@ -6,5 +6,5 @@ internal sealed record UserMapRequestVO : ISerializable<UserMapRequestVO>
+ 
+     public required long NextIndex { get; init; }
+ 
+-    public int MaxCount { get; init; } = 1000;
++    public int MaxCount { get; set; } = 1000;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs
+index 8eaeab6..6b1c5d7 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserMusicRequestVO.cs
+@@ -6,5 +6,5 @@ internal sealed record UserMusicRequestVO : ISerializable<UserMusicRequestVO>
+ 
+     public required int NextIndex { get; init; }
+ 
+-    public int MaxCount { get; init; } = 50;
++    public int MaxCount { get; set; } = 50;
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs
+index 7d8b0cf..40b0789 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserRivalMusicRequestVO.cs
+@@ -8,7 +8,7 @@ internal sealed record UserRivalMusicRequestVO : ISerializable<UserRivalMusicReq
+ 
+     public required int NextIndex { get; init; }
+ 
+-    public UserRivalMusicLevel[] UserRivalMusicLevelList { get; init; } =
++    public UserRivalMusicLevel[] UserRivalMusicLevelList { get; set; } =
+     [
+         new() { Level = 0 },
+         new() { Level = 1 },
