@@ -1,0 +1,895 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Thu, 8 Oct 2026 23:17:45 +0800
+Subject: [PATCH] refactor(net): migrate HTTP client to HttpClient
+
+
+diff --git a/src/SinmaiLib/Net/NetHttpClient.cs b/src/SinmaiLib/Net/NetHttpClient.cs
+dissimilarity index 72%
+index 936baa8..1688a7c 100644
+--- a/src/SinmaiLib/Net/NetHttpClient.cs
++++ b/src/SinmaiLib/Net/NetHttpClient.cs
+@@ -1,506 +1,376 @@
+-using System;
+-using System.Diagnostics.CodeAnalysis;
+-using System.IO;
+-using System.IO.Compression;
+-using System.Linq;
+-using System.Net;
+-using System.Net.Cache;
+-using System.Net.Security;
+-using System.Security.Cryptography.X509Certificates;
+-using System.Text;
+-using System.Threading;
+-using AMDaemon.Allnet;
+-using MAI2.Util;
+-using Manager;
+-
+-namespace Net;
+-
+-internal class NetHttpClient
+-{
+-    private const int DefaultTimeoutMsec = 60000;
+-    private const string HttpHeaderEncryption = "Mai-Encoding";
+-    private const string DefaultHttpHeaderEncryption = "1.55";
+-    private const int BufferSize = 1024;
+-    private const string ContentTypeJson = "application/json";
+-    private const string ContentEncodingDeflate = "deflate";
+-    private const int StateInit = 0;
+-    private const int StateReady = 1;
+-    private const int StateRequest = 2;
+-    private const int StateProcess = 3;
+-    private const int StateDone = 4;
+-    private const int StateError = 5;
+-
+-    private HttpWebRequest? _request;
+-    private HttpWebResponse? _response;
+-
+-    protected WaitHandle? _waitHandle;
+-
+-    protected RegisteredWaitHandle? _timeoutWaitHandle;
+-
+-    protected readonly RequestCachePolicy _cachePolicy = new(RequestCacheLevel.NoCacheNoStore);
+-
+-    protected Stream? _responseStream;
+-
+-    private readonly byte[] _responseBuffer = new byte[BufferSize];
+-
+-    private readonly MemoryStream _tempResponseStream = new(BufferSize);
+-
+-    protected int _state;
+-
+-    private byte[]? _requestData;
+-
+-    private static byte[][]? hostBytes;
+-
+-    public int TimeOutInMSec { get; set; } = DefaultTimeoutMsec;
+-
+-    public WebExceptionStatus WebException { get; protected set; }
+-
+-    public string Error { get; private set; } = string.Empty;
+-
+-    public int State
+-    {
+-        get
+-        {
+-            lock (this)
+-            {
+-                return _state;
+-            }
+-        }
+-        private set
+-        {
+-            lock (this)
+-            {
+-                _state = value;
+-            }
+-        }
+-    }
+-
+-    public int HttpStatus { get; private set; } = -1;
+-
+-    public byte[] ResponseData { get; private set; } = [];
+-
+-    public CookieCollection Cookie { get; private set; } = new();
+-
+-    [MemberNotNullWhen(true, nameof(_request))]
+-    private bool Initialized { get; set; }
+-
+-    private static bool CheckServerParameter(byte[] inData, byte[] compare)
+-    {
+-        inData[43] = (byte)'=';
+-        var decryptedInData = CipherAes.Decrypt(
+-            Convert.FromBase64String(Encoding.UTF8.GetString(inData))
+-        );
+-        Span<byte> processedInData = [.. decryptedInData.TakeLast(20).Select(b => (byte)~b)];
+-        return processedInData.SequenceEqual(compare);
+-    }
+-
+-    public static NetHttpClient? Create(string url)
+-    {
+-        if (hostBytes == null)
+-        {
+-            var array = Auth.GameServerHost.Split(':');
+-            hostBytes = [.. array.Select(str => Encoding.ASCII.GetBytes(str))];
+-        }
+-        try
+-        {
+-            var netHttpClient = new NetHttpClient { _request = WebRequest.CreateHttp(url) };
+-            netHttpClient._request.CookieContainer = new CookieContainer();
+-            netHttpClient._request.CachePolicy = netHttpClient._cachePolicy;
+-            netHttpClient.State = StateReady;
+-            ServicePointManager.ServerCertificateValidationCallback = CheckServerHash;
+-            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+-            netHttpClient.Initialized = true;
+-            return netHttpClient;
+-        }
+-        catch (Exception)
+-        {
+-            return null;
+-        }
+-    }
+-
+-    public void Dispose()
+-    {
+-        ReleaseTimeoutWaitHandle();
+-        DestroyRequest();
+-        DestroyResponse();
+-        _tempResponseStream.Close();
+-        _tempResponseStream.Dispose();
+-        Initialized = false;
+-    }
+-
+-    public void AddHeader(string name, string value)
+-    {
+-        if (!Initialized)
+-            throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-        _request.Headers.Add(name, value);
+-    }
+-
+-    public void AddCookie(ulong userId)
+-    {
+-        if (!Initialized)
+-            throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-        CookieContainer cookie = Singleton<OperationManager>.Instance.GetCookie(userId);
+-        if (cookie != null)
+-        {
+-            _request.CookieContainer = cookie;
+-        }
+-    }
+-
+-    public bool Request(byte[] bytes, string userAgent, string method = "POST")
+-    {
+-        if (!Initialized)
+-            throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-        _request.Method = method;
+-        _request.ContentType = ContentTypeJson;
+-        _request.UserAgent = (string.IsNullOrEmpty(userAgent) ? string.Empty : userAgent);
+-        _request.Headers.Add("charset", "UTF-8");
+-        _request.Headers.Add(HttpHeaderEncryption, DefaultHttpHeaderEncryption);
+-        ResetStatus();
+-        try
+-        {
+-            if (bytes != null && bytes.Length != 0)
+-            {
+-                _request.Headers.Add(HttpRequestHeader.ContentEncoding, ContentEncodingDeflate);
+-                WriteToRequest(bytes);
+-                State = StateRequest;
+-                return true;
+-            }
+-            _request.ContentLength = 0L;
+-            return Request();
+-        }
+-        catch (Exception ex)
+-        {
+-            SetError(ex);
+-            return false;
+-        }
+-    }
+-
+-    public bool Request()
+-    {
+-        try
+-        {
+-            if (!Initialized)
+-                throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-            ResponseData = [];
+-            ReleaseTimeoutWaitHandle();
+-            var asyncResult = _request.BeginGetResponse(ResponseCallback, this);
+-            _waitHandle = asyncResult.AsyncWaitHandle;
+-            _timeoutWaitHandle = ThreadPool.RegisterWaitForSingleObject(
+-                _waitHandle!,
+-                TimeoutCallback,
+-                this,
+-                TimeOutInMSec,
+-                executeOnlyOnce: true
+-            );
+-            State = StateProcess;
+-            return true;
+-        }
+-        catch (Exception ex)
+-        {
+-            SetError(ex);
+-            return false;
+-        }
+-    }
+-
+-    private void DestroyRequest()
+-    {
+-        if (_request != null)
+-        {
+-            _request.Abort();
+-            _request = null;
+-        }
+-        _requestData = null;
+-    }
+-
+-    private void DestroyResponse()
+-    {
+-        if (_responseStream != null)
+-        {
+-            _responseStream.Close();
+-            _responseStream.Dispose();
+-            _responseStream = null;
+-        }
+-
+-        if (_response == null)
+-            return;
+-
+-        HttpStatus = (int)_response.StatusCode;
+-        _response.Close();
+-        _response = null;
+-    }
+-
+-    private void ResetStatus()
+-    {
+-        WebException = WebExceptionStatus.Success;
+-        HttpStatus = -1;
+-        Error = string.Empty;
+-    }
+-
+-    private void ReleaseTimeoutWaitHandle()
+-    {
+-        if (_timeoutWaitHandle != null)
+-        {
+-            if (_waitHandle != null)
+-            {
+-                _timeoutWaitHandle.Unregister(_waitHandle);
+-            }
+-            _timeoutWaitHandle = null;
+-        }
+-        if (_waitHandle != null)
+-        {
+-            _waitHandle.Close();
+-            _waitHandle = null;
+-        }
+-    }
+-
+-    private static void TimeoutCallback(object? state, bool isTimeout)
+-    {
+-        if (!isTimeout)
+-            return;
+-
+-        var netHttpClient = (NetHttpClient)state!;
+-        netHttpClient.SetError(
+-            netHttpClient._request == null
+-                ? WebExceptionStatus.UnknownError
+-                : WebExceptionStatus.Timeout,
+-            string.Empty,
+-            StateError,
+-            null
+-        );
+-    }
+-
+-    private void SetError(Exception exception)
+-    {
+-        if (exception is WebException webException)
+-        {
+-            SetError(
+-                webException.Status,
+-                webException.Message,
+-                StateError,
+-                webException.Response as HttpWebResponse
+-            );
+-            return;
+-        }
+-
+-        SetError(WebExceptionStatus.UnknownError, exception.Message, StateError, null);
+-    }
+-
+-    private void SetError(
+-        WebExceptionStatus status,
+-        string error,
+-        int state,
+-        HttpWebResponse? response
+-    )
+-    {
+-        WebException = status;
+-        Error = error;
+-        ReleaseTimeoutWaitHandle();
+-        DestroyResponse();
+-        if (response != null)
+-        {
+-            Cookie.Clear();
+-            HttpStatus = (int)response.StatusCode;
+-        }
+-        State = state;
+-    }
+-
+-    private void SetSuccess(int state)
+-    {
+-        WebException = WebExceptionStatus.Success;
+-        Error = string.Empty;
+-        Cookie = _response!.Cookies;
+-        DestroyResponse();
+-        State = state;
+-    }
+-
+-    private static void RequestCallback(IAsyncResult asynchronousResult)
+-    {
+-        var netHttpClient = (NetHttpClient)asynchronousResult.AsyncState!;
+-        try
+-        {
+-            if (!netHttpClient.Initialized)
+-                throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-            using var stream = netHttpClient._request.EndGetRequestStream(asynchronousResult);
+-            var bytes =
+-                netHttpClient._requestData
+-                ?? throw new InvalidOperationException("Request payload is unavailable.");
+-            var payload = EncodeRequestPayload(bytes);
+-            stream.Write(payload, 0, payload.Length);
+-            netHttpClient.Request();
+-        }
+-        catch (Exception ex)
+-        {
+-            netHttpClient.SetError(ex);
+-        }
+-        finally
+-        {
+-            netHttpClient._requestData = null;
+-        }
+-    }
+-
+-    private static void ResponseCallback(IAsyncResult asynchronousResult)
+-    {
+-        var netHttpClient = (NetHttpClient)asynchronousResult.AsyncState!;
+-        try
+-        {
+-            if (!netHttpClient.Initialized)
+-                throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-            var request = netHttpClient._request;
+-            netHttpClient._response = request.EndGetResponse(asynchronousResult) as HttpWebResponse;
+-            netHttpClient._responseStream = netHttpClient._response!.GetResponseStream();
+-            netHttpClient._tempResponseStream.SetLength(0L);
+-            netHttpClient._responseStream.BeginRead(
+-                netHttpClient._responseBuffer,
+-                0,
+-                BufferSize,
+-                ReadCallback,
+-                netHttpClient
+-            );
+-        }
+-        catch (Exception ex)
+-        {
+-            netHttpClient.SetError(ex);
+-        }
+-    }
+-
+-    private static void ReadCallback(IAsyncResult asynchronousResult)
+-    {
+-        var netHttpClient = (NetHttpClient)asynchronousResult.AsyncState!;
+-        try
+-        {
+-            var responseStream = netHttpClient._responseStream!;
+-            var readCount = responseStream.EndRead(asynchronousResult);
+-            if (readCount > 0)
+-            {
+-                netHttpClient._tempResponseStream.Write(
+-                    netHttpClient._responseBuffer,
+-                    0,
+-                    readCount
+-                );
+-                responseStream.BeginRead(
+-                    netHttpClient._responseBuffer,
+-                    0,
+-                    1024,
+-                    ReadCallback,
+-                    netHttpClient
+-                );
+-            }
+-            else if (asynchronousResult.IsCompleted)
+-            {
+-                var payload = netHttpClient._tempResponseStream.ToArray();
+-                netHttpClient._tempResponseStream.Seek(0, SeekOrigin.Begin);
+-                netHttpClient._tempResponseStream.SetLength(0);
+-                var decodedPayload = DecodeResponsePayload(payload);
+-                netHttpClient.ResponseData = decodedPayload;
+-                netHttpClient.SetSuccess(StateDone);
+-            }
+-        }
+-        catch (Exception ex)
+-        {
+-            netHttpClient.SetError(ex);
+-        }
+-    }
+-
+-    private void WriteToRequest(byte[] bytes)
+-    {
+-        try
+-        {
+-            if (!Initialized)
+-                throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
+-
+-            _requestData = bytes;
+-            _request.BeginGetRequestStream(RequestCallback, this);
+-        }
+-        catch
+-        {
+-            _requestData = null;
+-            throw;
+-        }
+-    }
+-
+-    private static byte[] Compress(byte[] data)
+-    {
+-        using var output = new MemoryStream();
+-        using var zlibStream = new ZLibStream(output, CompressionLevel.Optimal, leaveOpen: true);
+-        zlibStream.Write(data, 0, data.Length);
+-        zlibStream.Close();
+-        return output.ToArray();
+-    }
+-
+-    private static byte[] Encrypt(byte[] data)
+-    {
+-        return CipherAes.Encrypt(data);
+-    }
+-
+-    private static byte[] EncodeRequestPayload(byte[] data)
+-    {
+-        return Encrypt(Compress(data));
+-    }
+-
+-    private static byte[] Decrypt(byte[] data)
+-    {
+-        return CipherAes.Decrypt(data);
+-    }
+-
+-    private static byte[] Decompress(byte[] data)
+-    {
+-        using var input = new MemoryStream(data, writable: false);
+-        using var zlibStream = new ZLibStream(input, CompressionMode.Decompress);
+-        using var output = new MemoryStream();
+-        zlibStream.CopyTo(output);
+-        return output.ToArray();
+-    }
+-
+-    private static byte[] DecodeResponsePayload(byte[] data)
+-    {
+-        return Decompress(Decrypt(data));
+-    }
+-
+-    public static bool CheckServerHash(
+-        object sender,
+-        X509Certificate? certificate,
+-        X509Chain? chain,
+-        SslPolicyErrors sslPolicyErrors
+-    )
+-    {
+-        if (Singleton<OperationManager>.Instance.IsHttpConnection)
+-            return true;
+-
+-        if (certificate is null)
+-            return false;
+-
+-        try
+-        {
+-            var thumbBytes = certificate.GetCertHash();
+-            if (
+-                !certificate.Subject.Contains("CN=*.wahlap.com", StringComparison.Ordinal)
+-                && !certificate.Subject.Contains("CN=*.segard1dev.jp", StringComparison.Ordinal)
+-            )
+-                return false;
+-
+-            foreach (var inData in hostBytes ?? [])
+-            {
+-                try
+-                {
+-                    if (CheckServerParameter(inData, thumbBytes))
+-                        return true;
+-                }
+-                catch (Exception)
+-                {
+-                    // ignored
+-                }
+-            }
+-        }
+-        catch (Exception)
+-        {
+-            return false;
+-        }
+-        return false;
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.IO.Compression;
++using System.Linq;
++using System.Net;
++using System.Net.Http;
++using System.Net.Http.Headers;
++using System.Net.Security;
++using System.Security.Cryptography.X509Certificates;
++using System.Text;
++using System.Threading;
++using System.Threading.Tasks;
++using AMDaemon.Allnet;
++using MAI2.Util;
++using Manager;
++
++namespace Net;
++
++internal class NetHttpClient : IDisposable
++{
++    private const int DefaultTimeoutMsec = 60000;
++    private const string MaiEncodingKey = "Mai-Encoding";
++    private const string MaiEncodingVal = "1.55";
++    private const string ContentTypeJson = "application/json";
++    private const string ContentEncodingDeflate = "deflate";
++    private const int StateReady = 1;
++    private const int StateProcess = 3;
++    private const int StateDone = 4;
++    private const int StateError = 5;
++
++    private readonly Uri _uri;
++    private readonly HttpClientHandler _handler;
++    private readonly HttpClient _client;
++    private readonly Dictionary<string, List<string>> _headers = new(
++        StringComparer.OrdinalIgnoreCase
++    );
++    private readonly Lock _lock = new();
++    private CancellationTokenSource? _requestCancellation;
++    private bool _disposed;
++    private static byte[][]? _hostBytes;
++
++    public int TimeOutInMSec { get; set; } = DefaultTimeoutMsec;
++
++    public WebExceptionStatus WebException { get; private set; }
++
++    public string Error { get; private set; } = string.Empty;
++
++    public int State
++    {
++        get
++        {
++            lock (_lock)
++            {
++                return field;
++            }
++        }
++        private set
++        {
++            lock (_lock)
++            {
++                field = value;
++            }
++        }
++    }
++
++    public int HttpStatus { get; private set; } = -1;
++
++    public byte[] ResponseData { get; private set; } = [];
++
++    public CookieCollection Cookie { get; private set; } = new();
++
++    private NetHttpClient(Uri uri)
++    {
++        _uri = uri;
++        _handler = new HttpClientHandler
++        {
++            UseCookies = true,
++            CookieContainer = new CookieContainer(),
++            ServerCertificateCustomValidationCallback = CheckServerHash,
++        };
++        _client = new HttpClient(_handler) { Timeout = Timeout.InfiniteTimeSpan };
++        _client.DefaultRequestHeaders.Add(MaiEncodingKey, MaiEncodingVal);
++        State = StateReady;
++    }
++
++    public static NetHttpClient? Create(string url)
++    {
++        try
++        {
++            _hostBytes ??= [.. Auth.GameServerHost.Split(':').Select(Encoding.ASCII.GetBytes)];
++            return new NetHttpClient(new Uri(url, UriKind.Absolute));
++        }
++        catch
++        {
++            return null;
++        }
++    }
++
++    public void Dispose()
++    {
++        Dispose(true);
++        GC.SuppressFinalize(this);
++    }
++
++    protected virtual void Dispose(bool disposing)
++    {
++        if (!disposing)
++            return;
++
++        lock (_lock)
++        {
++            if (_disposed)
++                return;
++            _disposed = true;
++            _requestCancellation?.Cancel();
++        }
++        _client.Dispose();
++        _handler.Dispose();
++        _requestCancellation?.Dispose();
++    }
++
++    public void AddHeader(string name, string value)
++    {
++        EnsureInitialized();
++        if (string.IsNullOrWhiteSpace(name))
++            throw new ArgumentException("Header name is required.", nameof(name));
++        if (_headers.TryGetValue(name, out var vals))
++        {
++            vals.Add(value);
++        }
++        else
++        {
++            _headers[name] = [value];
++        }
++    }
++
++    public void AddCookie(ulong userId)
++    {
++        EnsureInitialized();
++        var cookies = Singleton<OperationManager>.Instance.GetCookie(userId);
++        if (cookies != null)
++        {
++            _handler.CookieContainer = cookies;
++        }
++    }
++
++    public bool Request(byte[] data, string userAgent, string method = "POST")
++    {
++        EnsureInitialized();
++        ResetStatus();
++        try
++        {
++            State = StateProcess;
++            _ = RunRequestAsync(data, userAgent, method, CancellationToken.None)
++                .ContinueWith(t =>
++                {
++                    if (t is { IsFaulted: true, Exception: not null })
++                        SetError(t.Exception.GetBaseException());
++                });
++            return true;
++        }
++        catch (Exception ex)
++        {
++            SetError(ex);
++            return false;
++        }
++    }
++
++    public async Task<bool> RequestAsync(
++        byte[] bytes,
++        string userAgent,
++        string method = "POST",
++        CancellationToken cancellationToken = default
++    )
++    {
++        EnsureInitialized();
++        ResetStatus();
++        State = StateProcess;
++        try
++        {
++            await RunRequestAsync(bytes, userAgent, method, cancellationToken);
++            return State == StateDone;
++        }
++        catch (Exception ex)
++        {
++            SetError(ex);
++            return false;
++        }
++    }
++
++    public Task<bool> RequestAsync(CancellationToken cancellationToken = default) =>
++        RequestAsync([], string.Empty, "POST", cancellationToken);
++
++    private async Task RunRequestAsync(
++        byte[] data,
++        string userAgent,
++        string method,
++        CancellationToken cancellationToken
++    )
++    {
++        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
++        if (TimeOutInMSec >= 0)
++            timeout.CancelAfter(TimeOutInMSec);
++        lock (_lock)
++        {
++            _requestCancellation = timeout;
++        }
++        using var content = new ByteArrayContent(
++            data.Length == 0 ? [] : EncodeRequestPayload(data)
++        );
++        using var request = new HttpRequestMessage(new HttpMethod(method), _uri)
++        {
++            Version = HttpVersion.Version11,
++            Content = content,
++        };
++        request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
++        content.Headers.ContentType = new MediaTypeHeaderValue(ContentTypeJson);
++        content.Headers.TryAddWithoutValidation("charset", "UTF-8");
++        if (data.Length != 0)
++        {
++            content.Headers.ContentEncoding.Add(ContentEncodingDeflate);
++        }
++        foreach (var header in _headers)
++        {
++            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
++        }
++        try
++        {
++            using var response = await _client.SendAsync(
++                request,
++                HttpCompletionOption.ResponseContentRead,
++                timeout.Token
++            );
++            HttpStatus = (int)response.StatusCode;
++            Cookie = _handler.CookieContainer.GetCookies(_uri);
++            var payload = await response.Content.ReadAsByteArrayAsync(timeout.Token);
++            ResponseData =
++                response.IsSuccessStatusCode && payload.Length != 0
++                    ? DecodeResponsePayload(payload)
++                    : [];
++            if (!response.IsSuccessStatusCode)
++            {
++                WebException = WebExceptionStatus.ProtocolError;
++                Error = $"HTTP {(int)response.StatusCode} ({response.ReasonPhrase})";
++                State = StateError;
++                return;
++            }
++            WebException = WebExceptionStatus.Success;
++            Error = string.Empty;
++            State = StateDone;
++        }
++        finally
++        {
++            lock (_lock)
++            {
++                _requestCancellation = null;
++            }
++        }
++    }
++
++    private void EnsureInitialized()
++    {
++        if (_disposed)
++            throw new NullReferenceException("Trying to use an uninitialized NetHttpClient");
++    }
++
++    private void ResetStatus()
++    {
++        WebException = WebExceptionStatus.Success;
++        HttpStatus = -1;
++        Error = string.Empty;
++        ResponseData = [];
++    }
++
++    private void SetError(Exception exception)
++    {
++        WebException = MapWebExceptionStatus(exception);
++        Error = exception.Message;
++        State = StateError;
++    }
++
++    private static WebExceptionStatus MapWebExceptionStatus(Exception exception)
++    {
++        return exception switch
++        {
++            WebException webException => webException.Status,
++            OperationCanceledException => WebExceptionStatus.Timeout,
++            HttpRequestException requestException => requestException.HttpRequestError switch
++            {
++                HttpRequestError.Unknown => WebExceptionStatus.UnknownError,
++                HttpRequestError.NameResolutionError => WebExceptionStatus.NameResolutionFailure,
++                HttpRequestError.ConnectionError => WebExceptionStatus.ConnectFailure,
++                HttpRequestError.SecureConnectionError => WebExceptionStatus.SecureChannelFailure,
++                HttpRequestError.HttpProtocolError => WebExceptionStatus.ProtocolError,
++                HttpRequestError.ExtendedConnectNotSupported => WebExceptionStatus.ConnectFailure,
++                HttpRequestError.VersionNegotiationError => WebExceptionStatus.ConnectFailure,
++                HttpRequestError.UserAuthenticationError => WebExceptionStatus.ProtocolError,
++                HttpRequestError.ProxyTunnelError => WebExceptionStatus.ConnectFailure,
++                HttpRequestError.InvalidResponse => WebExceptionStatus.ServerProtocolViolation,
++                HttpRequestError.ResponseEnded => WebExceptionStatus.ConnectionClosed,
++                HttpRequestError.ConfigurationLimitExceeded =>
++                    WebExceptionStatus.MessageLengthLimitExceeded,
++                _ => WebExceptionStatus.UnknownError,
++            },
++            _ => WebExceptionStatus.UnknownError,
++        };
++    }
++
++    private static byte[] Compress(byte[] data)
++    {
++        using var output = new MemoryStream();
++        using var zlibStream = new ZLibStream(output, CompressionMode.Compress);
++        zlibStream.Write(data);
++        zlibStream.Close();
++        return output.ToArray();
++    }
++
++    private static byte[] Decompress(byte[] data)
++    {
++        using var input = new MemoryStream(data, writable: false);
++        using var zlibStream = new ZLibStream(input, CompressionMode.Decompress);
++        using var output = new MemoryStream();
++        zlibStream.CopyTo(output);
++        return output.ToArray();
++    }
++
++    private static byte[] EncodeRequestPayload(byte[] data) => CipherAes.Encrypt(Compress(data));
++
++    private static byte[] DecodeResponsePayload(byte[] data) => Decompress(CipherAes.Decrypt(data));
++
++    private static bool CheckServerParameter(byte[] inData, byte[] compare)
++    {
++        inData[43] = (byte)'=';
++        var decrypted = CipherAes.Decrypt(
++            Convert.FromBase64String(Encoding.UTF8.GetString(inData))
++        );
++        return decrypted.TakeLast(20).Select(b => (byte)~b).SequenceEqual(compare);
++    }
++
++    private static bool CheckServerHash(
++        HttpRequestMessage _,
++        X509Certificate2? certificate,
++        X509Chain? chain,
++        SslPolicyErrors errors
++    )
++    {
++        if (Singleton<OperationManager>.Instance.IsHttpConnection)
++            return true;
++        if (certificate is null)
++            return false;
++        try
++        {
++            if (
++                !certificate.Subject.Contains("CN=*.wahlap.com", StringComparison.Ordinal)
++                && !certificate.Subject.Contains("CN=*.segard1dev.jp", StringComparison.Ordinal)
++            )
++                return false;
++            return (_hostBytes ?? []).Any(data =>
++            {
++                try
++                {
++                    return CheckServerParameter(data, certificate.GetCertHash());
++                }
++                catch
++                {
++                    return false;
++                }
++            });
++        }
++        catch
++        {
++            return false;
++        }
++    }
++}
