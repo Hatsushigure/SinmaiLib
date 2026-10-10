@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Compile the real networking code without Unity or native AMDaemon dependencies. -->
+    <Compile Include="../../src/SinmaiLib/Net/NetHttpClient.cs" Link="Source/NetHttpClient.cs" />
+    <Compile Include="../../src/SinmaiLib/Net/CipherAes.cs" Link="Source/CipherAes.cs" />
+    <Compile Include="../../src/SinmaiLib/Mai2/Util/Singleton.cs" Link="Source/Singleton.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,6 @@
+tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+tests/NetHttpClient.Tests/NetHttpClientTests.cs
+tests/NetHttpClient.Tests/README.md
+tests/NetHttpClient.Tests/Support/ExternalDependencies.cs
+tests/NetHttpClient.Tests/Support/LoopbackServer.cs
+tests/NetHttpClient.Tests/Support/WirePayload.cs

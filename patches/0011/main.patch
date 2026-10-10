@@ -1,0 +1,1151 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Sun, 11 Oct 2026 00:28:47 +0800
+Subject: [PATCH] fix(net): centralize error classification and clean up failed
+ requests
+
+
+diff --git a/src/SinmaiLib/Net/NetHttpClient.cs b/src/SinmaiLib/Net/NetHttpClient.cs
+index 1688a7c..359abab 100644
+--- a/src/SinmaiLib/Net/NetHttpClient.cs
++++ b/src/SinmaiLib/Net/NetHttpClient.cs
+@@ -7,6 +7,7 @@
+ using System.Net.Http;
+ using System.Net.Http.Headers;
+ using System.Net.Security;
++using System.Net.Sockets;
+ using System.Security.Cryptography.X509Certificates;
+ using System.Text;
+ using System.Threading;
+@@ -17,6 +18,17 @@
+ 
+ namespace Net;
+ 
++internal enum NetErrorKind
++{
++    None,
++    HttpStatus,
++    Timeout,
++    Canceled,
++    Connection,
++    Protocol,
++    Internal,
++}
++
+ internal class NetHttpClient : IDisposable
+ {
+     private const int DefaultTimeoutMsec = 60000;
+@@ -24,10 +36,6 @@ internal class NetHttpClient : IDisposable
+     private const string MaiEncodingVal = "1.55";
+     private const string ContentTypeJson = "application/json";
+     private const string ContentEncodingDeflate = "deflate";
+-    private const int StateReady = 1;
+-    private const int StateProcess = 3;
+-    private const int StateDone = 4;
+-    private const int StateError = 5;
+ 
+     private readonly Uri _uri;
+     private readonly HttpClientHandler _handler;
+@@ -42,11 +50,13 @@ internal class NetHttpClient : IDisposable
+ 
+     public int TimeOutInMSec { get; set; } = DefaultTimeoutMsec;
+ 
+-    public WebExceptionStatus WebException { get; private set; }
++    public Exception? ErrorException { get; private set; }
++
++    public NetErrorKind ErrorKind { get; private set; }
+ 
+-    public string Error { get; private set; } = string.Empty;
++    public string Error { get; private set; } = "";
+ 
+-    public int State
++    public RunningState State
+     {
+         get
+         {
+@@ -70,8 +80,10 @@ private set
+ 
+     public CookieCollection Cookie { get; private set; } = new();
+ 
+-    private NetHttpClient(Uri uri)
++    public NetHttpClient(Uri uri)
+     {
++        ArgumentNullException.ThrowIfNull(Auth.GameServerHost);
++        _hostBytes ??= [.. Auth.GameServerHost.Split(':').Select(Encoding.ASCII.GetBytes)];
+         _uri = uri;
+         _handler = new HttpClientHandler
+         {
+@@ -81,20 +93,7 @@ private NetHttpClient(Uri uri)
+         };
+         _client = new HttpClient(_handler) { Timeout = Timeout.InfiniteTimeSpan };
+         _client.DefaultRequestHeaders.Add(MaiEncodingKey, MaiEncodingVal);
+-        State = StateReady;
+-    }
+-
+-    public static NetHttpClient? Create(string url)
+-    {
+-        try
+-        {
+-            _hostBytes ??= [.. Auth.GameServerHost.Split(':').Select(Encoding.ASCII.GetBytes)];
+-            return new NetHttpClient(new Uri(url, UriKind.Absolute));
+-        }
+-        catch
+-        {
+-            return null;
+-        }
++        State = RunningState.Ready;
+     }
+ 
+     public void Dispose()
+@@ -151,7 +150,7 @@ public bool Request(byte[] data, string userAgent, string method = "POST")
+         ResetStatus();
+         try
+         {
+-            State = StateProcess;
++            State = RunningState.Process;
+             _ = RunRequestAsync(data, userAgent, method, CancellationToken.None)
+                 .ContinueWith(t =>
+                 {
+@@ -176,11 +175,11 @@ public async Task<bool> RequestAsync(
+     {
+         EnsureInitialized();
+         ResetStatus();
+-        State = StateProcess;
++        State = RunningState.Process;
+         try
+         {
+             await RunRequestAsync(bytes, userAgent, method, cancellationToken);
+-            return State == StateDone;
++            return State == RunningState.Done;
+         }
+         catch (Exception ex)
+         {
+@@ -199,56 +198,68 @@ private async Task RunRequestAsync(
+         CancellationToken cancellationToken
+     )
+     {
+-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+-        if (TimeOutInMSec >= 0)
+-            timeout.CancelAfter(TimeOutInMSec);
+-        lock (_lock)
+-        {
+-            _requestCancellation = timeout;
+-        }
+-        using var content = new ByteArrayContent(
+-            data.Length == 0 ? [] : EncodeRequestPayload(data)
++        using var timeoutCancellation = new CancellationTokenSource();
++        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
++            cancellationToken,
++            timeoutCancellation.Token
+         );
+-        using var request = new HttpRequestMessage(new HttpMethod(method), _uri)
+-        {
+-            Version = HttpVersion.Version11,
+-            Content = content,
+-        };
+-        request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
+-        content.Headers.ContentType = new MediaTypeHeaderValue(ContentTypeJson);
+-        content.Headers.TryAddWithoutValidation("charset", "UTF-8");
+-        if (data.Length != 0)
+-        {
+-            content.Headers.ContentEncoding.Add(ContentEncodingDeflate);
+-        }
+-        foreach (var header in _headers)
+-        {
+-            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+-        }
+         try
+         {
++            if (TimeOutInMSec >= 0)
++                timeoutCancellation.CancelAfter(TimeOutInMSec);
++            lock (_lock)
++            {
++                _requestCancellation = timeout;
++            }
++            using var content = new ByteArrayContent(
++                data.Length == 0 ? [] : EncodeRequestPayload(data)
++            );
++            using var request = new HttpRequestMessage(new HttpMethod(method), _uri)
++            {
++                Version = HttpVersion.Version11,
++                Content = content,
++            };
++            request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
++            content.Headers.ContentType = new MediaTypeHeaderValue(ContentTypeJson);
++            content.Headers.TryAddWithoutValidation("charset", "UTF-8");
++            if (data.Length != 0)
++            {
++                content.Headers.ContentEncoding.Add(ContentEncodingDeflate);
++            }
++            foreach (var header in _headers)
++            {
++                request.Headers.TryAddWithoutValidation(header.Key, header.Value);
++            }
+             using var response = await _client.SendAsync(
+                 request,
+-                HttpCompletionOption.ResponseContentRead,
++                HttpCompletionOption.ResponseHeadersRead,
+                 timeout.Token
+             );
+             HttpStatus = (int)response.StatusCode;
+-            Cookie = _handler.CookieContainer.GetCookies(_uri);
+-            var payload = await response.Content.ReadAsByteArrayAsync(timeout.Token);
+-            ResponseData =
+-                response.IsSuccessStatusCode && payload.Length != 0
+-                    ? DecodeResponsePayload(payload)
+-                    : [];
+             if (!response.IsSuccessStatusCode)
+             {
+-                WebException = WebExceptionStatus.ProtocolError;
++                Cookie = new CookieCollection();
++                ErrorException = null;
++                ErrorKind = NetErrorKind.HttpStatus;
+                 Error = $"HTTP {(int)response.StatusCode} ({response.ReasonPhrase})";
+-                State = StateError;
++                State = RunningState.Error;
+                 return;
+             }
+-            WebException = WebExceptionStatus.Success;
++            Cookie = _handler.CookieContainer.GetCookies(_uri);
++            var payload = await response.Content.ReadAsByteArrayAsync(timeout.Token);
++            ResponseData = payload.Length != 0 ? DecodeResponsePayload(payload) : [];
++            ErrorException = null;
++            ErrorKind = NetErrorKind.None;
+             Error = string.Empty;
+-            State = StateDone;
++            State = RunningState.Done;
++        }
++        catch (Exception exception)
++        {
++            SetError(
++                exception,
++                ClassifyException(exception, cancellationToken, timeoutCancellation)
++            );
++            throw;
+         }
+         finally
+         {
+@@ -267,46 +278,71 @@ private void EnsureInitialized()
+ 
+     private void ResetStatus()
+     {
+-        WebException = WebExceptionStatus.Success;
++        ErrorException = null;
++        ErrorKind = NetErrorKind.None;
+         HttpStatus = -1;
+         Error = string.Empty;
+         ResponseData = [];
+     }
+ 
+-    private void SetError(Exception exception)
++    private void SetError(Exception exception, NetErrorKind? errorKind = null)
+     {
+-        WebException = MapWebExceptionStatus(exception);
++        ErrorException = exception;
++        if (errorKind.HasValue)
++            ErrorKind = errorKind.Value;
++        else if (ErrorKind == NetErrorKind.None)
++            ErrorKind = ClassifyException(exception, CancellationToken.None, null);
+         Error = exception.Message;
+-        State = StateError;
++        State = RunningState.Error;
+     }
+ 
+-    private static WebExceptionStatus MapWebExceptionStatus(Exception exception)
++    private NetErrorKind ClassifyException(
++        Exception exception,
++        CancellationToken callerCancellation,
++        CancellationTokenSource? timeoutCancellation
++    )
+     {
++        if (_disposed)
++            return NetErrorKind.Canceled;
++
+         return exception switch
+         {
+-            WebException webException => webException.Status,
+-            OperationCanceledException => WebExceptionStatus.Timeout,
++            OperationCanceledException when callerCancellation.IsCancellationRequested =>
++                NetErrorKind.Canceled,
++            OperationCanceledException
++                when (timeoutCancellation?.IsCancellationRequested == true) => NetErrorKind.Timeout,
++            OperationCanceledException => NetErrorKind.Canceled,
+             HttpRequestException requestException => requestException.HttpRequestError switch
+             {
+-                HttpRequestError.Unknown => WebExceptionStatus.UnknownError,
+-                HttpRequestError.NameResolutionError => WebExceptionStatus.NameResolutionFailure,
+-                HttpRequestError.ConnectionError => WebExceptionStatus.ConnectFailure,
+-                HttpRequestError.SecureConnectionError => WebExceptionStatus.SecureChannelFailure,
+-                HttpRequestError.HttpProtocolError => WebExceptionStatus.ProtocolError,
+-                HttpRequestError.ExtendedConnectNotSupported => WebExceptionStatus.ConnectFailure,
+-                HttpRequestError.VersionNegotiationError => WebExceptionStatus.ConnectFailure,
+-                HttpRequestError.UserAuthenticationError => WebExceptionStatus.ProtocolError,
+-                HttpRequestError.ProxyTunnelError => WebExceptionStatus.ConnectFailure,
+-                HttpRequestError.InvalidResponse => WebExceptionStatus.ServerProtocolViolation,
+-                HttpRequestError.ResponseEnded => WebExceptionStatus.ConnectionClosed,
+-                HttpRequestError.ConfigurationLimitExceeded =>
+-                    WebExceptionStatus.MessageLengthLimitExceeded,
+-                _ => WebExceptionStatus.UnknownError,
++                HttpRequestError.NameResolutionError
++                or HttpRequestError.ConnectionError
++                or HttpRequestError.SecureConnectionError
++                or HttpRequestError.ExtendedConnectNotSupported
++                or HttpRequestError.VersionNegotiationError
++                or HttpRequestError.ProxyTunnelError
++                or HttpRequestError.ResponseEnded => NetErrorKind.Connection,
++                HttpRequestError.HttpProtocolError
++                or HttpRequestError.InvalidResponse
++                or HttpRequestError.UserAuthenticationError => NetErrorKind.Protocol,
++                _ when HasConnectionInnerException(requestException) => NetErrorKind.Connection,
++                _ => NetErrorKind.Internal,
+             },
+-            _ => WebExceptionStatus.UnknownError,
++            _ => exception is SocketException or IOException
++                ? NetErrorKind.Connection
++                : NetErrorKind.Internal,
+         };
+     }
+ 
++    private static bool HasConnectionInnerException(Exception exception)
++    {
++        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
++        {
++            if (inner is SocketException or IOException)
++                return true;
++        }
++        return false;
++    }
++
+     private static byte[] Compress(byte[] data)
+     {
+         using var output = new MemoryStream();
+@@ -373,4 +409,12 @@ SslPolicyErrors errors
+             return false;
+         }
+     }
++
++    public enum RunningState
++    {
++        Ready = 1,
++        Process = 3,
++        Done,
++        Error,
++    }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Packet.cs b/src/SinmaiLib/Net/Packet/Packet.cs
+index ed39aaf..8b11c96 100644
+--- a/src/SinmaiLib/Net/Packet/Packet.cs
++++ b/src/SinmaiLib/Net/Packet/Packet.cs
+@@ -6,19 +6,18 @@
+ using MAI2.Util;
+ using Manager;
+ using Net.VO.Mai2;
+-using UnityEngine;
+ 
+ namespace Net.Packet;
+ 
+-public abstract class Packet
++internal abstract class Packet
+ {
+-    protected WebExceptionStatus WebExceptionStatus;
++    protected Exception? ErrorException;
+ 
+-    protected NetHttpClient Client;
++    protected NetErrorKind ErrorKind;
+ 
+-    protected int RetryCount;
++    protected NetHttpClient? Client;
+ 
+-    protected float Time;
++    protected int RetryCount;
+ 
+     protected string BaseUrl;
+ 
+@@ -32,7 +31,9 @@ public abstract class Packet
+ 
+     protected int RecreateCount;
+ 
+-    private Stopwatch sw = new Stopwatch();
++    private readonly Stopwatch _sw = new();
++
++    private readonly Stopwatch _retryWaitTimer = new();
+ 
+     protected static string ObfuscateParam = "8bF76dE9";
+ 
+@@ -42,7 +43,7 @@ public abstract class Packet
+ 
+     public int HttpStatus { get; protected set; } = -1;
+ 
+-    public WebExceptionStatus WebException => WebExceptionStatus;
++    public Exception? Error => ErrorException;
+ 
+     public string ErrorString { get; protected set; } = string.Empty;
+ 
+@@ -60,7 +61,7 @@ public static string ToString(PacketStatus status)
+             PacketStatus.ErrorConnection => "接続エラー",
+             PacketStatus.ErrorInternal => "内部システムエラー",
+             PacketStatus.ErrorHttpStatus => "HTTPエラー",
+-            _ => string.Empty,
++            _ => "",
+         };
+     }
+ 
+@@ -113,10 +114,7 @@ protected bool IsRetryCountOverAtUpload()
+             >= NetConfig.RetryCountToSkipWithUpload;
+     }
+ 
+-    private bool IsPingPacket()
+-    {
+-        return Query.Api.StartsWith("Ping");
+-    }
++    private bool IsPingPacket() => Query.Api.StartsWith("Ping", StringComparison.Ordinal);
+ 
+     protected bool Create(
+         INetQuery query,
+@@ -127,18 +125,24 @@ protected bool Create(
+     {
+         if (!Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable())
+         {
+-            sw.Reset();
+-            sw.Start();
++            _sw.Reset();
++            _sw.Start();
+         }
+-        Timeout = ((timeout != -1) ? timeout : NetConfig.TimeOutInMSec);
+-        MaxRetry = ((maxRetry != -1) ? maxRetry : NetConfig.MaxRetry);
+-        MaxRecreate = ((maxRecreate != -1) ? maxRecreate : NetConfig.MaxRecreate);
++        Timeout = timeout != -1 ? timeout : NetConfig.TimeOutInMSec;
++        MaxRetry = maxRetry != -1 ? maxRetry : NetConfig.MaxRetry;
++        MaxRecreate = maxRecreate != -1 ? maxRecreate : NetConfig.MaxRecreate;
+         BaseUrl = GetServerUrl();
+         Query = query;
+-        Client = NetHttpClient.Create(BaseUrl + Obfuscator(query.Api));
++        try
++        {
++            Client = new NetHttpClient(new Uri(BaseUrl + Obfuscator(query.Api), UriKind.Absolute));
++        }
++        catch
++        {
++            Client = null;
++        }
+         RetryCount = 0;
+         RecreateCount = 0;
+-        Time = 0f;
+         if (Client != null)
+         {
+             Client.TimeOutInMSec = Timeout;
+@@ -150,7 +154,7 @@ protected bool Create(
+         if (RecreateCount < MaxRecreate)
+         {
+             RecreateCount++;
+-            State = PacketState.RetryWait;
++            EnterRetryWait();
+             Status = PacketStatus.ErrorCreate;
+             ProcImpl();
+         }
+@@ -173,8 +177,14 @@ protected bool Create(
+ 
+     protected bool Reset()
+     {
+-        Client = NetHttpClient.Create(BaseUrl + Obfuscator(Query.Api));
+-        Time = 0f;
++        try
++        {
++            Client = new NetHttpClient(new Uri(BaseUrl + Obfuscator(Query.Api), UriKind.Absolute));
++        }
++        catch
++        {
++            Client = null;
++        }
+         if (Client != null)
+         {
+             Client.TimeOutInMSec = Timeout;
+@@ -182,8 +192,8 @@ protected bool Reset()
+             Status = PacketStatus.Ok;
+             if (!Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable())
+             {
+-                sw.Reset();
+-                sw.Start();
++                _sw.Reset();
++                _sw.Start();
+             }
+             ProcImpl();
+             return true;
+@@ -191,7 +201,7 @@ protected bool Reset()
+         if (RecreateCount < MaxRecreate)
+         {
+             RecreateCount++;
+-            State = PacketState.RetryWait;
++            EnterRetryWait();
+             Status = PacketStatus.Ok;
+             ProcImpl();
+         }
+@@ -214,13 +224,13 @@ protected bool Reset()
+ 
+     protected PacketState ProcImpl()
+     {
+-        PacketState state = State;
++        var oldState = State;
+         switch (State)
+         {
+             case PacketState.Ready:
+                 try
+                 {
+-                    string request = Query.GetRequest();
++                    var request = Query.GetRequest();
+                     if (!IsPingPacket())
+                     {
+                         Client.AddHeader("number", GameManager.PingMsec.ToString());
+@@ -229,12 +239,7 @@ protected PacketState ProcImpl()
+                             Client.AddCookie(Query.UserId);
+                         }
+                     }
+-                    if (
+-                        !Client.Request(
+-                            Encoding.UTF8.GetBytes(request),
+-                            NetPacketUtil.GetUserAgent(Query)
+-                        )
+-                    )
++                    if (!Client.Request(Encoding.UTF8.GetBytes(request), GetUserAgent(Query)))
+                     {
+                         ProcResult();
+                     }
+@@ -257,27 +262,27 @@ protected PacketState ProcImpl()
+                     if (RetryCount < MaxRetry)
+                     {
+                         RetryCount++;
+-                        State = PacketState.RetryWait;
+-                        Status = PacketStatus.ErrorEcodeRequest;
++                        EnterRetryWait();
+                     }
+                     else
+                     {
+                         State = PacketState.Error;
+-                        Status = PacketStatus.ErrorEcodeRequest;
+                     }
++
++                    Status = PacketStatus.ErrorEcodeRequest;
+                 }
+                 break;
+             case PacketState.Process:
+                 switch (Client.State)
+                 {
+-                    case 4:
++                    case NetHttpClient.RunningState.Done:
+                     {
+                         if (Query.Api.StartsWith("UserLogin"))
+                         {
+                             try
+                             {
+-                                CookieContainer cookieContainer = new CookieContainer();
+-                                cookieContainer.Add(Client.GetCookie());
++                                var cookieContainer = new CookieContainer();
++                                cookieContainer.Add(Client.Cookie);
+                                 Singleton<OperationManager>.Instance.SetCookie(
+                                     Query.UserId,
+                                     cookieContainer
+@@ -285,36 +290,36 @@ protected PacketState ProcImpl()
+                             }
+                             catch (Exception) { }
+                         }
+-                        byte[] array = Client.GetResponse().ToArray();
++                        var responseBytes = Client.ResponseData;
+                         if (!Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable())
+                         {
+-                            sw.Stop();
++                            _sw.Stop();
+                             try
+                             {
+-                                string value = Query.Api.Remove(Query.Api.Length - 9);
+-                                ApiKind apiKind = (ApiKind)Enum.Parse(typeof(ApiKind), value);
+-                                UserData userDataByID =
++                                var value = Query.Api.Remove(Query.Api.Length - 9);
++                                var apiKind = Enum.Parse<ApiKind>(value);
++                                var userDataById =
+                                     Singleton<UserDataManager>.Instance.GetUserDataByID(
+                                         Query.UserId
+                                     );
+-                                if (userDataByID != null)
++                                if (userDataById != null)
+                                 {
+-                                    DelayLog netDelayLog = userDataByID.NetDelayLog;
++                                    var netDelayLog = userDataById.NetDelayLog;
+                                     if (apiKind <= ApiKind.GetUserKaleidxScopeApi)
+                                     {
+-                                        netDelayLog.dlRequests++;
+-                                        netDelayLog.dlRetry += RetryCount;
++                                        netDelayLog.DlRequests++;
++                                        netDelayLog.DlRetry += RetryCount;
+                                     }
+-                                    netDelayLog.request[(int)apiKind].count++;
+-                                    netDelayLog.request[(int)apiKind].size += array.Length;
+-                                    netDelayLog.request[(int)apiKind].msec += (int)
+-                                        sw.ElapsedMilliseconds;
+-                                    netDelayLog.request[(int)apiKind].retry += RetryCount;
++                                    netDelayLog.Request[(int)apiKind].Count++;
++                                    netDelayLog.Request[(int)apiKind].Size += responseBytes.Length;
++                                    netDelayLog.Request[(int)apiKind].Msec += (int)
++                                        _sw.ElapsedMilliseconds;
++                                    netDelayLog.Request[(int)apiKind].Retry += RetryCount;
+                                 }
+                             }
+                             catch { }
+                         }
+-                        string response = Encoding.UTF8.GetString(array);
++                        var response = Encoding.UTF8.GetString(responseBytes);
+                         try
+                         {
+                             if (Query.SetResponse(response))
+@@ -336,14 +341,14 @@ protected PacketState ProcImpl()
+                                 if (RetryCount < MaxRetry)
+                                 {
+                                     RetryCount++;
+-                                    State = PacketState.RetryWait;
+-                                    Status = PacketStatus.ErrorDecodeResponse;
++                                    EnterRetryWait();
+                                 }
+                                 else
+                                 {
+                                     State = PacketState.Error;
+-                                    Status = PacketStatus.ErrorDecodeResponse;
+                                 }
++
++                                Status = PacketStatus.ErrorDecodeResponse;
+                             }
+                         }
+                         catch
+@@ -363,20 +368,24 @@ protected PacketState ProcImpl()
+                         Clear();
+                         break;
+                     }
+-                    case 5:
++                    case NetHttpClient.RunningState.Error:
+                         ProcResult();
+                         break;
+                 }
+                 break;
+             case PacketState.RetryWait:
+-                Time += UnityEngine.Time.deltaTime;
+-                if (NetConfig.RetryWaitInSec <= Time)
++                if (_retryWaitTimer.Elapsed.TotalSeconds >= NetConfig.RetryWaitInSec)
+                 {
+                     Reset();
+                 }
+                 break;
++            case PacketState.Done:
++            case PacketState.Dialog:
++            case PacketState.Error:
++            default:
++                break;
+         }
+-        if (state != State && (State == PacketState.Done || State == PacketState.Error))
++        if (oldState != State && State is PacketState.Done or PacketState.Error)
+         {
+             Singleton<OperationManager>.Instance.OnPacketFinish(Status);
+         }
+@@ -385,14 +394,21 @@ protected PacketState ProcImpl()
+ 
+     protected void Clear()
+     {
+-        if (Client != null)
+-        {
+-            HttpStatus = Client.HttpStatus;
+-            WebExceptionStatus = Client.WebException;
+-            ErrorString = Client.Error;
+-            Client.Dispose();
+-            Client = null;
+-        }
++        if (Client == null)
++            return;
++
++        HttpStatus = Client.HttpStatus;
++        ErrorException = Client.ErrorException;
++        ErrorKind = Client.ErrorKind;
++        ErrorString = Client.Error;
++        Client.Dispose();
++        Client = null;
++    }
++
++    private void EnterRetryWait()
++    {
++        _retryWaitTimer.Restart();
++        State = PacketState.RetryWait;
+     }
+ 
+     protected void ProcResult()
+@@ -404,352 +420,228 @@ protected void ProcResult()
+             Status = PacketStatus.Ok;
+             return;
+         }
+-        switch (WebExceptionStatus)
++        switch (ErrorKind)
+         {
+-            case WebExceptionStatus.Success:
+-                if (HttpStatus == 200)
+-                {
+-                    State = PacketState.Done;
+-                    Status = PacketStatus.Ok;
+-                }
+-                else
+-                {
+-                    State = PacketState.Error;
+-                    Status = PacketStatus.ErrorHttpStatus;
+-                }
+-                return;
+-            case WebExceptionStatus.NameResolutionFailure:
+-            case WebExceptionStatus.ConnectFailure:
+-            case WebExceptionStatus.ReceiveFailure:
+-            case WebExceptionStatus.SendFailure:
+-                Status = PacketStatus.ErrorConnection;
++            case NetErrorKind.None when HttpStatus == 200:
++                State = PacketState.Done;
++                Status = PacketStatus.Ok;
++                break;
++            case NetErrorKind.None:
++                AddInternalError();
++                break;
++            case NetErrorKind.Timeout:
++                Status = PacketStatus.ErrorTimeout;
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+                 >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorConnection
++                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorTimeout
+                 );
+                 break;
+-            case WebExceptionStatus.PipelineFailure:
++            case NetErrorKind.Connection:
++                Status = PacketStatus.ErrorConnection;
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+                 >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorConnection
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.RequestCanceled:
++            case NetErrorKind.HttpStatus:
++            case NetErrorKind.Protocol:
++                AddHttpError();
++                break;
++            case NetErrorKind.Canceled:
++            case NetErrorKind.Internal:
++            default:
++                AddInternalError();
++                break;
++        }
++
++        if (Status is PacketStatus.Ok or PacketStatus.ErrorHttpStatus)
++            return;
++
++        if (RetryCount < MaxRetry)
++        {
++            RetryCount++;
++            if (!IsPingPacket())
++            {
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+                 >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                    BackupNetworkInformationRecord.ErrorKind.Packet_Retry
+                 );
+-                Status = PacketStatus.ErrorInternal;
+-                break;
+-            case WebExceptionStatus.ProtocolError:
++            }
++            EnterRetryWait();
++        }
++        else
++        {
++            State = PacketState.Error;
++        }
++    }
++
++    private void AddHttpError()
++    {
++        SingletonStateMachine<
++            AmManager,
++            AmManager.EState
++        >.Instance.Backup.networkInformation.AddErrorNum(
++            BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++        );
++        AddHttpErrorCounters();
++        Status = PacketStatus.ErrorInternal;
++    }
++
++    private void AddHttpErrorCounters()
++    {
++        switch (HttpStatus)
++        {
++            case (int)HttpStatusCode.BadRequest:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E00
+                 );
+-                switch (HttpStatus)
+-                {
+-                    case 400:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E00
+-                        );
+-                        break;
+-                    case 403:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E01
+-                        );
+-                        break;
+-                    case 404:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E02
+-                        );
+-                        break;
+-                    case 405:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E03
+-                        );
+-                        break;
+-                    case 406:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E04
+-                        );
+-                        break;
+-                    case 408:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E05
+-                        );
+-                        break;
+-                    case 429:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E06
+-                        );
+-                        break;
+-                    case 451:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E07
+-                        );
+-                        break;
+-                    case 500:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E08
+-                        );
+-                        break;
+-                    case 501:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E09
+-                        );
+-                        break;
+-                    case 502:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E10
+-                        );
+-                        break;
+-                    case 503:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E11
+-                        );
+-                        break;
+-                    case 504:
+-                        SingletonStateMachine<
+-                            AmManager,
+-                            AmManager.EState
+-                        >.Instance.Backup.networkInformation.AddError2Num(
+-                            BackupNetworkInformationRecord.Error2Kind.E12
+-                        );
+-                        break;
+-                    default:
+-                        if (HttpStatus >= 400 && HttpStatus <= 499)
+-                        {
+-                            SingletonStateMachine<
+-                                AmManager,
+-                                AmManager.EState
+-                            >.Instance.Backup.networkInformation.AddError2Num(
+-                                BackupNetworkInformationRecord.Error2Kind.E13
+-                            );
+-                        }
+-                        else if (HttpStatus >= 500 && HttpStatus <= 599)
+-                        {
+-                            SingletonStateMachine<
+-                                AmManager,
+-                                AmManager.EState
+-                            >.Instance.Backup.networkInformation.AddError2Num(
+-                                BackupNetworkInformationRecord.Error2Kind.E14
+-                            );
+-                        }
+-                        else
+-                        {
+-                            SingletonStateMachine<
+-                                AmManager,
+-                                AmManager.EState
+-                            >.Instance.Backup.networkInformation.AddError2Num(
+-                                BackupNetworkInformationRecord.Error2Kind.E15
+-                            );
+-                        }
+-                        break;
+-                }
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.ConnectionClosed:
++            case (int)HttpStatusCode.Forbidden:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E01
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.TrustFailure:
++            case (int)HttpStatusCode.NotFound:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E02
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.SecureChannelFailure:
++            case (int)HttpStatusCode.MethodNotAllowed:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E03
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.ServerProtocolViolation:
++            case (int)HttpStatusCode.NotAcceptable:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E04
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.KeepAliveFailure:
++            case (int)HttpStatusCode.RequestTimeout:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E05
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.Pending:
++            case (int)HttpStatusCode.TooManyRequests:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E06
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.Timeout:
+-                Status = PacketStatus.ErrorTimeout;
++            case (int)HttpStatusCode.UnavailableForLegalReasons:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorTimeout
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E07
+                 );
+                 break;
+-            case WebExceptionStatus.ProxyNameResolutionFailure:
++            case (int)HttpStatusCode.InternalServerError:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E08
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.UnknownError:
++            case (int)HttpStatusCode.NotImplemented:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E09
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.MessageLengthLimitExceeded:
++            case (int)HttpStatusCode.BadGateway:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E10
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.CacheEntryNotFound:
++            case (int)HttpStatusCode.ServiceUnavailable:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E11
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.RequestProhibitedByCachePolicy:
++            case (int)HttpStatusCode.GatewayTimeout:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E12
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            case WebExceptionStatus.RequestProhibitedByProxy:
++            case >= 400 and <= 499:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E13
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-            default:
++            case >= 500 and <= 599:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E14
+                 );
+-                Status = PacketStatus.ErrorInternal;
+                 break;
+-        }
+-        if (RetryCount < MaxRetry)
+-        {
+-            RetryCount++;
+-            if (!IsPingPacket())
+-            {
++            default:
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+-                >.Instance.Backup.networkInformation.AddErrorNum(
+-                    BackupNetworkInformationRecord.ErrorKind.Packet_Retry
++                >.Instance.Backup.networkInformation.AddError2Num(
++                    BackupNetworkInformationRecord.Error2Kind.E15
+                 );
+-            }
+-            State = PacketState.RetryWait;
+-        }
+-        else
+-        {
+-            State = PacketState.Error;
++                break;
+         }
+     }
+ 
+-    public static string Obfuscator(string srcStr)
++    private void AddInternalError()
+     {
+-        using MD5 mD = MD5.Create();
+-        byte[] array = mD.ComputeHash(Encoding.UTF8.GetBytes(srcStr + ObfuscateParam));
+-        StringBuilder stringBuilder = new StringBuilder();
+-        byte[] array2 = array;
+-        foreach (byte b in array2)
+-        {
+-            stringBuilder.Append(b.ToString("x2"));
+-        }
+-        return stringBuilder.ToString();
++        SingletonStateMachine<
++            AmManager,
++            AmManager.EState
++        >.Instance.Backup.networkInformation.AddErrorNum(
++            BackupNetworkInformationRecord.ErrorKind.PacketStatus_ErrorInternal
++        );
++        Status = PacketStatus.ErrorInternal;
+     }
++
++    public static string Obfuscator(string apiName) =>
++        Convert.ToHexStringLower(MD5.HashData(Encoding.UTF8.GetBytes(apiName + ObfuscateParam)));
++
++    private static string GetUserAgent(INetQuery query) =>
++        $"{Obfuscator(query.Api)}#{(query.UserId != 0 ? query.UserId : NetConfig.ClientId)}";
+ }
