@@ -1,0 +1,463 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Sun, 11 Oct 2026 16:48:39 +0800
+Subject: [PATCH] refactor(net): drive packet flow from request tasks
+
+
+diff --git a/src/SinmaiLib/Net/CipherAES.cs b/src/SinmaiLib/Net/CipherAES.cs
+index f753a5c..82283cc 100644
+--- a/src/SinmaiLib/Net/CipherAES.cs
++++ b/src/SinmaiLib/Net/CipherAES.cs
+@@ -1,13 +1,14 @@
+ using System.Security.Cryptography;
+-using MAI2.Util;
+ 
+ namespace Net;
+ 
+-internal class CipherAes : Singleton<CipherAes>
++internal static class CipherAes
+ {
+     private const int BlockSize = 128;
+     private const int KeySize = 256;
+     private static readonly byte[] AesKey = [.. "FKM2JX:VjZNK6hc:A0<JU:i5oR7LA]9W"u8];
++
++    // ReSharper disable once InconsistentNaming
+     private static readonly byte[] AesIV = [.. "F>;24DjU9W6ZsRH["u8];
+ 
+     public static byte[] Encrypt(byte[] data)
+diff --git a/src/SinmaiLib/Net/NetHttpClient.cs b/src/SinmaiLib/Net/NetHttpClient.cs
+index 359abab..ea173c5 100644
+--- a/src/SinmaiLib/Net/NetHttpClient.cs
++++ b/src/SinmaiLib/Net/NetHttpClient.cs
+@@ -56,24 +56,6 @@ internal class NetHttpClient : IDisposable
+ 
+     public string Error { get; private set; } = "";
+ 
+-    public RunningState State
+-    {
+-        get
+-        {
+-            lock (_lock)
+-            {
+-                return field;
+-            }
+-        }
+-        private set
+-        {
+-            lock (_lock)
+-            {
+-                field = value;
+-            }
+-        }
+-    }
+-
+     public int HttpStatus { get; private set; } = -1;
+ 
+     public byte[] ResponseData { get; private set; } = [];
+@@ -93,7 +75,6 @@ public NetHttpClient(Uri uri)
+         };
+         _client = new HttpClient(_handler) { Timeout = Timeout.InfiniteTimeSpan };
+         _client.DefaultRequestHeaders.Add(MaiEncodingKey, MaiEncodingVal);
+-        State = RunningState.Ready;
+     }
+ 
+     public void Dispose()
+@@ -144,42 +125,18 @@ public void AddCookie(ulong userId)
+         }
+     }
+ 
+-    public bool Request(byte[] data, string userAgent, string method = "POST")
+-    {
+-        EnsureInitialized();
+-        ResetStatus();
+-        try
+-        {
+-            State = RunningState.Process;
+-            _ = RunRequestAsync(data, userAgent, method, CancellationToken.None)
+-                .ContinueWith(t =>
+-                {
+-                    if (t is { IsFaulted: true, Exception: not null })
+-                        SetError(t.Exception.GetBaseException());
+-                });
+-            return true;
+-        }
+-        catch (Exception ex)
+-        {
+-            SetError(ex);
+-            return false;
+-        }
+-    }
+-
+     public async Task<bool> RequestAsync(
+-        byte[] bytes,
++        byte[] data,
+         string userAgent,
+-        string method = "POST",
++        HttpMethod method,
+         CancellationToken cancellationToken = default
+     )
+     {
+         EnsureInitialized();
+         ResetStatus();
+-        State = RunningState.Process;
+         try
+         {
+-            await RunRequestAsync(bytes, userAgent, method, cancellationToken);
+-            return State == RunningState.Done;
++            return await RunRequestAsync(data, userAgent, method, cancellationToken);
+         }
+         catch (Exception ex)
+         {
+@@ -188,13 +145,19 @@ public async Task<bool> RequestAsync(
+         }
+     }
+ 
++    public Task<bool> RequestAsync(
++        byte[] data,
++        string userAgent,
++        CancellationToken cancellationToken = default
++    ) => RequestAsync(data, userAgent, HttpMethod.Post, cancellationToken);
++
+     public Task<bool> RequestAsync(CancellationToken cancellationToken = default) =>
+-        RequestAsync([], string.Empty, "POST", cancellationToken);
++        RequestAsync([], string.Empty, HttpMethod.Post, cancellationToken);
+ 
+-    private async Task RunRequestAsync(
++    private async Task<bool> RunRequestAsync(
+         byte[] data,
+         string userAgent,
+-        string method,
++        HttpMethod method,
+         CancellationToken cancellationToken
+     )
+     {
+@@ -214,7 +177,7 @@ CancellationToken cancellationToken
+             using var content = new ByteArrayContent(
+                 data.Length == 0 ? [] : EncodeRequestPayload(data)
+             );
+-            using var request = new HttpRequestMessage(new HttpMethod(method), _uri)
++            using var request = new HttpRequestMessage(method, _uri)
+             {
+                 Version = HttpVersion.Version11,
+                 Content = content,
+@@ -242,8 +205,7 @@ CancellationToken cancellationToken
+                 ErrorException = null;
+                 ErrorKind = NetErrorKind.HttpStatus;
+                 Error = $"HTTP {(int)response.StatusCode} ({response.ReasonPhrase})";
+-                State = RunningState.Error;
+-                return;
++                return false;
+             }
+             Cookie = _handler.CookieContainer.GetCookies(_uri);
+             var payload = await response.Content.ReadAsByteArrayAsync(timeout.Token);
+@@ -251,7 +213,7 @@ CancellationToken cancellationToken
+             ErrorException = null;
+             ErrorKind = NetErrorKind.None;
+             Error = string.Empty;
+-            State = RunningState.Done;
++            return true;
+         }
+         catch (Exception exception)
+         {
+@@ -259,7 +221,7 @@ CancellationToken cancellationToken
+                 exception,
+                 ClassifyException(exception, cancellationToken, timeoutCancellation)
+             );
+-            throw;
++            return false;
+         }
+         finally
+         {
+@@ -293,7 +255,6 @@ private void SetError(Exception exception, NetErrorKind? errorKind = null)
+         else if (ErrorKind == NetErrorKind.None)
+             ErrorKind = ClassifyException(exception, CancellationToken.None, null);
+         Error = exception.Message;
+-        State = RunningState.Error;
+     }
+ 
+     private NetErrorKind ClassifyException(
+@@ -394,7 +355,7 @@ SslPolicyErrors errors
+                 return false;
+             return (_hostBytes ?? []).Any(data =>
+             {
+-                try
++                try 
+                 {
+                     return CheckServerParameter(data, certificate.GetCertHash());
+                 }
+@@ -409,12 +370,4 @@ SslPolicyErrors errors
+             return false;
+         }
+     }
+-
+-    public enum RunningState
+-    {
+-        Ready = 1,
+-        Process = 3,
+-        Done,
+-        Error,
+-    }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Packet.cs b/src/SinmaiLib/Net/Packet/Packet.cs
+index 8b11c96..ad0e338 100644
+--- a/src/SinmaiLib/Net/Packet/Packet.cs
++++ b/src/SinmaiLib/Net/Packet/Packet.cs
+@@ -3,6 +3,7 @@
+ using System.Net;
+ using System.Security.Cryptography;
+ using System.Text;
++using System.Threading.Tasks;
+ using MAI2.Util;
+ using Manager;
+ using Net.VO.Mai2;
+@@ -11,6 +12,8 @@ namespace Net.Packet;
+ 
+ internal abstract class Packet
+ {
++    private const string ObfuscateParam = "8bF76dE9";
++
+     protected Exception? ErrorException;
+ 
+     protected NetErrorKind ErrorKind;
+@@ -32,10 +35,8 @@ internal abstract class Packet
+     protected int RecreateCount;
+ 
+     private readonly Stopwatch _sw = new();
+-
+     private readonly Stopwatch _retryWaitTimer = new();
+-
+-    protected static string ObfuscateParam = "8bF76dE9";
++    private Task<bool>? _requestTask;
+ 
+     public PacketState State { get; protected set; }
+ 
+@@ -239,14 +240,11 @@ protected PacketState ProcImpl()
+                             Client.AddCookie(Query.UserId);
+                         }
+                     }
+-                    if (!Client.Request(Encoding.UTF8.GetBytes(request), GetUserAgent(Query)))
+-                    {
+-                        ProcResult();
+-                    }
+-                    else
+-                    {
+-                        State = PacketState.Process;
+-                    }
++                    _requestTask = Client.RequestAsync(
++                        Encoding.UTF8.GetBytes(request),
++                        GetUserAgent(Query)
++                    );
++                    State = PacketState.Process;
+                 }
+                 catch (Exception)
+                 {
+@@ -273,106 +271,125 @@ protected PacketState ProcImpl()
+                 }
+                 break;
+             case PacketState.Process:
+-                switch (Client.State)
++            {
++                if (_requestTask is not { IsCompleted: true })
++                    break;
++
++                bool success;
++                try
++                {
++                    success = _requestTask.GetAwaiter().GetResult();
++                }
++                catch (Exception exception)
++                {
++                    Clear();
++                    ErrorException = exception;
++                    ErrorString = exception.Message;
++                    ErrorKind = exception is OperationCanceledException
++                        ? NetErrorKind.Canceled
++                        : NetErrorKind.Internal;
++                    ProcResult();
++                    break;
++                }
++
++                if (success)
+                 {
+-                    case NetHttpClient.RunningState.Done:
++                    if (Query.Api.StartsWith("UserLogin"))
+                     {
+-                        if (Query.Api.StartsWith("UserLogin"))
++                        try
+                         {
+-                            try
+-                            {
+-                                var cookieContainer = new CookieContainer();
+-                                cookieContainer.Add(Client.Cookie);
+-                                Singleton<OperationManager>.Instance.SetCookie(
+-                                    Query.UserId,
+-                                    cookieContainer
+-                                );
+-                            }
+-                            catch (Exception) { }
++                            var cookieContainer = new CookieContainer();
++                            cookieContainer.Add(Client.Cookie);
++                            Singleton<OperationManager>.Instance.SetCookie(
++                                Query.UserId,
++                                cookieContainer
++                            );
+                         }
+-                        var responseBytes = Client.ResponseData;
+-                        if (!Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable())
++                        catch (Exception) { }
++                    }
++                    var responseBytes = Client.ResponseData;
++                    if (!Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable())
++                    {
++                        _sw.Stop();
++                        try
+                         {
+-                            _sw.Stop();
+-                            try
++                            var value = Query.Api.Remove(Query.Api.Length - 9);
++                            var apiKind = Enum.Parse<ApiKind>(value);
++                            var userDataById =
++                                Singleton<UserDataManager>.Instance.GetUserDataByID(
++                                    Query.UserId
++                                );
++                            if (userDataById != null)
+                             {
+-                                var value = Query.Api.Remove(Query.Api.Length - 9);
+-                                var apiKind = Enum.Parse<ApiKind>(value);
+-                                var userDataById =
+-                                    Singleton<UserDataManager>.Instance.GetUserDataByID(
+-                                        Query.UserId
+-                                    );
+-                                if (userDataById != null)
++                                var netDelayLog = userDataById.NetDelayLog;
++                                if (apiKind <= ApiKind.GetUserKaleidxScopeApi)
+                                 {
+-                                    var netDelayLog = userDataById.NetDelayLog;
+-                                    if (apiKind <= ApiKind.GetUserKaleidxScopeApi)
+-                                    {
+-                                        netDelayLog.DlRequests++;
+-                                        netDelayLog.DlRetry += RetryCount;
+-                                    }
+-                                    netDelayLog.Request[(int)apiKind].Count++;
+-                                    netDelayLog.Request[(int)apiKind].Size += responseBytes.Length;
+-                                    netDelayLog.Request[(int)apiKind].Msec += (int)
+-                                        _sw.ElapsedMilliseconds;
+-                                    netDelayLog.Request[(int)apiKind].Retry += RetryCount;
++                                    netDelayLog.DlRequests++;
++                                    netDelayLog.DlRetry += RetryCount;
+                                 }
++                                netDelayLog.Request[(int)apiKind].Count++;
++                                netDelayLog.Request[(int)apiKind].Size += responseBytes.Length;
++                                netDelayLog.Request[(int)apiKind].Msec += (int)
++                                    _sw.ElapsedMilliseconds;
++                                netDelayLog.Request[(int)apiKind].Retry += RetryCount;
+                             }
+-                            catch { }
+                         }
+-                        var response = Encoding.UTF8.GetString(responseBytes);
+-                        try
++                        catch { }
++                    }
++                    var response = Encoding.UTF8.GetString(responseBytes);
++                    try
++                    {
++                        if (Query.SetResponse(response))
+                         {
+-                            if (Query.SetResponse(response))
+-                            {
+-                                State = PacketState.Done;
+-                                Status = PacketStatus.Ok;
+-                            }
+-                            else
+-                            {
+-                                if (!IsPingPacket())
+-                                {
+-                                    SingletonStateMachine<
+-                                        AmManager,
+-                                        AmManager.EState
+-                                    >.Instance.Backup.networkInformation.AddErrorNum(
+-                                        BackupNetworkInformationRecord.ErrorKind.E09
+-                                    );
+-                                }
+-                                if (RetryCount < MaxRetry)
+-                                {
+-                                    RetryCount++;
+-                                    EnterRetryWait();
+-                                }
+-                                else
+-                                {
+-                                    State = PacketState.Error;
+-                                }
+-
+-                                Status = PacketStatus.ErrorDecodeResponse;
+-                            }
++                            State = PacketState.Done;
++                            Status = PacketStatus.Ok;
+                         }
+-                        catch
++                        else
+                         {
+-                            State = PacketState.Error;
+-                            Status = PacketStatus.ErrorDecodeResponse;
+                             if (!IsPingPacket())
+                             {
+                                 SingletonStateMachine<
+                                     AmManager,
+                                     AmManager.EState
+                                 >.Instance.Backup.networkInformation.AddErrorNum(
+-                                    BackupNetworkInformationRecord.ErrorKind.E14
++                                    BackupNetworkInformationRecord.ErrorKind.E09
+                                 );
+                             }
++                            if (RetryCount < MaxRetry)
++                            {
++                                RetryCount++;
++                                EnterRetryWait();
++                            }
++                            else
++                            {
++                                State = PacketState.Error;
++                            }
++
++                            Status = PacketStatus.ErrorDecodeResponse;
+                         }
+-                        Clear();
+-                        break;
+                     }
+-                    case NetHttpClient.RunningState.Error:
+-                        ProcResult();
+-                        break;
++                    catch
++                    {
++                        State = PacketState.Error;
++                        Status = PacketStatus.ErrorDecodeResponse;
++                        if (!IsPingPacket())
++                        {
++                            SingletonStateMachine<
++                                AmManager,
++                                AmManager.EState
++                            >.Instance.Backup.networkInformation.AddErrorNum(
++                                BackupNetworkInformationRecord.ErrorKind.E14
++                            );
++                        }
++                    }
++                    Clear();
++                }
++                else
++                {
++                    ProcResult();
+                 }
+                 break;
++            }
+             case PacketState.RetryWait:
+                 if (_retryWaitTimer.Elapsed.TotalSeconds >= NetConfig.RetryWaitInSec)
+                 {
+@@ -394,6 +411,7 @@ protected PacketState ProcImpl()
+ 
+     protected void Clear()
+     {
++        _requestTask = null;
+         if (Client == null)
+             return;
+ 
