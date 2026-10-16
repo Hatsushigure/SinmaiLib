@@ -1,0 +1,4 @@
+src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs
+tests/NetHttpClient.Tests/UserItemMapperTests.cs
+tests/NetHttpClient.Tests/UserShopStockMapperTests.cs

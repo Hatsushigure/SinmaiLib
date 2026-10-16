@@ -1,0 +1,3 @@
+src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserActivityMapper.cs
+tests/NetHttpClient.Tests/UserActMapperTests.cs

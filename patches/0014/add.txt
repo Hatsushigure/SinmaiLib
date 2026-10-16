@@ -1,0 +1,2 @@
+tests/NetHttpClient.Tests/PacketTests.cs
+tests/NetHttpClient.Tests/Support/PacketDependencies.cs

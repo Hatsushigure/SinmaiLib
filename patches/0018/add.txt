@@ -1,0 +1,2 @@
+tests/NetHttpClient.Tests/Fixtures/UserDetailResponse.json
+tests/NetHttpClient.Tests/UserDownloadPacketTests.cs

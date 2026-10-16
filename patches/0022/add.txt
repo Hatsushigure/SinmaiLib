@@ -1,0 +1,3 @@
+src/SinmaiLib/Net/VO/Mapper/MapEncountNpcMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserExtendMapper.cs
+tests/NetHttpClient.Tests/UserExtendMapperTests.cs

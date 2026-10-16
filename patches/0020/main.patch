@@ -1,0 +1,365 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 16 Oct 2026 13:57:22 +0800
+Subject: [PATCH] refactor(net)!: map user activities with typed models
+
+Move ActivityKind to shared enums, add Mapperly activity conversions, and cover wire round trips in tests.
+
+BREAKING CHANGE: UserAct now exposes required properties and no longer provides its positional constructor.
+
+diff --git a/src/SinmaiLib/Net/VO/Mai2/ActivityKind.cs b/src/SinmaiLib/Enums/ActivityKind.cs
+similarity index 67%
+rename from src/SinmaiLib/Net/VO/Mai2/ActivityKind.cs
+rename to src/SinmaiLib/Enums/ActivityKind.cs
+index ff4430f..8179504 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/ActivityKind.cs
++++ b/src/SinmaiLib/Enums/ActivityKind.cs
+@@ -1,4 +1,4 @@
+-namespace Net.VO.Mai2;
++namespace SinmaiLib.Enums;
+ 
+ public enum ActivityKind
+ {
+diff --git a/src/SinmaiLib/Main/GameMain.cs b/src/SinmaiLib/Main/GameMain.cs
+index 1ba8a92..832b2ad 100644
+--- a/src/SinmaiLib/Main/GameMain.cs
++++ b/src/SinmaiLib/Main/GameMain.cs
+@@ -17,6 +17,7 @@
+ using Monitor;
+ using Net;
+ using Net.VO.Mai2;
++using Net.VO.Mapper;
+ using PartyLink;
+ using Process;
+ using Process.Error;
+@@ -701,17 +702,7 @@ private void RestoreActivity(int index)
+             for (int i = 0; i < array.Length; i++)
+             {
+                 Net.VO.Mai2.UserAct userAct = array[i];
+-                playList.Add(
+-                    new Manager.UserDatas.UserAct(
+-                        userAct.kind,
+-                        userAct.id,
+-                        userAct.sortNumber,
+-                        userAct.param1,
+-                        userAct.param2,
+-                        userAct.param3,
+-                        userAct.param4
+-                    )
+-                );
++                playList.Add(userAct.ToModel());
+             }
+         }
+         musicList.Clear();
+@@ -721,17 +712,7 @@ private void RestoreActivity(int index)
+             for (int i = 0; i < array.Length; i++)
+             {
+                 Net.VO.Mai2.UserAct userAct2 = array[i];
+-                musicList.Add(
+-                    new Manager.UserDatas.UserAct(
+-                        userAct2.kind,
+-                        userAct2.id,
+-                        userAct2.sortNumber,
+-                        userAct2.param1,
+-                        userAct2.param2,
+-                        userAct2.param3,
+-                        userAct2.param4
+-                    )
+-                );
++                musicList.Add(userAct2.ToModel());
+             }
+         }
+     }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserAct.cs b/src/SinmaiLib/Manager/UserDatas/UserAct.cs
+index b3e2f52..b37e667 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserAct.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserAct.cs
+@@ -1,4 +1,5 @@
+ using System;
++using SinmaiLib.Enums;
+ 
+ namespace Manager.UserDatas;
+ 
+@@ -43,36 +44,17 @@ public enum MusicResult
+         FullSync,
+     }
+ 
+-    public int kind;
++    public required ActivityKind Kind { get; init; }
+ 
+-    public int id;
++    public required int Id { get; init; }
+ 
+-    public long sortNumber;
++    public required long SortNumber { get; init; }
+ 
+-    public int param1;
++    public required int Param1 { get; init; }
+ 
+-    public int param2;
++    public required int Param2 { get; set; }
+ 
+-    public int param3;
++    public required int Param3 { get; init; }
+ 
+-    public int param4;
+-
+-    public UserAct(
+-        int kind,
+-        int id,
+-        long sortNumber,
+-        int param1,
+-        int param2,
+-        int param3,
+-        int param4
+-    )
+-    {
+-        this.kind = kind;
+-        this.id = id;
+-        this.sortNumber = sortNumber;
+-        this.param1 = param1;
+-        this.param2 = param2;
+-        this.param3 = param3;
+-        this.param4 = param4;
+-    }
++    public required int Param4 { get; init; }
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserActivity.cs b/src/SinmaiLib/Manager/UserDatas/UserActivity.cs
+index c23a6fa..b00bab4 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserActivity.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserActivity.cs
+@@ -1,5 +1,6 @@
+ using System.Collections.Generic;
+ using System.Linq;
++using SinmaiLib.Enums;
+ 
+ namespace Manager.UserDatas;
+ 
+@@ -26,51 +27,49 @@ public void Clear()
+ 
+     public void PlayMaimaiDx()
+     {
+-        UserAct.ActivityCode actCode = UserAct.ActivityCode.PlayDX;
+         if (
+-            !PlayList.Any(
+-                (UserAct x) =>
+-                    x.id == (int)actCode
+-                    && !TimeManager.IsAnotherLogDay(x.sortNumber, TimeManager.GetNowUnixTime())
++            !PlayList.Any(x =>
++                x.Id == (int)UserAct.ActivityCode.PlayDX
++                && !TimeManager.IsAnotherLogDay(x.SortNumber, TimeManager.GetNowUnixTime())
+             )
+         )
+         {
+-            AddPlayResult(actCode);
++            AddPlayResult(UserAct.ActivityCode.PlayDX);
+         }
+     }
+ 
+     public void ClassUp(UdemaeID classID)
+     {
+-        UserAct.ActivityCode actCode = UserAct.ActivityCode.ClassUp;
+-        bool flag = false;
+         if (
+-            !PlayList.Where((UserAct x) => x.id == (int)actCode).Any()
++            PlayList.All(x => x.Id != (int)UserAct.ActivityCode.ClassUp)
+             || 0
+-                < PlayList.RemoveAll((UserAct x) => x.id == (int)actCode && x.param1 < (int)classID)
++                < PlayList.RemoveAll(x =>
++                    x.Id == (int)UserAct.ActivityCode.ClassUp && x.Param1 < (int)classID
++                )
+         )
+         {
+-            AddPlayResult(actCode, (int)classID);
++            AddPlayResult(UserAct.ActivityCode.ClassUp, (int)classID);
+         }
+     }
+ 
+     public void RankUp(int rankID)
+     {
+-        UserAct.ActivityCode actCode = UserAct.ActivityCode.RankUp;
+-        bool flag = false;
+         if (
+-            !PlayList.Where((UserAct x) => x.id == (int)actCode).Any()
+-            || 0 < PlayList.RemoveAll((UserAct x) => x.id == (int)actCode && x.param1 < rankID)
++            PlayList.All(x => x.Id != (int)UserAct.ActivityCode.RankUp)
++            || 0
++                < PlayList.RemoveAll(
++                    (UserAct x) => x.Id == (int)UserAct.ActivityCode.RankUp && x.Param1 < rankID
++                )
+         )
+         {
+-            AddPlayResult(actCode, rankID);
++            AddPlayResult(UserAct.ActivityCode.RankUp, rankID);
+         }
+     }
+ 
+     public void DxRate(int dxRate)
+     {
+-        UserAct.ActivityCode actCode = UserAct.ActivityCode.DxRate;
+-        PlayList.RemoveAll((UserAct x) => x.id == (int)actCode);
+-        AddPlayResult(actCode, dxRate);
++        PlayList.RemoveAll(x => x.Id == (int)UserAct.ActivityCode.DxRate);
++        AddPlayResult(UserAct.ActivityCode.DxRate, dxRate);
+     }
+ 
+     public void AwakeMaxChara(int charaId)
+@@ -117,8 +116,8 @@ public void MusicAchivement(int musicId, int difficulty, UserAct.ActivityCode co
+         if (
+             !(
+                 from x in PlayList
+-                where GetMusicResultCode(x.id) == GetMusicResultCode((int)code)
+-                where !TimeManager.IsAnotherLogDay(x.sortNumber, TimeManager.GetNowUnixTime())
++                where GetMusicResultCode(x.Id) == GetMusicResultCode((int)code)
++                where !TimeManager.IsAnotherLogDay(x.SortNumber, TimeManager.GetNowUnixTime())
+                 select x
+             ).Any()
+         )
+@@ -129,9 +128,9 @@ select x
+             0
+             < PlayList.RemoveAll(
+                 (UserAct x) =>
+-                    GetMusicResultCode(x.id) == GetMusicResultCode((int)code)
+-                    && !TimeManager.IsAnotherLogDay(x.sortNumber, TimeManager.GetNowUnixTime())
+-                    && (x.id < (int)code || (x.id == (int)code && x.param3 < level))
++                    GetMusicResultCode(x.Id) == GetMusicResultCode((int)code)
++                    && !TimeManager.IsAnotherLogDay(x.SortNumber, TimeManager.GetNowUnixTime())
++                    && (x.Id < (int)code || (x.Id == (int)code && x.Param3 < level))
+             )
+         )
+         {
+@@ -148,23 +147,43 @@ private void AddPlayResult(
+     )
+     {
+         PlayList.Add(
+-            new UserAct(1, (int)code, TimeManager.GetNowUnixTime(), param1, param2, param3, param4)
++            new UserAct
++            {
++                Kind = ActivityKind.Play,
++                Id = (int)code,
++                SortNumber = TimeManager.GetNowUnixTime(),
++                Param1 = param1,
++                Param2 = param2,
++                Param3 = param3,
++                Param4 = param4,
++            }
+         );
+         TrimPlayActivityList();
+     }
+ 
+     public void PlayMusic(int musicId)
+     {
+-        MusicList.RemoveAll((UserAct c) => c.id == musicId);
+-        MusicList.Add(new UserAct(2, musicId, TimeManager.GetNowUnixTime(), 0, 0, 0, 0));
++        MusicList.RemoveAll((UserAct c) => c.Id == musicId);
++        MusicList.Add(
++            new UserAct
++            {
++                Kind = ActivityKind.Music,
++                Id = musicId,
++                SortNumber = TimeManager.GetNowUnixTime(),
++                Param1 = 0,
++                Param2 = 0,
++                Param3 = 0,
++                Param4 = 0,
++            }
++        );
+         TrimMusicActivityList();
+     }
+ 
+     private bool IsPlayActivityAnotherDay(int code)
+     {
+-        foreach (UserAct item in PlayList.Where((UserAct x) => x.id == code))
++        foreach (UserAct item in PlayList.Where((UserAct x) => x.Id == code))
+         {
+-            if (!TimeManager.IsAnotherLogDay(item.sortNumber, TimeManager.GetNowUnixTime()))
++            if (!TimeManager.IsAnotherLogDay(item.SortNumber, TimeManager.GetNowUnixTime()))
+             {
+                 return false;
+             }
+@@ -224,8 +243,8 @@ private void UpsertActivity(
+     {
+         PlayList.RemoveAll(
+             (UserAct x) =>
+-                x.id == (int)code
+-                && !TimeManager.IsAnotherLogDay(x.sortNumber, TimeManager.GetNowUnixTime())
++                x.Id == (int)code
++                && !TimeManager.IsAnotherLogDay(x.SortNumber, TimeManager.GetNowUnixTime())
+         );
+         AddPlayResult(code, param1, param2, param3, param4);
+     }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserAct.cs b/src/SinmaiLib/Net/VO/Mai2/UserAct.cs
+index c595134..034e6e8 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserAct.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserAct.cs
+@@ -1,3 +1,5 @@
++using SinmaiLib.Enums;
++
+ namespace Net.VO.Mai2;
+ 
+ internal sealed record UserAct
+diff --git a/src/SinmaiLib/Process/PlInformationProcess.cs b/src/SinmaiLib/Process/PlInformationProcess.cs
+index 9a681b0..2aa2c73 100644
+--- a/src/SinmaiLib/Process/PlInformationProcess.cs
++++ b/src/SinmaiLib/Process/PlInformationProcess.cs
+@@ -13,6 +13,7 @@
+ using Monitor;
+ using Monitor.TakeOver;
+ using Net.VO.Mai2;
++using Net.VO.Mapper;
+ using Process.Information;
+ using UnityEngine;
+ using Util;
+@@ -945,17 +946,7 @@ private void RestoreActivity(int index)
+             for (int i = 0; i < array.Length; i++)
+             {
+                 Net.VO.Mai2.UserAct userAct = array[i];
+-                playList.Add(
+-                    new Manager.UserDatas.UserAct(
+-                        userAct.kind,
+-                        userAct.id,
+-                        userAct.sortNumber,
+-                        userAct.param1,
+-                        userAct.param2,
+-                        userAct.param3,
+-                        userAct.param4
+-                    )
+-                );
++                playList.Add(userAct.ToModel());
+             }
+         }
+         musicList.Clear();
+@@ -965,17 +956,7 @@ private void RestoreActivity(int index)
+             for (int i = 0; i < array.Length; i++)
+             {
+                 Net.VO.Mai2.UserAct userAct2 = array[i];
+-                musicList.Add(
+-                    new Manager.UserDatas.UserAct(
+-                        userAct2.kind,
+-                        userAct2.id,
+-                        userAct2.sortNumber,
+-                        userAct2.param1,
+-                        userAct2.param2,
+-                        userAct2.param3,
+-                        userAct2.param4
+-                    )
+-                );
++                musicList.Add(userAct2.ToModel());
+             }
+         }
+     }
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index 830b9dd..8b3ad48 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -37,6 +37,9 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs" Link="Source/PacketGetUserFriendBonus.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs" Link="Source/PacketGetUserFriendCheck.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs" Link="Source/VO/Mapper/UserActMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserAct.cs" Link="Source/UserDatas/UserAct.cs" />
++    <Compile Include="../../src/SinmaiLib/Enums/ActivityKind.cs" Link="Source/Enums/ActivityKind.cs" />
+     <!-- Keep the production JSON context and its full VO graph so wire validation is exercised too. -->
+     <Compile Include="../../src/SinmaiLib/Net/VO/*.cs" Link="Source/VO/%(Filename)%(Extension)" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mai2/*.cs"

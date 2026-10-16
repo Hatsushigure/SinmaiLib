@@ -1,0 +1,2 @@
+src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs
+tests/NetHttpClient.Tests/UserCourseMapperTests.cs

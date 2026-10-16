@@ -1,0 +1,635 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Mon, 12 Oct 2026 18:26:17 +0800
+Subject: [PATCH] refactor(net): migrate Packet configuration to constructor
+
+
+diff --git a/src/SinmaiLib/Net/Packet/Packet.cs b/src/SinmaiLib/Net/Packet/Packet.cs
+index 486105e..11f7542 100644
+--- a/src/SinmaiLib/Net/Packet/Packet.cs
++++ b/src/SinmaiLib/Net/Packet/Packet.cs
+@@ -22,10 +22,6 @@ internal abstract class Packet
+ 
+     protected int RetryCount;
+ 
+-    protected string BaseUrl;
+-
+-    protected int Timeout;
+-
+     private int _retryCountAtStart;
+     private int _recreateCount;
+     private readonly Stopwatch _sw = new();
+@@ -42,9 +38,20 @@ internal abstract class Packet
+ 
+     public INetQuery Query { get; protected set; }
+ 
+-    private int MaxRetry { get; set; }
++    private int MaxRecreate { get; }
++
++    private int MaxRetry { get; }
+ 
+-    private int MaxRecreate { get; set; }
++    private int Timeout { get; }
++
++    private string BaseUrl { get; } = Singleton<OperationManager>.Instance.GetBaseUri();
++
++    protected Packet(int timeout = -1, int maxRetry = -1, int maxRecreate = -1)
++    {
++        Timeout = timeout != -1 ? timeout : NetConfig.TimeOutInMSec;
++        MaxRetry = maxRetry != -1 ? maxRetry : NetConfig.MaxRetry;
++        MaxRecreate = maxRecreate != -1 ? maxRecreate : NetConfig.MaxRecreate;
++    }
+ 
+     public static string ToString(PacketStatus status)
+     {
+@@ -108,22 +115,14 @@ protected bool IsRetryCountOverAtUpload()
+ 
+     private bool IsPingPacket() => Query.Api.StartsWith("Ping", StringComparison.Ordinal);
+ 
+-    protected bool Create(
+-        INetQuery query,
+-        int timeout = -1,
+-        int maxRetry = -1,
+-        int maxRecreate = -1
+-    )
++    protected bool Create(INetQuery query)
+     {
++        DisposeClient();
+         if (!Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable())
+         {
+             _sw.Reset();
+             _sw.Start();
+         }
+-        Timeout = timeout != -1 ? timeout : NetConfig.TimeOutInMSec;
+-        MaxRetry = maxRetry != -1 ? maxRetry : NetConfig.MaxRetry;
+-        MaxRecreate = maxRecreate != -1 ? maxRecreate : NetConfig.MaxRecreate;
+-        BaseUrl = GetServerUrl();
+         Query = query;
+         try
+         {
+@@ -169,6 +168,7 @@ protected bool Create(
+ 
+     protected bool Reset()
+     {
++        DisposeClient();
+         try
+         {
+             Client = new NetHttpClient(new Uri(BaseUrl + Obfuscator(Query.Api), UriKind.Absolute));
+@@ -402,15 +402,20 @@ exception is OperationCanceledException
+ 
+     protected void Clear()
+     {
+-        _requestTask = null;
+-        if (Client == null)
+-            return;
++        if (Client != null)
++        {
++            HttpStatus = Client.HttpStatus;
++            ErrorException = Client.ErrorException;
++            ErrorKind = Client.ErrorKind;
++            ErrorString = Client.Error;
++        }
++        DisposeClient();
++    }
+ 
+-        HttpStatus = Client.HttpStatus;
+-        ErrorException = Client.ErrorException;
+-        ErrorKind = Client.ErrorKind;
+-        ErrorString = Client.Error;
+-        Client.Dispose();
++    private void DisposeClient()
++    {
++        _requestTask = null;
++        Client?.Dispose();
+         Client = null;
+     }
+ 
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index 05d0b00..c48fee3 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -17,5 +17,11 @@
+     <Compile Include="../../src/SinmaiLib/Net/NetHttpClient.cs" Link="Source/NetHttpClient.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/CipherAes.cs" Link="Source/CipherAes.cs" />
+     <Compile Include="../../src/SinmaiLib/Mai2/Util/Singleton.cs" Link="Source/Singleton.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Packet.cs" Link="Source/Packet.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/PacketState.cs" Link="Source/PacketState.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/PacketStatus.cs" Link="Source/PacketStatus.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/INetQuery.cs" Link="Source/INetQuery.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/NetConfig.cs" Link="Source/NetConfig.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mai2/ApiKind.cs" Link="Source/ApiKind.cs" />
+   </ItemGroup>
+ </Project>
+diff --git a/tests/NetHttpClient.Tests/NetHttpClientTests.cs b/tests/NetHttpClient.Tests/NetHttpClientTests.cs
+index 6edfbbb..cd08882 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClientTests.cs
++++ b/tests/NetHttpClient.Tests/NetHttpClientTests.cs
+@@ -1,4 +1,5 @@
+ using System.Net;
++using System.Net.Http;
+ using System.Net.Sockets;
+ using System.Security.Cryptography;
+ using System.Text;
+@@ -13,13 +14,12 @@ namespace NetHttpClient.Tests;
+ public sealed class NetHttpClientTests
+ {
+     [Fact]
+-    public void Create_InitializesReadyStateAndDefaults()
++    public void Create_InitializesDefaults()
+     {
+         using var client = CreateClient("http://127.0.0.1/test");
+ 
+-        Assert.Equal(Client.RunningState.Ready, client.State);
+         Assert.Equal(60000, client.TimeOutInMSec);
+-        Assert.Equal(-1, client.HttpStatus);
++        Assert.Null(client.HttpStatus);
+         Assert.Empty(client.ResponseData);
+         Assert.Empty(client.Error);
+         Assert.Null(client.ErrorException);
+@@ -28,11 +28,10 @@ public void Create_InitializesReadyStateAndDefaults()
+     }
+ 
+     [Theory]
+-    [InlineData(null)]
+     [InlineData("")]
+     [InlineData("relative/path")]
+     [InlineData("http://")]
+-    public void Create_InvalidUrl_ReturnsNull(string? url)
++    public void Create_InvalidUrl_ReturnsNull(string url)
+     {
+         Assert.ThrowsAny<Exception>(() => new Client(new Uri(url)));
+     }
+@@ -48,7 +47,6 @@ public void AddHeader_EmptyName_ThrowsArgumentException(string? name)
+         var error = Assert.Throws<ArgumentException>(() => client.AddHeader(name!, "value"));
+ 
+         Assert.Equal("name", error.ParamName);
+-        Assert.Equal(Client.RunningState.Ready, client.State);
+     }
+ 
+     [Fact]
+@@ -73,7 +71,7 @@ public async Task RequestAsync_SendsEncryptedZlibJsonAndDecodesResponse()
+         Assert.Equal("deflate", request.Headers["Content-Encoding"]);
+         Assert.False(requestData.SequenceEqual(request.Body));
+         Assert.Equal(requestData, WirePayload.Decode(request.Body));
+-        AssertSuccess(client, 200, responseData);
++        AssertSuccess(client, HttpStatusCode.OK, responseData);
+     }
+ 
+     [Fact]
+@@ -82,13 +80,13 @@ public async Task RequestAsync_DefaultOverload_SendsEmptyPostWithoutContentEncod
+         await using var server = await LoopbackServer.StartAsync(new TestResponse());
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+         var request = await server.ReceiveAsync();
+ 
+         Assert.Equal("POST", request.Method);
+         Assert.Empty(request.Body);
+         Assert.False(request.Headers.ContainsKey("Content-Encoding"));
+-        AssertSuccess(client, 200, []);
++        AssertSuccess(client, HttpStatusCode.OK, []);
+     }
+ 
+     [Fact]
+@@ -99,7 +97,7 @@ public async Task RequestAsync_UsesCustomMethodAndCombinesCaseInsensitiveHeaders
+         client.AddHeader("X-Test", "first");
+         client.AddHeader("x-test", "second");
+ 
+-        Assert.True(await client.RequestAsync([], "test-agent", "PUT"));
++        Assert.True(await client.RequestAsync([], "test-agent", HttpMethod.Put));
+         var request = await server.ReceiveAsync();
+ 
+         Assert.Equal("PUT", request.Method);
+@@ -108,26 +106,26 @@ public async Task RequestAsync_UsesCustomMethodAndCombinesCaseInsensitiveHeaders
+     }
+ 
+     [Theory]
+-    [InlineData(200)]
+-    [InlineData(201)]
+-    [InlineData(204)]
+-    public async Task RequestAsync_EmptySuccessResponse_CompletesWithoutDecoding(int status)
++    [InlineData(HttpStatusCode.OK)]
++    [InlineData(HttpStatusCode.Created)]
++    [InlineData(HttpStatusCode.NoContent)]
++    public async Task RequestAsync_EmptySuccessResponse_CompletesWithoutDecoding(HttpStatusCode status)
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(status));
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+ 
+         AssertSuccess(client, status, []);
+     }
+ 
+     [Theory]
+-    [InlineData(400, "Bad Request")]
+-    [InlineData(401, "Unauthorized")]
+-    [InlineData(404, "Not Found")]
+-    [InlineData(500, "Internal Server Error")]
++    [InlineData(HttpStatusCode.BadRequest, "Bad Request")]
++    [InlineData(HttpStatusCode.Unauthorized, "Unauthorized")]
++    [InlineData(HttpStatusCode.NotFound, "Not Found")]
++    [InlineData(HttpStatusCode.InternalServerError, "Internal Server Error")]
+     public async Task RequestAsync_HttpError_ReportsStatusWithoutDecodingBody(
+-        int status,
++        HttpStatusCode status,
+         string reason
+     )
+     {
+@@ -137,11 +135,10 @@ string reason
+         );
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.False(await client.RequestAsync());
++        Assert.False(await client.RequestAsync([], ""));
+ 
+-        Assert.Equal(Client.RunningState.Error, client.State);
+         Assert.Equal(status, client.HttpStatus);
+-        Assert.Equal($"HTTP {status} ({reason})", client.Error);
++        Assert.Equal($"HTTP {(int)status} ({reason})", client.Error);
+         Assert.Null(client.ErrorException);
+         Assert.Equal(Net.NetErrorKind.HttpStatus, client.ErrorKind);
+         Assert.Empty(client.ResponseData);
+@@ -152,19 +149,19 @@ public async Task RequestAsync_HttpError_ClearsResponseCookies()
+     {
+         await using var server = await LoopbackServer.StartAsync(
+             new TestResponse(SetCookie: "session=ok; Path=/"),
+-            new TestResponse(500, "server error"u8.ToArray(), "session=error; Path=/")
++            new TestResponse(HttpStatusCode.InternalServerError, "server error"u8.ToArray(), "session=error; Path=/")
+         );
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+         await server.ReceiveAsync();
+         Assert.Equal("ok", client.Cookie["session"]?.Value);
+ 
+-        Assert.False(await client.RequestAsync());
++        Assert.False(await client.RequestAsync([], ""));
+         await server.ReceiveAsync();
+ 
+         Assert.Empty(client.Cookie.Cast<Cookie>());
+-        Assert.Equal(500, client.HttpStatus);
++        Assert.Equal(HttpStatusCode.InternalServerError, client.HttpStatus);
+         Assert.Equal(Net.NetErrorKind.HttpStatus, client.ErrorKind);
+         Assert.Empty(client.ResponseData);
+     }
+@@ -179,10 +176,9 @@ public async Task RequestAsync_InvalidResponsePayload_ReportsDecodeException(boo
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(Body: payload));
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.False(await client.RequestAsync());
++        Assert.False(await client.RequestAsync([], ""));
+ 
+-        Assert.Equal(Client.RunningState.Error, client.State);
+-        Assert.Equal(200, client.HttpStatus);
++        Assert.Equal(HttpStatusCode.OK, client.HttpStatus);
+         if (validAes)
+             Assert.IsType<InvalidDataException>(client.ErrorException);
+         else
+@@ -199,7 +195,7 @@ public async Task RequestAsync_Timeout_AbortsPendingRequest()
+         using var client = CreateClient(server.Url);
+         client.TimeOutInMSec = 1000;
+ 
+-        var pending = client.RequestAsync();
++        var pending = client.RequestAsync([], "");
+         await server.ReceiveAsync();
+ 
+         Assert.False(await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+@@ -215,9 +211,9 @@ public async Task RequestAsync_CallerCancellation_AbortsPendingRequestWithTimeou
+         using var cancellation = new CancellationTokenSource();
+         client.TimeOutInMSec = -1;
+ 
+-        var pending = client.RequestAsync(cancellation.Token);
++        var pending = client.RequestAsync([], "", cancellation.Token);
+         await server.ReceiveAsync();
+-        Assert.Equal(Client.RunningState.Process, client.State);
++        Assert.False(pending.IsCompleted);
+         cancellation.Cancel();
+ 
+         Assert.False(await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+@@ -233,7 +229,7 @@ public async Task RequestAsync_AlreadyCanceledToken_ReturnsFalse()
+         using var cancellation = new CancellationTokenSource();
+         cancellation.Cancel();
+ 
+-        Assert.False(await client.RequestAsync(cancellation.Token));
++        Assert.False(await client.RequestAsync([], "", cancellation.Token));
+ 
+         Assert.Equal(Net.NetErrorKind.Canceled, client.ErrorKind);
+         AssertCanceled(client);
+@@ -250,9 +246,10 @@ public async Task RequestAsync_ConnectionRefused_IsConnectionError()
+         using var client = CreateClient($"http://127.0.0.1:{port}/test");
+         client.TimeOutInMSec = 5000;
+ 
+-        Assert.False(await client.RequestAsync());
++        Assert.False(await client.RequestAsync([], ""));
+ 
+         Assert.Equal(Net.NetErrorKind.Connection, client.ErrorKind);
++        Assert.Null(client.HttpStatus);
+         Assert.NotNull(client.ErrorException);
+         Assert.Equal(client.ErrorException!.Message, client.Error);
+     }
+@@ -266,12 +263,12 @@ public async Task RequestAsync_ReceivesCookieAndSendsItOnNextRequest()
+         );
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+         await server.ReceiveAsync();
+         Assert.Equal("abc", client.Cookie["session"]?.Value);
+         Assert.True(client.Cookie["session"]!.HttpOnly);
+ 
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+         var second = await server.ReceiveAsync();
+ 
+         Assert.Equal("session=abc", second.Headers["Cookie"]);
+@@ -291,7 +288,7 @@ public async Task AddCookie_UsesOperationManagerCookieContainer()
+         {
+             client.AddCookie(userId);
+ 
+-            Assert.True(await client.RequestAsync());
++            Assert.True(await client.RequestAsync([], ""));
+             var request = await server.ReceiveAsync();
+ 
+             Assert.Equal("session=saved", request.Headers["Cookie"]);
+@@ -310,7 +307,7 @@ public async Task AddCookie_UnknownUser_DoesNotPreventRequest()
+         using var client = CreateClient(server.Url);
+ 
+         client.AddCookie(ulong.MaxValue);
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+         var request = await server.ReceiveAsync();
+ 
+         Assert.False(request.Headers.ContainsKey("Cookie"));
+@@ -322,29 +319,29 @@ public async Task RequestAsync_NewRequest_ClearsPreviousResponseAndHttpError()
+         var data = "previous response"u8.ToArray();
+         await using var server = await LoopbackServer.StartAsync(
+             new TestResponse(Body: WirePayload.Encode(data)),
+-            new TestResponse(500)
++            new TestResponse(HttpStatusCode.InternalServerError)
+         );
+         using var client = CreateClient(server.Url);
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+         Assert.Equal(data, client.ResponseData);
+-        Assert.False(await client.RequestAsync());
++        Assert.False(await client.RequestAsync([], ""));
+         Assert.Empty(client.ResponseData);
+ 
+-        // No third response is queued so the reset can be observed while in Process.
++        // No third response is queued so the reset can be observed while the task is pending.
+         await server.ReceiveAsync();
+         await server.ReceiveAsync();
+-        var pending = client.RequestAsync();
++        var pending = client.RequestAsync([], "");
+         await server.ReceiveAsync();
+ 
+-        Assert.Equal(Client.RunningState.Process, client.State);
+-        Assert.Equal(-1, client.HttpStatus);
++        Assert.False(pending.IsCompleted);
++        Assert.Null(client.HttpStatus);
+         Assert.Empty(client.Error);
+         Assert.Null(client.ErrorException);
+         Assert.Empty(client.ResponseData);
+ 
+         server.Respond(new TestResponse());
+         Assert.True(await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+-        AssertSuccess(client, 200, []);
++        AssertSuccess(client, HttpStatusCode.OK, []);
+     }
+ 
+     [Fact]
+@@ -355,36 +352,39 @@ public async Task RequestAsync_AfterDecodeError_ClearsExceptionAndSucceeds()
+             new TestResponse()
+         );
+         using var client = CreateClient(server.Url);
+-        Assert.False(await client.RequestAsync());
++        Assert.False(await client.RequestAsync([], ""));
+         Assert.NotNull(client.ErrorException);
+ 
+-        Assert.True(await client.RequestAsync());
++        Assert.True(await client.RequestAsync([], ""));
+ 
+-        AssertSuccess(client, 200, []);
++        AssertSuccess(client, HttpStatusCode.OK, []);
+     }
+ 
+     [Theory]
+-    [InlineData(200)]
+-    [InlineData(500)]
+-    public async Task Request_ReturnsWhileProcessingAndEventuallyPublishesResult(int status)
++    [InlineData(HttpStatusCode.OK)]
++    [InlineData(HttpStatusCode.InternalServerError)]
++    public async Task RequestAsync_CompletesAfterServerResponse(HttpStatusCode status)
+     {
+         var data = "asynchronous response"u8.ToArray();
+         await using var server = await LoopbackServer.StartAsync();
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.True(client.Request("request"u8.ToArray(), "test-agent"));
++        var pending = client.RequestAsync("request"u8.ToArray(), "test-agent");
+         var request = await server.ReceiveAsync();
+-        Assert.Equal(Client.RunningState.Process, client.State);
++        Assert.False(pending.IsCompleted);
+         Assert.Equal("request"u8.ToArray(), WirePayload.Decode(request.Body));
+ 
+         server.Respond(new TestResponse(status, WirePayload.Encode(data)));
+-        await WaitForCompletionAsync(client);
++        var result = await pending;
+ 
+-        if (status == 200)
++        if (status == HttpStatusCode.OK)
++        {
++            Assert.True(result);
+             AssertSuccess(client, status, data);
++        }
+         else
+         {
+-            Assert.Equal(Client.RunningState.Error, client.State);
++            Assert.False(result);
+             Assert.Equal(status, client.HttpStatus);
+             Assert.Equal("HTTP 500 (Internal Server Error)", client.Error);
+             Assert.Null(client.ErrorException);
+@@ -394,19 +394,17 @@ public async Task Request_ReturnsWhileProcessingAndEventuallyPublishesResult(int
+     }
+ 
+     [Fact]
+-    public async Task Request_DecodeFailure_EventuallyPublishesException()
++    public async Task RequestAsync_DecodeFailure_ReportsException()
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(Body: [1, 2, 3]));
+         using var client = CreateClient(server.Url);
+ 
+-        Assert.True(client.Request([], string.Empty));
+-        await WaitForCompletionAsync(client);
++        Assert.False(await client.RequestAsync([], string.Empty));
+ 
+-        Assert.Equal(Client.RunningState.Error, client.State);
+         Assert.IsAssignableFrom<CryptographicException>(client.ErrorException);
+         Assert.Equal(client.ErrorException!.Message, client.Error);
+         Assert.Equal(Net.NetErrorKind.Internal, client.ErrorKind);
+-        Assert.Equal(200, client.HttpStatus);
++        Assert.Equal(HttpStatusCode.OK, client.HttpStatus);
+     }
+ 
+     [Fact]
+@@ -414,7 +412,7 @@ public async Task Dispose_CancelsInFlightRequestAndIsIdempotent()
+     {
+         await using var server = await LoopbackServer.StartAsync();
+         using var client = CreateClient(server.Url);
+-        var pending = client.RequestAsync();
++        var pending = client.RequestAsync([], "");
+         await server.ReceiveAsync();
+ 
+         client.Dispose();
+@@ -425,26 +423,15 @@ public async Task Dispose_CancelsInFlightRequestAndIsIdempotent()
+         client.Dispose();
+     }
+ 
+-    [Theory]
+-    [InlineData(false)]
+-    [InlineData(true)]
+-    public async Task Dispose_AfterRequestPreparationFailure_DoesNotThrow(bool usePollingRequest)
++    [Fact]
++    public async Task Dispose_AfterRequestPreparationFailure_DoesNotThrow()
+     {
+         using var client = CreateClient("http://127.0.0.1/test");
+ 
+-        if (usePollingRequest)
+-        {
+-            Assert.True(client.Request([], string.Empty, "bad method"));
+-            await WaitForCompletionAsync(client);
+-        }
+-        else
+-        {
+-            Assert.False(await client.RequestAsync([], string.Empty, "bad method"));
+-        }
++        Assert.False(await client.RequestAsync([], string.Empty, null!));
+ 
+-        Assert.Equal(Client.RunningState.Error, client.State);
+         Assert.Equal(Net.NetErrorKind.Internal, client.ErrorKind);
+-        Assert.IsType<FormatException>(client.ErrorException);
++        Assert.IsType<ArgumentNullException>(client.ErrorException);
+         Assert.Equal(client.ErrorException!.Message, client.Error);
+ 
+         client.Dispose();
+@@ -460,15 +447,13 @@ public async Task Dispose_RejectsFurtherUse()
+ 
+         Assert.Throws<NullReferenceException>(() => client.AddHeader("X-Test", "value"));
+         Assert.Throws<NullReferenceException>(() => client.AddCookie(1));
+-        Assert.Throws<NullReferenceException>(() => client.Request([], string.Empty));
+-        await Assert.ThrowsAsync<NullReferenceException>(() => client.RequestAsync());
++        await Assert.ThrowsAsync<NullReferenceException>(() => client.RequestAsync([], ""));
+     }
+ 
+     private static Client CreateClient(string url) => new(new Uri(url));
+ 
+-    private static void AssertSuccess(Client client, int status, byte[] data)
++    private static void AssertSuccess(Client client, HttpStatusCode status, byte[] data)
+     {
+-        Assert.Equal(Client.RunningState.Done, client.State);
+         Assert.Equal(status, client.HttpStatus);
+         Assert.Equal(data, client.ResponseData);
+         Assert.Empty(client.Error);
+@@ -478,17 +463,9 @@ private static void AssertSuccess(Client client, int status, byte[] data)
+ 
+     private static void AssertCanceled(Client client)
+     {
+-        Assert.Equal(Client.RunningState.Error, client.State);
+         Assert.IsAssignableFrom<OperationCanceledException>(client.ErrorException);
+         Assert.Equal(client.ErrorException!.Message, client.Error);
+-        Assert.Equal(-1, client.HttpStatus);
++        Assert.Null(client.HttpStatus);
+         Assert.Empty(client.ResponseData);
+     }
+-
+-    private static async Task WaitForCompletionAsync(Client client)
+-    {
+-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+-        while (client.State == Client.RunningState.Process)
+-            await Task.Delay(10, cancellation.Token);
+-    }
+ }
+diff --git a/tests/NetHttpClient.Tests/README.md b/tests/NetHttpClient.Tests/README.md
+index d1efb75..8dc79b4 100644
+--- a/tests/NetHttpClient.Tests/README.md
++++ b/tests/NetHttpClient.Tests/README.md
+@@ -7,11 +7,13 @@ # NetHttpClient 测试
+ ```
+ 
+ 测试项目直接编译生产代码中的 `NetHttpClient.cs`、`CipherAes.cs` 和
+-`Singleton.cs`，无需构建依赖 Unity 的完整游戏项目，也无需安装原生
+-`amdaemon_api`。`Support/ExternalDependencies.cs` 仅替换 `Auth` 和
+-`OperationManager` 提供的运行环境配置与 Cookie 存储。
++`Singleton.cs`，以及 `Packet` 和其网络接口、配置类型，无需构建依赖 Unity 的
++完整游戏项目，也无需安装原生 `amdaemon_api`。`Support` 中的依赖桩提供运行环境
++配置、Cookie 存储、错误计数和延迟统计；HTTP 请求和 Packet 状态流转均使用生产代码。
+ 
+ 每个网络测试使用监听 `127.0.0.1` 随机端口的 Kestrel HTTP 服务，不访问实际
+ 游戏服务器。测试覆盖请求/响应的 AES 与 zlib 处理、HTTP 方法和请求头、
+-Cookie、HTTP 错误与解码错误、超时和取消、重复请求状态重置、同步入口的
+-异步完成，以及资源释放。TLS 证书校验和原生认证交互不在这组测试的范围内。
++Cookie、HTTP 错误与解码错误、超时和取消、重复请求结果重置、Task 异步完成，
++以及资源释放。Packet 测试覆盖等待任务、响应处理、重试、意外任务异常、登录
++Cookie、Ping 特殊处理、延迟统计和完成通知。TLS 证书校验和原生认证交互不在
++这组测试的范围内。
+diff --git a/tests/NetHttpClient.Tests/Support/ExternalDependencies.cs b/tests/NetHttpClient.Tests/Support/ExternalDependencies.cs
+index 9445e22..d85fddb 100644
+--- a/tests/NetHttpClient.Tests/Support/ExternalDependencies.cs
++++ b/tests/NetHttpClient.Tests/Support/ExternalDependencies.cs
+@@ -1,8 +1,8 @@
+ using System.Collections.Concurrent;
+ using System.Net;
+ 
+-// Only the game runtime dependencies are replaced. NetHttpClient, CipherAes and
+-// Singleton are compiled from their production source files.
++// Only game runtime dependencies are replaced; networking and Packet code use
++// their production source files.
+ namespace AMDaemon.Allnet
+ {
+     internal static class Auth
+@@ -19,6 +19,18 @@ internal sealed class OperationManager
+ 
+         public bool IsHttpConnection => true;
+ 
++        public string BaseUri { get; set; } = "http://127.0.0.1/";
++
++        public bool CollectDelayInfoDisable { get; set; } = true;
++
++        public List<Net.Packet.PacketStatus> FinishedPackets { get; } = [];
++
++        public string GetBaseUri() => BaseUri;
++
++        public bool IsCollectDelayInfoDisable() => CollectDelayInfoDisable;
++
++        public void OnPacketFinish(Net.Packet.PacketStatus status) => FinishedPackets.Add(status);
++
+         public CookieContainer? GetCookie(ulong userId) =>
+             _cookies.GetValueOrDefault(userId);
+ 
+diff --git a/tests/NetHttpClient.Tests/Support/LoopbackServer.cs b/tests/NetHttpClient.Tests/Support/LoopbackServer.cs
+index c78762d..4a7897e 100644
+--- a/tests/NetHttpClient.Tests/Support/LoopbackServer.cs
++++ b/tests/NetHttpClient.Tests/Support/LoopbackServer.cs
+@@ -18,7 +18,7 @@ byte[] Body
+ );
+ 
+ internal sealed record TestResponse(
+-    int StatusCode = 200,
++    HttpStatusCode StatusCode = HttpStatusCode.OK,
+     byte[]? Body = null,
+     string? SetCookie = null
+ );
+@@ -72,7 +72,7 @@ await _requests.Writer.WriteAsync(new CapturedRequest(
+                 body.ToArray()
+             ), context.RequestAborted);
+             var response = await _responses.Reader.ReadAsync(context.RequestAborted);
+-            context.Response.StatusCode = response.StatusCode;
++            context.Response.StatusCode = (int)response.StatusCode;
+             if (response.SetCookie is not null)
+                 context.Response.Headers.SetCookie = response.SetCookie;
+             var payload = response.Body ?? [];

@@ -1,0 +1,477 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Thu, 15 Oct 2026 21:03:01 +0800
+Subject: [PATCH] refactor(net)!: migrate six packets to typed VO models
+
+Use required request initializers and validated response properties.
+Align GameSetting PlaceId with the unsigned location ID.
+
+BREAKING CHANGE: The six migrated packet classes are now internal.
+
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameRanking.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameRanking.cs
+index 7db6509..61973b1 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameRanking.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameRanking.cs
+@@ -4,25 +4,25 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameRanking : Packet
++internal class PacketGetGameRanking : Packet
+ {
+     private readonly Action<GameRanking[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetGameRanking(
+         int type,
+         Action<GameRanking[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameRankingRequestVO, GameRankingResponseVO> netQuery = new NetQuery<
+-            GameRankingRequestVO,
+-            GameRankingResponseVO
+-        >("GetGameRankingApi", 0uL);
+-        netQuery.Request.type = type;
++        var netQuery = new NetQuery<GameRankingRequestVO, GameRankingResponseVO>(
++            "GetGameRankingApi"
++        )
++        {
++            Request = new GameRankingRequestVO { Type = type },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -32,15 +32,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameRankingRequestVO, GameRankingResponseVO> netQuery =
+-                    base.Query as NetQuery<GameRankingRequestVO, GameRankingResponseVO>;
+-                _onDone(netQuery.Response.gameRankingList ?? Array.Empty<GameRanking>());
++                var netQuery = (NetQuery<GameRankingRequestVO, GameRankingResponseVO>)Query;
++                _onDone(netQuery.Response!.GameRankingList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameSetting.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameSetting.cs
+index 45102a3..78bcd1a 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameSetting.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameSetting.cs
+@@ -1,27 +1,29 @@
+ using System;
+-using AMDaemon;
+ using AMDaemon.Allnet;
+ using Net.VO;
+ using Net.VO.Mai2;
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameSetting : Packet
++internal class PacketGetGameSetting : Packet
+ {
+     private readonly Action<GameSetting> _onDone;
++    private readonly Action<PacketStatus>? _onError;
+ 
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetGameSetting(Action<GameSetting> onDone, Action<PacketStatus> onError = null)
++    public PacketGetGameSetting(Action<GameSetting> onDone, Action<PacketStatus>? onError = null)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameSettingRequestVO, GameSettingResponseVO> netQuery = new NetQuery<
+-            GameSettingRequestVO,
+-            GameSettingResponseVO
+-        >("GetGameSettingApi", 0uL);
+-        netQuery.Request.placeId = (int)Auth.LocationId;
+-        netQuery.Request.clientId = AMDaemon.System.KeychipId.ShortValue;
++        var netQuery = new NetQuery<GameSettingRequestVO, GameSettingResponseVO>(
++            "GetGameSettingApi"
++        )
++        {
++            Request = new GameSettingRequestVO
++            {
++                ClientId = AMDaemon.System.KeychipId.ShortValue,
++                PlaceId = Auth.LocationId,
++            },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -31,15 +33,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameSettingRequestVO, GameSettingResponseVO> netQuery =
+-                    base.Query as NetQuery<GameSettingRequestVO, GameSettingResponseVO>;
+-                _onDone(netQuery.Response.gameSetting);
++                var netQuery = (NetQuery<GameSettingRequestVO, GameSettingResponseVO>)Query;
++                _onDone(netQuery.Response!.GameSetting);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameTournamentInfo.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameTournamentInfo.cs
+index e0be6aa..8fba6ea 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameTournamentInfo.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameTournamentInfo.cs
+@@ -4,23 +4,24 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameTournamentInfo : Packet
++internal class PacketGetGameTournamentInfo : Packet
+ {
+     private readonly Action<GameTournamentInfo[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetGameTournamentInfo(
+         Action<GameTournamentInfo[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameTournamentInfoRequestVO, GameTournamentInfoResponseVO> query = new NetQuery<
+-            GameTournamentInfoRequestVO,
+-            GameTournamentInfoResponseVO
+-        >("GetGameTournamentInfoApi", 0uL);
++        var query = new NetQuery<GameTournamentInfoRequestVO, GameTournamentInfoResponseVO>(
++            "GetGameTournamentInfoApi"
++        )
++        {
++            Request = new GameTournamentInfoRequestVO(),
++        };
+         Create(query);
+     }
+ 
+@@ -30,18 +31,22 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameTournamentInfoRequestVO, GameTournamentInfoResponseVO> netQuery =
+-                    base.Query
+-                    as NetQuery<GameTournamentInfoRequestVO, GameTournamentInfoResponseVO>;
+-                _onDone(
+-                    netQuery.Response.gameTournamentInfoList ?? Array.Empty<GameTournamentInfo>()
+-                );
++                var netQuery =
++                    (NetQuery<GameTournamentInfoRequestVO, GameTournamentInfoResponseVO>)Query;
++                _onDone(netQuery.Response!.GameTournamentInfoList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameWeeklyData.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameWeeklyData.cs
+index 56a2a18..db9719e 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameWeeklyData.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameWeeklyData.cs
+@@ -4,23 +4,22 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameWeeklyData : Packet
++internal class PacketGetGameWeeklyData : Packet
+ {
+     private readonly Action<GameWeeklyData> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetGameWeeklyData(
+         Action<GameWeeklyData> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameWeeklyRequestVO, GameWeeklyResponseVO> query = new NetQuery<
+-            GameWeeklyRequestVO,
+-            GameWeeklyResponseVO
+-        >("GetGameWeeklyDataApi", 0uL);
++        var query = new NetQuery<GameWeeklyRequestVO, GameWeeklyResponseVO>("GetGameWeeklyDataApi")
++        {
++            Request = new GameWeeklyRequestVO(),
++        };
+         Create(query);
+     }
+ 
+@@ -30,15 +29,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameWeeklyRequestVO, GameWeeklyResponseVO> netQuery =
+-                    base.Query as NetQuery<GameWeeklyRequestVO, GameWeeklyResponseVO>;
+-                _onDone(netQuery.Response.gameWeeklyData);
++                var netQuery = (NetQuery<GameWeeklyRequestVO, GameWeeklyResponseVO>)Query;
++                _onDone(netQuery.Response!.GameWeeklyData);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetTransferFriend.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetTransferFriend.cs
+index 13c0818..a6ce871 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetTransferFriend.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetTransferFriend.cs
+@@ -4,25 +4,26 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetTransferFriend : Packet
++internal class PacketGetTransferFriend : Packet
+ {
+     private readonly Action<TransferFriend[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetTransferFriend(
+         ulong userId,
+         Action<TransferFriend[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<TransferFriendRequestVO, TransferFriendResponseVO> netQuery = new NetQuery<
+-            TransferFriendRequestVO,
+-            TransferFriendResponseVO
+-        >("GetTransferFriendApi", userId);
+-        netQuery.Request.userId = userId;
++        var netQuery = new NetQuery<TransferFriendRequestVO, TransferFriendResponseVO>(
++            "GetTransferFriendApi",
++            userId
++        )
++        {
++            Request = new TransferFriendRequestVO { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -32,15 +33,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<TransferFriendRequestVO, TransferFriendResponseVO> netQuery =
+-                    base.Query as NetQuery<TransferFriendRequestVO, TransferFriendResponseVO>;
+-                _onDone(netQuery.Response.transferFriendList ?? Array.Empty<TransferFriend>());
++                var netQuery = (NetQuery<TransferFriendRequestVO, TransferFriendResponseVO>)Query;
++                _onDone(netQuery.Response!.TransferFriendList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserActivity.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserActivity.cs
+dissimilarity index 64%
+index c38fa69..9e3adea 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserActivity.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserActivity.cs
+@@ -1,59 +1,53 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserActivity : Packet
+-{
+-    private readonly Action<UserActivity> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserActivity(
+-        ulong userId,
+-        Action<UserActivity> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserActivityRequestVO, UserActivityResponseVO> netQuery = new NetQuery<
+-            UserActivityRequestVO,
+-            UserActivityResponseVO
+-        >("GetUserActivityApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserActivityRequestVO, UserActivityResponseVO> netQuery =
+-                    base.Query as NetQuery<UserActivityRequestVO, UserActivityResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userActivity);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserActivityResponseVO src)
+-    {
+-        if (src.userActivity.playList == null)
+-        {
+-            src.userActivity.playList = Array.Empty<UserAct>();
+-        }
+-        if (src.userActivity.musicList == null)
+-        {
+-            src.userActivity.musicList = Array.Empty<UserAct>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserActivity : Packet
++{
++    private readonly Action<UserActivity> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserActivity(
++        ulong userId,
++        Action<UserActivity> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserActivityRequestVO, UserActivityResponseVO>(
++            "GetUserActivityApi",
++            userId
++        )
++        {
++            Request = new UserActivityRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserActivityRequestVO, UserActivityResponseVO>)Query;
++                _onDone(netQuery.Response!.UserActivity);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs b/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs
+index b30bfbb..c8b3bf5 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/GameSettingRequestVO.cs
+@@ -2,7 +2,7 @@ namespace Net.VO.Mai2;
+ 
+ internal sealed record GameSettingRequestVO : ISerializable<GameSettingRequestVO>
+ {
+-    public required int PlaceId { get; init; }
++    public required uint PlaceId { get; init; }
+ 
+     public required string ClientId { get; init; }
+ }

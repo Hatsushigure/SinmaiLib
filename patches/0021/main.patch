@@ -1,0 +1,375 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 16 Oct 2026 15:28:33 +0800
+Subject: [PATCH] refactor(net)!: map user courses with typed models
+
+
+diff --git a/src/SinmaiLib/Main/GameMain.cs b/src/SinmaiLib/Main/GameMain.cs
+index 832b2ad..5955fc1 100644
+--- a/src/SinmaiLib/Main/GameMain.cs
++++ b/src/SinmaiLib/Main/GameMain.cs
+@@ -583,22 +583,7 @@ private void RestoreCourse(int index)
+             for (int i = 0; i < array.Length; i++)
+             {
+                 Net.VO.Mai2.UserCourse userCourse = array[i];
+-                courseList.Add(
+-                    new Manager.UserDatas.UserCourse(
+-                        userCourse.courseId,
+-                        userCourse.isLastClear,
+-                        userCourse.totalRestlife,
+-                        userCourse.totalAchievement,
+-                        userCourse.totalDeluxscore,
+-                        userCourse.playCount,
+-                        userCourse.clearDate,
+-                        userCourse.lastPlayDate,
+-                        userCourse.bestAchievement,
+-                        userCourse.bestAchievementDate,
+-                        userCourse.bestDeluxscore,
+-                        userCourse.bestDeluxscoreDate
+-                    )
+-                );
++                courseList.Add(userCourse.ToModel());
+             }
+         }
+     }
+diff --git a/src/SinmaiLib/Manager/CourseManager.cs b/src/SinmaiLib/Manager/CourseManager.cs
+index da57556..0756c1e 100644
+--- a/src/SinmaiLib/Manager/CourseManager.cs
++++ b/src/SinmaiLib/Manager/CourseManager.cs
+@@ -102,8 +102,8 @@ where Singleton<EventManager>.Instance.IsOpenEvent(t.Value.eventId.id)
+             {
+                 UserCourse userCourse = Singleton<UserDataManager>
+                     .Instance.GetUserData(num)
+-                    .CourseList.Find((UserCourse t) => t.courseId == needUnlockCoutseID);
+-                if (userCourse != null && userCourse.totalRestlife != 0)
++                    .CourseList.Find((UserCourse t) => t.CourseId == needUnlockCoutseID);
++                if (userCourse != null && userCourse.TotalRestlife != 0)
+                 {
+                     flag = true;
+                 }
+@@ -134,9 +134,9 @@ select t.Key
+             {
+                 int needUnlockCoutseID = course.conditionsUnlockCourse.id;
+                 UserCourse userCourse = userData.CourseList.Find(
+-                    (UserCourse t) => t.courseId == needUnlockCoutseID
++                    (UserCourse t) => t.CourseId == needUnlockCoutseID
+                 );
+-                if (userCourse != null && userCourse.totalRestlife != 0)
++                if (userCourse != null && userCourse.TotalRestlife != 0)
+                 {
+                     userData.Detail.ContentBit.SetFlag(ContentBitID.FirstSinCourseAdd, flag: true);
+                     return true;
+@@ -168,9 +168,9 @@ where Singleton<EventManager>.Instance.IsOpenEvent(t.Value.eventId.id)
+             }
+             int needUnlockCoutseID = course.conditionsUnlockCourse.id;
+             UserCourse userCourse = userData.CourseList.Find(
+-                (UserCourse t) => t.courseId == needUnlockCoutseID
++                (UserCourse t) => t.CourseId == needUnlockCoutseID
+             );
+-            if (userCourse != null && userCourse.totalRestlife != 0)
++            if (userCourse != null && userCourse.TotalRestlife != 0)
+             {
+                 num++;
+             }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserCourse.cs b/src/SinmaiLib/Manager/UserDatas/UserCourse.cs
+dissimilarity index 93%
+index cc998e0..c4ce27e 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserCourse.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserCourse.cs
+@@ -1,76 +1,31 @@
+-using System;
+-
+-namespace Manager.UserDatas;
+-
+-[Serializable]
+-public class UserCourse
+-{
+-    public int courseId;
+-
+-    public bool isLastClear;
+-
+-    public uint totalRestlife;
+-
+-    public uint totalAchievement;
+-
+-    public uint totalDeluxscore;
+-
+-    public uint playCount;
+-
+-    public string clearDate;
+-
+-    public string lastPlayDate;
+-
+-    public uint bestAchievement;
+-
+-    public string bestAchievementDate;
+-
+-    public uint bestDeluxscore;
+-
+-    public string bestDeluxscoreDate;
+-
+-    public UserCourse(int _id)
+-    {
+-        courseId = _id;
+-        isLastClear = false;
+-        totalRestlife = 0u;
+-        totalAchievement = 0u;
+-        totalDeluxscore = 0u;
+-        playCount = 0u;
+-        clearDate = "";
+-        lastPlayDate = "";
+-        bestAchievement = 0u;
+-        bestAchievementDate = "";
+-        bestDeluxscore = 0u;
+-        bestDeluxscoreDate = "";
+-    }
+-
+-    public UserCourse(
+-        int id,
+-        bool lastClear,
+-        uint life,
+-        uint achieve,
+-        uint score,
+-        uint count,
+-        string clearDat,
+-        string lastDat,
+-        uint bestAchieve,
+-        string bestAchieveDate,
+-        uint bestScore,
+-        string bestScoreDate
+-    )
+-    {
+-        courseId = id;
+-        isLastClear = lastClear;
+-        totalRestlife = life;
+-        totalAchievement = achieve;
+-        totalDeluxscore = score;
+-        playCount = count;
+-        clearDate = clearDat;
+-        lastPlayDate = lastDat;
+-        bestAchievement = bestAchieve;
+-        bestAchievementDate = bestAchieveDate;
+-        bestDeluxscore = bestScore;
+-        bestDeluxscoreDate = bestScoreDate;
+-    }
+-}
++using System;
++
++namespace Manager.UserDatas;
++
++[Serializable]
++public class UserCourse
++{
++    public required int CourseId { get; init; }
++
++    public required bool IsLastClear { get; set; }
++
++    public required uint TotalRestlife { get; set; }
++
++    public required uint TotalAchievement { get; set; }
++
++    public required uint TotalDeluxscore { get; set; }
++
++    public required uint PlayCount { get; set; }
++
++    public required string ClearDate { get; set; }
++
++    public required string LastPlayDate { get; set; }
++
++    public required uint BestAchievement { get; set; }
++
++    public required string BestAchievementDate { get; set; }
++
++    public required uint BestDeluxscore { get; set; }
++
++    public required string BestDeluxscoreDate { get; set; }
++}
+diff --git a/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs b/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs
+index a95857c..f7a5789 100644
+--- a/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs
++++ b/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs
+@@ -286,73 +286,56 @@ public void SetResultData()
+             }
+             UserCourse userCourse = userData.CourseList.Find(
+                 (UserCourse t) =>
+-                    t.courseId == Singleton<CourseManager>.Instance.GetCourseData().GetID()
++                    t.CourseId == Singleton<CourseManager>.Instance.GetCourseData().GetID()
+             );
+             if (userCourse != null)
+             {
+-                userCourse.playCount++;
+-                userCourse.lastPlayDate = TimeManager.GetNowDateString();
+-                userCourse.isLastClear = courseResultTotal.life != 0;
+-                if (courseResultTotal.life != 0 && userCourse.clearDate == "")
++                userCourse.PlayCount++;
++                userCourse.LastPlayDate = TimeManager.GetNowDateString();
++                userCourse.IsLastClear = courseResultTotal.life != 0;
++                if (courseResultTotal.life != 0 && userCourse.ClearDate == "")
+                 {
+-                    userCourse.clearDate = TimeManager.GetNowDateString();
++                    userCourse.ClearDate = TimeManager.GetNowDateString();
+                 }
+-                bool flag = userCourse.totalRestlife != 0;
+-                bool flag2 = courseResultTotal.life != 0;
+-                bool flag3 = userCourse.totalAchievement < (uint)num;
+-                bool flag4 = false;
+-                if (!flag & flag2)
+-                {
+-                    flag4 = true;
+-                }
+-                else if (flag2 & flag3)
+-                {
+-                    flag4 = true;
+-                }
+-                else if ((!flag && !flag2) & flag3)
+-                {
+-                    flag4 = true;
+-                }
+-                if (flag4)
++                var previousPassed = userCourse.TotalRestlife != 0;
++                var currentPassed = courseResultTotal.life != 0;
++                var currentIsNewRecord = userCourse.TotalAchievement < (uint)num;
++                var needSetNewRecord = !previousPassed && currentPassed || currentPassed && currentIsNewRecord || !previousPassed && !currentPassed && currentIsNewRecord;
++
++                if (needSetNewRecord)
+                 {
+-                    userCourse.totalAchievement = (uint)num;
+-                    userCourse.totalDeluxscore = (uint)num2;
+-                    userCourse.totalRestlife = (uint)courseResultTotal.life;
++                    userCourse.TotalAchievement = (uint)num;
++                    userCourse.TotalDeluxscore = (uint)num2;
++                    userCourse.TotalRestlife = (uint)courseResultTotal.life;
+                 }
+-                if (userCourse.bestAchievement < (uint)num)
++                if (userCourse.BestAchievement < (uint)num)
+                 {
+-                    userCourse.bestAchievement = (uint)num;
+-                    userCourse.bestAchievementDate = TimeManager.GetNowDateString();
++                    userCourse.BestAchievement = (uint)num;
++                    userCourse.BestAchievementDate = TimeManager.GetNowDateString();
+                 }
+-                if (userCourse.bestDeluxscore < (uint)num2)
++                if (userCourse.BestDeluxscore < (uint)num2)
+                 {
+-                    userCourse.bestDeluxscore = (uint)num2;
+-                    userCourse.bestDeluxscoreDate = TimeManager.GetNowDateString();
++                    userCourse.BestDeluxscore = (uint)num2;
++                    userCourse.BestDeluxscoreDate = TimeManager.GetNowDateString();
+                 }
+             }
+             else
+             {
+-                UserCourse userCourse2 = new UserCourse(
+-                    Singleton<CourseManager>.Instance.GetCourseData().GetID()
+-                );
+-                userCourse2.playCount = 1u;
+-                userCourse2.isLastClear = courseResultTotal.life != 0;
+-                userCourse2.lastPlayDate = TimeManager.GetNowDateString();
+-                if (courseResultTotal.life != 0)
+-                {
+-                    userCourse2.clearDate = TimeManager.GetNowDateString();
+-                }
+-                else
+-                {
+-                    userCourse2.clearDate = "";
+-                }
+-                userCourse2.totalAchievement = (uint)num;
+-                userCourse2.totalDeluxscore = (uint)num2;
+-                userCourse2.totalRestlife = (uint)courseResultTotal.life;
+-                userCourse2.bestAchievement = (uint)num;
+-                userCourse2.bestAchievementDate = TimeManager.GetNowDateString();
+-                userCourse2.bestDeluxscore = (uint)num2;
+-                userCourse2.bestDeluxscoreDate = TimeManager.GetNowDateString();
++                UserCourse userCourse2 = new UserCourse
++                {
++                    CourseId = Singleton<CourseManager>.Instance.GetCourseData().GetID(),
++                    PlayCount = 1u,
++                    IsLastClear = courseResultTotal.life != 0,
++                    LastPlayDate = TimeManager.GetNowDateString(),
++                    ClearDate = courseResultTotal.life != 0 ? TimeManager.GetNowDateString() : "",
++                    TotalAchievement = (uint)num,
++                    TotalDeluxscore = (uint)num2,
++                    TotalRestlife = (uint)courseResultTotal.life,
++                    BestAchievement = (uint)num,
++                    BestAchievementDate = TimeManager.GetNowDateString(),
++                    BestDeluxscore = (uint)num2,
++                    BestDeluxscoreDate = TimeManager.GetNowDateString(),
++                };
+                 userData.CourseList.Add(userCourse2);
+             }
+         }
+diff --git a/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs b/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs
+index 1b0e0be..4df76fa 100644
+--- a/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs
++++ b/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs
+@@ -345,11 +345,11 @@ public void SetCourseData()
+                 courseInfo.missDamage = course.missDamage;
+                 UserCourse userCourse = Singleton<UserDataManager>
+                     .Instance.GetUserData(num)
+-                    .CourseList.Find((UserCourse t) => t.courseId == courseInfo.courseId);
++                    .CourseList.Find((UserCourse t) => t.CourseId == courseInfo.courseId);
+                 if (userCourse != null)
+                 {
+-                    courseInfo.maxAchievement = (int)userCourse.totalAchievement;
+-                    courseInfo.maxLife = (int)userCourse.totalRestlife;
++                    courseInfo.maxAchievement = (int)userCourse.TotalAchievement;
++                    courseInfo.maxLife = (int)userCourse.TotalRestlife;
+                     courseInfo.isPlay = true;
+                 }
+                 else
+diff --git a/src/SinmaiLib/Process/PlInformationProcess.cs b/src/SinmaiLib/Process/PlInformationProcess.cs
+index 2aa2c73..ee2b1e9 100644
+--- a/src/SinmaiLib/Process/PlInformationProcess.cs
++++ b/src/SinmaiLib/Process/PlInformationProcess.cs
+@@ -17,6 +17,7 @@
+ using Process.Information;
+ using UnityEngine;
+ using Util;
++using UserCourse = Net.VO.Mai2.UserCourse;
+ 
+ namespace Process;
+ 
+@@ -757,27 +758,7 @@ private void RestoreCourse(int index)
+         courseList.Clear();
+         if (userCourses != null)
+         {
+-            Net.VO.Mai2.UserCourse[] array = userCourses;
+-            for (int i = 0; i < array.Length; i++)
+-            {
+-                Net.VO.Mai2.UserCourse userCourse = array[i];
+-                courseList.Add(
+-                    new Manager.UserDatas.UserCourse(
+-                        userCourse.courseId,
+-                        userCourse.isLastClear,
+-                        userCourse.totalRestlife,
+-                        userCourse.totalAchievement,
+-                        userCourse.totalDeluxscore,
+-                        userCourse.playCount,
+-                        userCourse.clearDate,
+-                        userCourse.lastPlayDate,
+-                        userCourse.bestAchievement,
+-                        userCourse.bestAchievementDate,
+-                        userCourse.bestDeluxscore,
+-                        userCourse.bestDeluxscoreDate
+-                    )
+-                );
+-            }
++            courseList.AddRange(userCourses.Select(userCourse => userCourse.ToModel()));
+         }
+     }
+ 
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index 8b3ad48..9c1a32f 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -38,7 +38,9 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs" Link="Source/PacketGetUserFriendCheck.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs" Link="Source/VO/Mapper/UserActMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs" Link="Source/VO/Mapper/UserCourseMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserAct.cs" Link="Source/UserDatas/UserAct.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserCourse.cs" Link="Source/UserDatas/UserCourse.cs" />
+     <Compile Include="../../src/SinmaiLib/Enums/ActivityKind.cs" Link="Source/Enums/ActivityKind.cs" />
+     <!-- Keep the production JSON context and its full VO graph so wire validation is exercised too. -->
+     <Compile Include="../../src/SinmaiLib/Net/VO/*.cs" Link="Source/VO/%(Filename)%(Extension)" />

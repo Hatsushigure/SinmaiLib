@@ -1,0 +1,654 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Thu, 15 Oct 2026 22:32:05 +0800
+Subject: [PATCH] refactor(net)!: migrate user download packets to typed VO
+ models
+
+Adapt card, character, charge, course and detail queries to immutable VOs. Add regression coverage for request payloads, pagination, required fields and error callbacks.
+
+BREAKING CHANGE: The five user download packet classes are now internal.
+
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCard.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCard.cs
+dissimilarity index 60%
+index 24f44ca..dd50fd3 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCard.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCard.cs
+@@ -1,81 +1,71 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserCard : Packet
+-{
+-    private readonly Action<UserCard[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserCardResponseVO> _responseVOs;
+-
+-    public PacketGetUserCard(
+-        ulong userId,
+-        Action<UserCard[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        _responseVOs = new List<UserCardResponseVO>();
+-        ResetRetryCountAtStart();
+-        Create(GetNetQuery(userId, 0));
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                if (IsRetryCountOverAtDownload())
+-                {
+-                    AddUserDataDownloadError();
+-                    _onError?.Invoke(PacketStatus.ErrorTimeout);
+-                    break;
+-                }
+-                NetQuery<UserCardRequestVO, UserCardResponseVO> netQuery =
+-                    base.Query as NetQuery<UserCardRequestVO, UserCardResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0)
+-                {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
+-                    break;
+-                }
+-                _onDone(
+-                    _responseVOs.SelectMany((UserCardResponseVO i) => i.userCardList).ToArray()
+-                );
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<UserCardRequestVO, UserCardResponseVO> GetNetQuery(ulong userId, int nextIndex)
+-    {
+-        NetQuery<UserCardRequestVO, UserCardResponseVO> netQuery = new NetQuery<
+-            UserCardRequestVO,
+-            UserCardResponseVO
+-        >("GetUserCardApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserCardResponseVO src)
+-    {
+-        if (src.userCardList == null)
+-        {
+-            src.userCardList = Array.Empty<UserCard>();
+-        }
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserCard : Packet
++{
++    private readonly Action<UserCard[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserCardResponseVO> _responseVOList = [];
++
++    public PacketGetUserCard(
++        ulong userId,
++        Action<UserCard[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        ResetRetryCountAtStart();
++        Create(GetNetQuery(userId, 0));
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                if (IsRetryCountOverAtDownload())
++                {
++                    AddUserDataDownloadError();
++                    _onError?.Invoke(PacketStatus.ErrorTimeout);
++                    break;
++                }
++                var netQuery = (NetQuery<UserCardRequestVO, UserCardResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0)
++                {
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
++                    break;
++                }
++                _onDone([.. _responseVOList.SelectMany(i => i.UserCardList)]);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private static NetQuery<UserCardRequestVO, UserCardResponseVO> GetNetQuery(
++        ulong userId,
++        int nextIndex
++    ) =>
++        new("GetUserCardApi", userId)
++        {
++            Request = new UserCardRequestVO { UserId = userId, NextIndex = nextIndex },
++        };
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharacter.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharacter.cs
+index 7b8b77e..7b88fe0 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharacter.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharacter.cs
+@@ -4,25 +4,26 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserCharacter : Packet
++internal class PacketGetUserCharacter : Packet
+ {
+     private readonly Action<UserCharacter[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserCharacter(
+         ulong userId,
+         Action<UserCharacter[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserCharacterRequestVO, UserCharacterResponseVO> netQuery = new NetQuery<
+-            UserCharacterRequestVO,
+-            UserCharacterResponseVO
+-        >("GetUserCharacterApi", userId);
+-        netQuery.Request.userId = userId;
++        var netQuery = new NetQuery<UserCharacterRequestVO, UserCharacterResponseVO>(
++            "GetUserCharacterApi",
++            userId
++        )
++        {
++            Request = new UserCharacterRequestVO() { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -32,15 +33,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserCharacterRequestVO, UserCharacterResponseVO> netQuery =
+-                    base.Query as NetQuery<UserCharacterRequestVO, UserCharacterResponseVO>;
+-                _onDone(netQuery.Response.userCharacterList ?? Array.Empty<UserCharacter>());
++                var netQuery = (NetQuery<UserCharacterRequestVO, UserCharacterResponseVO>)Query;
++                _onDone(netQuery.Response!.UserCharacterList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharge.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharge.cs
+dissimilarity index 63%
+index 87d5fe9..b52c846 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharge.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharge.cs
+@@ -1,58 +1,46 @@
+-using System;
+-using System.Collections.Generic;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserCharge : Packet
+-{
+-    private readonly Action<UserCharge[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserChargeResponseVO> _responseVOs;
+-
+-    public PacketGetUserCharge(
+-        ulong userId,
+-        Action<UserCharge[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserChargeRequestVO, UserChargeResponseVO> netQuery = new NetQuery<
+-            UserChargeRequestVO,
+-            UserChargeResponseVO
+-        >("GetUserChargeApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserChargeRequestVO, UserChargeResponseVO> netQuery =
+-                    base.Query as NetQuery<UserChargeRequestVO, UserChargeResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userChargeList);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserChargeResponseVO src)
+-    {
+-        if (src.userChargeList == null)
+-        {
+-            src.userChargeList = Array.Empty<UserCharge>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal sealed class PacketGetUserCharge : Packet
++{
++    private readonly Action<UserCharge[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserCharge(
++        ulong userId,
++        Action<UserCharge[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserChargeRequestVO, UserChargeResponseVO>(
++            "GetUserChargeApi",
++            userId
++        )
++        {
++            Request = new UserChargeRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserChargeRequestVO, UserChargeResponseVO>)Query;
++                _onDone(netQuery.Response!.UserChargeList);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCourse.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCourse.cs
+index c0a6b4d..7d8cfe8 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCourse.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCourse.cs
+@@ -6,23 +6,20 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserCourse : Packet
++internal sealed class PacketGetUserCourse : Packet
+ {
+     private readonly Action<UserCourse[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserCourseResponseVO> _responseVOs;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserCourseResponseVO> _responseVOList = [];
+ 
+     public PacketGetUserCourse(
+         ulong userId,
+         Action<UserCourse[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        _responseVOs = new List<UserCourseResponseVO>();
+         ResetRetryCountAtStart();
+         Create(GetNetQuery(userId, 0L));
+     }
+@@ -39,46 +36,36 @@ public override PacketState Proc()
+                     _onError?.Invoke(PacketStatus.ErrorTimeout);
+                     break;
+                 }
+-                NetQuery<UserCourseRequestVO, UserCourseResponseVO> netQuery =
+-                    base.Query as NetQuery<UserCourseRequestVO, UserCourseResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0L)
++                var netQuery = (NetQuery<UserCourseRequestVO, UserCourseResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0L)
+                 {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
+                     break;
+                 }
+-                _onDone(
+-                    _responseVOs.SelectMany((UserCourseResponseVO i) => i.userCourseList).ToArray()
+-                );
++                _onDone([.. _responseVOList.SelectMany(i => i.UserCourseList)]);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ 
+     private NetQuery<UserCourseRequestVO, UserCourseResponseVO> GetNetQuery(
+         ulong userId,
+         long nextIndex
+-    )
+-    {
+-        NetQuery<UserCourseRequestVO, UserCourseResponseVO> netQuery = new NetQuery<
+-            UserCourseRequestVO,
+-            UserCourseResponseVO
+-        >("GetUserCourseApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserCourseResponseVO src)
+-    {
+-        if (src.userCourseList == null)
++    ) =>
++        new("GetUserCourseApi", userId)
+         {
+-            src.userCourseList = Array.Empty<UserCourse>();
+-        }
+-    }
++            Request = new UserCourseRequestVO { UserId = userId, NextIndex = nextIndex },
++        };
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserData.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserData.cs
+dissimilarity index 61%
+index 2390875..131bd56 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserData.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserData.cs
+@@ -1,55 +1,53 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserData : Packet
+-{
+-    private readonly Action<UserDetail, int> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserData(
+-        ulong userId,
+-        Action<UserDetail, int> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserDetailRequestVO, UserDetailResponseVO> netQuery = new NetQuery<
+-            UserDetailRequestVO,
+-            UserDetailResponseVO
+-        >("GetUserDataApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserDetailRequestVO, UserDetailResponseVO> netQuery =
+-                    base.Query as NetQuery<UserDetailRequestVO, UserDetailResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userData, netQuery.Response.banState);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserDetailResponseVO src)
+-    {
+-        if (src.userData.charaSlot == null)
+-        {
+-            src.userData.charaSlot = new int[5];
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserData : Packet
++{
++    private readonly Action<UserDetail, int> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserData(
++        ulong userId,
++        Action<UserDetail, int> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserDetailRequestVO, UserDetailResponseVO>(
++            "GetUserDataApi",
++            userId
++        )
++        {
++            Request = new UserDetailRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserDetailRequestVO, UserDetailResponseVO>)Query;
++                _onDone(netQuery.Response!.UserData, netQuery.Response.BanState);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index af7d04a..d1d43e9 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -25,6 +25,20 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/PacketStatus.cs" Link="Source/PacketStatus.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/INetQuery.cs" Link="Source/INetQuery.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/NetConfig.cs" Link="Source/NetConfig.cs" />
+-    <Compile Include="../../src/SinmaiLib/Net/VO/Mai2/ApiKind.cs" Link="Source/ApiKind.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCard.cs" Link="Source/PacketGetUserCard.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharacter.cs" Link="Source/PacketGetUserCharacter.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharge.cs" Link="Source/PacketGetUserCharge.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCourse.cs" Link="Source/PacketGetUserCourse.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserData.cs" Link="Source/PacketGetUserData.cs" />
++    <!-- Keep the production JSON context and its full VO graph so wire validation is exercised too. -->
++    <Compile Include="../../src/SinmaiLib/Net/VO/*.cs" Link="Source/VO/%(Filename)%(Extension)" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mai2/*.cs"
++             Exclude="../../src/SinmaiLib/Net/VO/Mai2/*Extensions.cs"
++             Link="Source/VO/Mai2/%(Filename)%(Extension)" />
++    <Compile Include="../../src/SinmaiLib/DB/Option*ID.cs;../../src/SinmaiLib/DB/Sort*ID.cs;../../src/SinmaiLib/DB/PlaystatusTabID.cs;../../src/SinmaiLib/DB/PlayComboflagID.cs;../../src/SinmaiLib/DB/PlaySyncflagID.cs"
++             Link="Source/DB/%(Filename)%(Extension)" />
++    <Compile Include="../../src/SinmaiLib/Manager/MusicDifficultyID.cs" Link="Source/MusicDifficultyID.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/MusicClearrankID.cs" Link="Source/MusicClearrankID.cs" />
++    <None Update="Fixtures/UserDetailResponse.json" CopyToOutputDirectory="PreserveNewest" />
+   </ItemGroup>
+ </Project>
+diff --git a/tests/NetHttpClient.Tests/PacketTests.cs b/tests/NetHttpClient.Tests/PacketTests.cs
+index e438859..84baf51 100644
+--- a/tests/NetHttpClient.Tests/PacketTests.cs
++++ b/tests/NetHttpClient.Tests/PacketTests.cs
+@@ -17,7 +17,7 @@ namespace NetHttpClient.Tests;
+ public sealed class PacketCollection { }
+ 
+ [Collection("Packet")]
+-public sealed class PacketTests : IDisposable
++public sealed partial class PacketTests : IDisposable
+ {
+     private readonly OperationManager _manager = Singleton<OperationManager>.Instance;
+     private readonly BackupNetworkInformationRecord _counters = SingletonStateMachine<
+@@ -25,16 +25,19 @@ public sealed class PacketTests : IDisposable
+     private readonly string _baseUri;
+     private readonly bool _collectDelayInfoDisable;
+     private readonly float _retryWaitInSec;
++    private readonly int _maxRetry;
+ 
+     public PacketTests()
+     {
+         _baseUri = _manager.BaseUri;
+         _collectDelayInfoDisable = _manager.CollectDelayInfoDisable;
+         _retryWaitInSec = NetConfig.RetryWaitInSec;
++        _maxRetry = NetConfig.MaxRetry;
+         _manager.FinishedPackets.Clear();
+         _counters.Clear();
+         _manager.CollectDelayInfoDisable = true;
+         NetConfig.RetryWaitInSec = 0;
++        NetConfig.MaxRetry = 0;
+     }
+ 
+     [Fact]
+@@ -324,6 +327,7 @@ public void Dispose()
+         _manager.BaseUri = _baseUri;
+         _manager.CollectDelayInfoDisable = _collectDelayInfoDisable;
+         NetConfig.RetryWaitInSec = _retryWaitInSec;
++        NetConfig.MaxRetry = _maxRetry;
+         _manager.FinishedPackets.Clear();
+         _counters.Clear();
+     }
+diff --git a/tests/NetHttpClient.Tests/README.md b/tests/NetHttpClient.Tests/README.md
+index 61522c2..edc78fc 100644
+--- a/tests/NetHttpClient.Tests/README.md
++++ b/tests/NetHttpClient.Tests/README.md
+@@ -15,7 +15,11 @@ # NetHttpClient 测试
+ 游戏服务器。测试覆盖请求/响应的 AES 与 zlib 处理、HTTP 方法和请求头、
+ Cookie、HTTP 错误与解码错误、超时和取消、重复请求结果独立、Task 异步完成，
+ 以及资源释放。Packet 测试覆盖等待任务、响应处理、重试、意外任务异常、登录
+-Cookie、Ping 特殊处理、延迟统计和完成通知。TLS 证书校验和原生认证交互不在
++Cookie、Ping 特殊处理、延迟统计和完成通知。用户下载测试直接编译 Card、Character、
++Charge、Course、Data Packet，以及生产环境的 NetQuery、JSON 上下文、VO 和相关枚举，
++覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
++`Fixtures/UserDetailResponse.json` 提供包含全部必填字段的模拟用户响应。
++TLS 证书校验和原生认证交互不在
+ 这组测试的范围内。
+ 
+ `RequestAsync` 返回 `Task<NetHttpResponse>`。成功时从 Task 的结果读取
+diff --git a/tests/NetHttpClient.Tests/Support/PacketDependencies.cs b/tests/NetHttpClient.Tests/Support/PacketDependencies.cs
+index b4eef4c..4504158 100644
+--- a/tests/NetHttpClient.Tests/Support/PacketDependencies.cs
++++ b/tests/NetHttpClient.Tests/Support/PacketDependencies.cs
+@@ -22,6 +22,8 @@ internal sealed class BackupData
+ 
+     internal sealed class BackupNetworkInformationRecord
+     {
++        public struct PingResult { }
++
+         public enum ErrorKind
+         {
+             Packet_Retry, UserDataDownloadError, E07, E08, E09, E14,

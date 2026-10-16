@@ -1,0 +1,1500 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 16 Oct 2026 17:23:35 +0800
+Subject: [PATCH] refactor(user-data): migrate item models to Mapperly mappings
+
+Rename item and shop stock members to properties and update collection consumers. Add mapper round-trip and snapshot tests, and lock the FavoriteItem pagination failure with its cursor fixed at zero.
+
+diff --git a/src/SinmaiLib/CollectionGetList.cs b/src/SinmaiLib/CollectionGetList.cs
+index dcb3203..3296bf7 100644
+--- a/src/SinmaiLib/CollectionGetList.cs
++++ b/src/SinmaiLib/CollectionGetList.cs
+@@ -150,8 +150,8 @@ public bool Prepare(int monitorIndex, AssetManager assetManager)
+         for (int n = 0; n < newTicketList.Count; n++)
+         {
+             int id5 = newTicketList[n];
+-            UserItem userItem = userData.TicketList.Find((UserItem t) => t.itemId == id5);
+-            if (userItem == null || userItem.stock == 0)
++            UserItem userItem = userData.TicketList.Find((UserItem t) => t.ItemId == id5);
++            if (userItem == null || userItem.Stock == 0)
+             {
+                 continue;
+             }
+@@ -175,7 +175,7 @@ public bool Prepare(int monitorIndex, AssetManager assetManager)
+         }
+         for (int num2 = 0; num2 < userData.NewItemList.Count; num2++)
+         {
+-            if (userData.NewItemList[num2].itemId == 14)
++            if (userData.NewItemList[num2].ItemId == 14)
+             {
+                 if (10 <= num)
+                 {
+diff --git a/src/SinmaiLib/CollectionProcess.cs b/src/SinmaiLib/CollectionProcess.cs
+index f790556..fbc4e57 100644
+--- a/src/SinmaiLib/CollectionProcess.cs
++++ b/src/SinmaiLib/CollectionProcess.cs
+@@ -1537,7 +1537,7 @@ private void CreateFrameData(int monitorId)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorId);
+         List<CollectionTabData> list = new List<CollectionTabData>();
+-        List<int> list2 = (from i in userData.FrameList where i.stock > 0 select i.itemId).ToList();
++        List<int> list2 = (from i in userData.FrameList where i.Stock > 0 select i.ItemId).ToList();
+         List<int> newFrameList = userData.NewFrameList;
+         List<int> favoriteFrameList = userData.FavoriteFrameList;
+         SortedDictionary<int, List<int>> sortedDictionary = new SortedDictionary<int, List<int>>();
+@@ -2045,7 +2045,7 @@ private void CreateIconData(int monitorId)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorId);
+         List<CollectionTabData> list = new List<CollectionTabData>();
+-        List<int> list2 = (from i in userData.IconList where i.stock > 0 select i.itemId).ToList();
++        List<int> list2 = (from i in userData.IconList where i.Stock > 0 select i.ItemId).ToList();
+         List<int> newIconList = userData.NewIconList;
+         List<int> favoriteIconList = userData.FavoriteIconList;
+         SortedDictionary<int, List<int>> sortedDictionary = new SortedDictionary<int, List<int>>();
+@@ -2455,7 +2455,7 @@ private void CreatePlateData(int monitorId)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorId);
+         List<CollectionTabData> list = new List<CollectionTabData>();
+-        List<int> list2 = (from i in userData.PlateList where i.stock > 0 select i.itemId).ToList();
++        List<int> list2 = (from i in userData.PlateList where i.Stock > 0 select i.ItemId).ToList();
+         List<int> newPlateList = userData.NewPlateList;
+         List<int> favoritePlateList = userData.FavoritePlateList;
+         SortedDictionary<int, List<int>> sortedDictionary = new SortedDictionary<int, List<int>>();
+@@ -2871,8 +2871,8 @@ private void CreatePartnerData(int monitorId)
+         List<CollectionTabData> list = new List<CollectionTabData>();
+         List<int> list2 = (
+             from p in userData.PartnerList
+-            where p.stock > 0
+-            select p.itemId
++            where p.Stock > 0
++            select p.ItemId
+         ).ToList();
+         List<int> newPartnerList = userData.NewPartnerList;
+         List<CollectionData> list3 = new List<CollectionData>();
+@@ -3323,9 +3323,9 @@ private void AddPartnerCloseness(int monitorId, int partnerId, int addCloseness)
+         outPartnerClosenessesData.closeness += addCloseness;
+         foreach (UserItem intimateItem in userData.IntimateItemList)
+         {
+-            if (intimateItem.itemId == 10001)
++            if (intimateItem.ItemId == 10001)
+             {
+-                intimateItem.stock -= addCloseness;
++                intimateItem.Stock -= addCloseness;
+             }
+         }
+     }
+@@ -3355,15 +3355,15 @@ UserItem intimateItem in Singleton<UserDataManager>
+                 .IntimateItemList
+         )
+         {
+-            if (intimateItem.itemId == 10001)
++            if (intimateItem.ItemId == 10001)
+             {
+-                if (intimateItem.stock - presentNum[monitorId] >= addNum)
++                if (intimateItem.Stock - presentNum[monitorId] >= addNum)
+                 {
+                     canAddNum = addNum;
+                 }
+                 else
+                 {
+-                    canAddNum = intimateItem.stock - presentNum[monitorId];
++                    canAddNum = intimateItem.Stock - presentNum[monitorId];
+                 }
+                 break;
+             }
+@@ -3469,7 +3469,7 @@ out List<PartnerClosenessData> newRewardList
+                     break;
+                 case PartnerRewardType.Plate:
+                     if (
+-                        userData.PlateList.Find((UserItem c) => c.itemId == reward.NamePlate.id)
++                        userData.PlateList.Find((UserItem c) => c.ItemId == reward.NamePlate.id)
+                         != null
+                     )
+                     {
+@@ -3478,7 +3478,7 @@ out List<PartnerClosenessData> newRewardList
+                     break;
+                 case PartnerRewardType.Frame:
+                     if (
+-                        userData.FrameList.Find((UserItem c) => c.itemId == reward.Frame.id) != null
++                        userData.FrameList.Find((UserItem c) => c.ItemId == reward.Frame.id) != null
+                     )
+                     {
+                         flag = true;
+@@ -3486,14 +3486,14 @@ out List<PartnerClosenessData> newRewardList
+                     break;
+                 case PartnerRewardType.Title:
+                     if (
+-                        userData.TitleList.Find((UserItem c) => c.itemId == reward.Title.id) != null
++                        userData.TitleList.Find((UserItem c) => c.ItemId == reward.Title.id) != null
+                     )
+                     {
+                         flag = true;
+                     }
+                     break;
+                 case PartnerRewardType.Icon:
+-                    if (userData.IconList.Find((UserItem c) => c.itemId == reward.Icon.id) != null)
++                    if (userData.IconList.Find((UserItem c) => c.ItemId == reward.Icon.id) != null)
+                     {
+                         flag = true;
+                     }
+@@ -3597,9 +3597,9 @@ public void UpdateIntimateItemNumUI(int monitorId)
+         int intimateItemNumText = 0;
+         foreach (UserItem intimateItem in userData.IntimateItemList)
+         {
+-            if (intimateItem.itemId == 10001)
++            if (intimateItem.ItemId == 10001)
+             {
+-                intimateItemNumText = intimateItem.stock;
++                intimateItemNumText = intimateItem.Stock;
+             }
+         }
+         _monitors[monitorId].SetIntimateItemNumText(intimateItemNumText);
+@@ -4437,13 +4437,13 @@ out CannotBuyItemReason cannotBuyItemReason
+             return false;
+         }
+         UserShopStock userShopStock = userData.ShopStockList.Find(
+-            (UserShopStock c) => c.shopItemId == itemId
++            (UserShopStock c) => c.ShopItemId == itemId
+         );
+         if (userShopStock == null)
+         {
+             return true;
+         }
+-        if (shopItemStock.stock - userShopStock.tradeCount <= 0)
++        if (shopItemStock.stock - userShopStock.TradeCount <= 0)
+         {
+             cannotBuyItemReason = CannotBuyItemReason.ZeroItemStock;
+             return false;
+@@ -4463,12 +4463,12 @@ out CannotBuyItemReason cannotBuyItemReason
+             case 1:
+             {
+                 UserItem userItem = userData.TicketList.Find(
+-                    (UserItem t) => t.itemId == shopItemData.itemId
++                    (UserItem t) => t.ItemId == shopItemData.itemId
+                 );
+                 int num2 = 0;
+                 if (userItem != null)
+                 {
+-                    num2 = userItem.stock;
++                    num2 = userItem.Stock;
+                 }
+                 TicketData ticket = Singleton<DataManager>.Instance.GetTicket(shopItemData.itemId);
+                 if (ticket == null)
+@@ -4484,7 +4484,7 @@ out CannotBuyItemReason cannotBuyItemReason
+             }
+             case 2:
+                 if (
+-                    userData.PartnerList.Find((UserItem c) => c.itemId == shopItemData.itemId)
++                    userData.PartnerList.Find((UserItem c) => c.ItemId == shopItemData.itemId)
+                     != null
+                 )
+                 {
+@@ -4501,7 +4501,7 @@ out CannotBuyItemReason cannotBuyItemReason
+                 break;
+             case 4:
+                 if (
+-                    userData.PlateList.Find((UserItem c) => c.itemId == shopItemData.itemId) != null
++                    userData.PlateList.Find((UserItem c) => c.ItemId == shopItemData.itemId) != null
+                 )
+                 {
+                     cannotBuyItemReason = CannotBuyItemReason.UserMaxStock;
+@@ -4510,7 +4510,7 @@ out CannotBuyItemReason cannotBuyItemReason
+                 break;
+             case 5:
+                 if (
+-                    userData.FrameList.Find((UserItem c) => c.itemId == shopItemData.itemId) != null
++                    userData.FrameList.Find((UserItem c) => c.ItemId == shopItemData.itemId) != null
+                 )
+                 {
+                     cannotBuyItemReason = CannotBuyItemReason.UserMaxStock;
+@@ -4519,7 +4519,7 @@ out CannotBuyItemReason cannotBuyItemReason
+                 break;
+             case 6:
+                 if (
+-                    userData.TitleList.Find((UserItem c) => c.itemId == shopItemData.itemId) != null
++                    userData.TitleList.Find((UserItem c) => c.ItemId == shopItemData.itemId) != null
+                 )
+                 {
+                     cannotBuyItemReason = CannotBuyItemReason.UserMaxStock;
+@@ -4531,7 +4531,7 @@ out CannotBuyItemReason cannotBuyItemReason
+                 int num = 0;
+                 if (userData.IntimateItemList.Count > 0)
+                 {
+-                    num = userData.IntimateItemList[0].stock;
++                    num = userData.IntimateItemList[0].Stock;
+                 }
+                 if (num + shopItemData.exchangeNum > 9999)
+                 {
+@@ -4551,16 +4551,16 @@ private void BuyItem(int monitorId)
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorId);
+         int itemId = shopItem.itemId;
+         UserShopStock userShopStock = userData.ShopStockList.Find(
+-            (UserShopStock c) => c.shopItemId == itemData.ID
++            (UserShopStock c) => c.ShopItemId == itemData.ID
+         );
+         if (userShopStock == null)
+         {
+             userShopStock = new UserShopStock();
+-            userShopStock.shopItemId = itemData.ID;
+-            userShopStock.tradeCount = 0;
++            userShopStock.ShopItemId = itemData.ID;
++            userShopStock.TradeCount = 0;
+             userData.ShopStockList.Add(userShopStock);
+         }
+-        userShopStock.tradeCount++;
++        userShopStock.TradeCount++;
+         UserTradeItem userTradeItem = userData.userTradeItemList.Find(
+             (UserTradeItem c) => c.shopItemId == itemData.ID
+         );
+@@ -4620,10 +4620,10 @@ private void BuyItem(int monitorId)
+                 if (userData.IntimateItemList.Count == 0)
+                 {
+                     UserItem userItem = new UserItem(10001);
+-                    userItem.stock = 0;
++                    userItem.Stock = 0;
+                     userData.IntimateItemList.Add(userItem);
+                 }
+-                userData.IntimateItemList[0].stock += shopItem.exchangeNum;
++                userData.IntimateItemList[0].Stock += shopItem.exchangeNum;
+                 break;
+         }
+     }
+@@ -4688,12 +4688,12 @@ public int GetShopItemStock(int id, int monitorId)
+             return 0;
+         }
+         UserShopStock userShopStock = userData.ShopStockList.Find(
+-            (UserShopStock c) => c.shopItemId == id
++            (UserShopStock c) => c.ShopItemId == id
+         );
+         int num = 0;
+         if (userShopStock != null)
+         {
+-            num = userShopStock.tradeCount;
++            num = userShopStock.TradeCount;
+         }
+         return shopItemStock.stock - num;
+     }
+@@ -4731,17 +4731,17 @@ public int GetUserItemStock(int id, int monitorId)
+             case 1:
+             {
+                 UserItem userItem = userData.TicketList.Find(
+-                    (UserItem t) => t.itemId == shopItemData.itemId
++                    (UserItem t) => t.ItemId == shopItemData.itemId
+                 );
+                 if (userItem != null)
+                 {
+-                    result = userItem.stock;
++                    result = userItem.Stock;
+                 }
+                 break;
+             }
+             case 2:
+                 if (
+-                    userData.PartnerList.Find((UserItem c) => c.itemId == shopItemData.itemId)
++                    userData.PartnerList.Find((UserItem c) => c.ItemId == shopItemData.itemId)
+                     != null
+                 )
+                 {
+@@ -4756,7 +4756,7 @@ public int GetUserItemStock(int id, int monitorId)
+                 break;
+             case 4:
+                 if (
+-                    userData.PlateList.Find((UserItem c) => c.itemId == shopItemData.itemId) != null
++                    userData.PlateList.Find((UserItem c) => c.ItemId == shopItemData.itemId) != null
+                 )
+                 {
+                     result = 1;
+@@ -4764,7 +4764,7 @@ public int GetUserItemStock(int id, int monitorId)
+                 break;
+             case 5:
+                 if (
+-                    userData.FrameList.Find((UserItem c) => c.itemId == shopItemData.itemId) != null
++                    userData.FrameList.Find((UserItem c) => c.ItemId == shopItemData.itemId) != null
+                 )
+                 {
+                     result = 1;
+@@ -4772,7 +4772,7 @@ public int GetUserItemStock(int id, int monitorId)
+                 break;
+             case 6:
+                 if (
+-                    userData.TitleList.Find((UserItem c) => c.itemId == shopItemData.itemId) != null
++                    userData.TitleList.Find((UserItem c) => c.ItemId == shopItemData.itemId) != null
+                 )
+                 {
+                     result = 1;
+@@ -4783,7 +4783,7 @@ public int GetUserItemStock(int id, int monitorId)
+                 {
+                     return result;
+                 }
+-                result = userData.IntimateItemList[0].stock;
++                result = userData.IntimateItemList[0].Stock;
+                 break;
+         }
+         return result;
+@@ -5112,7 +5112,7 @@ private void CreateTitleData(int monitorId)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorId);
+         List<CollectionTabData> list = new List<CollectionTabData>();
+-        List<int> list2 = (from i in userData.TitleList where i.stock > 0 select i.itemId).ToList();
++        List<int> list2 = (from i in userData.TitleList where i.Stock > 0 select i.ItemId).ToList();
+         List<int> newTitleList = userData.NewTitleList;
+         List<int> favoriteTitleList = userData.FavoriteTitleList;
+         SortedDictionary<int, List<int>> sortedDictionary = new SortedDictionary<int, List<int>>();
+diff --git a/src/SinmaiLib/KaleidxScopeUnlockKeyState.cs b/src/SinmaiLib/KaleidxScopeUnlockKeyState.cs
+index f73fbad..08f7cde 100644
+--- a/src/SinmaiLib/KaleidxScopeUnlockKeyState.cs
++++ b/src/SinmaiLib/KaleidxScopeUnlockKeyState.cs
+@@ -65,14 +65,14 @@ UserData userData
+             monitor.getKeyDataList.Clear();
+             foreach (Manager.UserDatas.UserItem item in newItemList)
+             {
+-                if (!item.isValid)
++                if (!item.IsValid)
+                 {
+                     continue;
+                 }
+                 int itemId = 0;
+                 ItemKind itemType = ItemKind.Plate;
+                 Singleton<DataManager>.Instance.ConvertPresentID2Item(
+-                    item.itemId,
++                    item.ItemId,
+                     out itemId,
+                     out itemType
+                 );
+@@ -88,14 +88,14 @@ out itemType
+             }
+             foreach (Manager.UserDatas.UserItem item2 in presentList)
+             {
+-                if (item2.stock == 0 || !item2.isValid)
++                if (item2.Stock == 0 || !item2.IsValid)
+                 {
+                     continue;
+                 }
+                 int itemId2 = 0;
+                 ItemKind itemType2 = ItemKind.Plate;
+                 Singleton<DataManager>.Instance.ConvertPresentID2Item(
+-                    item2.itemId,
++                    item2.ItemId,
+                     out itemId2,
+                     out itemType2
+                 );
+@@ -106,7 +106,7 @@ out itemType2
+                     if (kaleidxScopeKey2 != null)
+                     {
+                         monitor.getKeyDataList.Add(kaleidxScopeKey2);
+-                        item2.stock = 0;
++                        item2.Stock = 0;
+                     }
+                 }
+             }
+diff --git a/src/SinmaiLib/Manager/Achieve/CollectionAchieve.cs b/src/SinmaiLib/Manager/Achieve/CollectionAchieve.cs
+index 6a1a0b9..bedf928 100644
+--- a/src/SinmaiLib/Manager/Achieve/CollectionAchieve.cs
++++ b/src/SinmaiLib/Manager/Achieve/CollectionAchieve.cs
+@@ -291,7 +291,7 @@ public int[] CheckNewPlate(ReleaseConditionCategory category)
+         return CheckConditions(
+             ItemKind.Plate,
+             category,
+-            (from i in _userData.PlateList where i.stock != 0 select i.itemId).ToList()
++            (from i in _userData.PlateList where i.Stock != 0 select i.ItemId).ToList()
+         );
+     }
+ 
+@@ -300,7 +300,7 @@ public int[] CheckNewTitle(ReleaseConditionCategory category)
+         return CheckConditions(
+             ItemKind.Title,
+             category,
+-            (from i in _userData.TitleList where i.stock != 0 select i.itemId).ToList()
++            (from i in _userData.TitleList where i.Stock != 0 select i.ItemId).ToList()
+         );
+     }
+ 
+@@ -309,7 +309,7 @@ public int[] CheckNewIcon(ReleaseConditionCategory category)
+         return CheckConditions(
+             ItemKind.Icon,
+             category,
+-            (from i in _userData.IconList where i.stock != 0 select i.itemId).ToList()
++            (from i in _userData.IconList where i.Stock != 0 select i.ItemId).ToList()
+         );
+     }
+ 
+@@ -318,7 +318,7 @@ public int[] CheckNewPartner(ReleaseConditionCategory category)
+         return CheckConditions(
+             ItemKind.Partner,
+             category,
+-            (from i in _userData.PartnerList where i.stock != 0 select i.itemId).ToList()
++            (from i in _userData.PartnerList where i.Stock != 0 select i.ItemId).ToList()
+         );
+     }
+ 
+@@ -327,7 +327,7 @@ public int[] CheckNewFrame(ReleaseConditionCategory category)
+         return CheckConditions(
+             ItemKind.Frame,
+             category,
+-            (from i in _userData.FrameList where i.stock != 0 select i.itemId).ToList()
++            (from i in _userData.FrameList where i.Stock != 0 select i.ItemId).ToList()
+         );
+     }
+ 
+@@ -388,25 +388,25 @@ public int[] CheckDeprivateItems(ItemKind kind)
+         {
+             ItemKind.Plate => DeprivationCheck(
+                 kind,
+-                _checkUserData.PlateList.Select((Manager.UserDatas.UserItem i) => i.itemId).ToList()
++                _checkUserData.PlateList.Select((Manager.UserDatas.UserItem i) => i.ItemId).ToList()
+             ),
+             ItemKind.Title => DeprivationCheck(
+                 kind,
+-                _checkUserData.TitleList.Select((Manager.UserDatas.UserItem i) => i.itemId).ToList()
++                _checkUserData.TitleList.Select((Manager.UserDatas.UserItem i) => i.ItemId).ToList()
+             ),
+             ItemKind.Icon => DeprivationCheck(
+                 kind,
+-                _checkUserData.IconList.Select((Manager.UserDatas.UserItem i) => i.itemId).ToList()
++                _checkUserData.IconList.Select((Manager.UserDatas.UserItem i) => i.ItemId).ToList()
+             ),
+             ItemKind.Partner => DeprivationCheck(
+                 kind,
+                 _checkUserData
+-                    .PartnerList.Select((Manager.UserDatas.UserItem i) => i.itemId)
++                    .PartnerList.Select((Manager.UserDatas.UserItem i) => i.ItemId)
+                     .ToList()
+             ),
+             ItemKind.Frame => DeprivationCheck(
+                 kind,
+-                _checkUserData.FrameList.Select((Manager.UserDatas.UserItem i) => i.itemId).ToList()
++                _checkUserData.FrameList.Select((Manager.UserDatas.UserItem i) => i.ItemId).ToList()
+             ),
+             _ => Array.Empty<int>(),
+         };
+diff --git a/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs b/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs
+index 89e8101..c2e5c56 100644
+--- a/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs
++++ b/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs
+@@ -316,7 +316,7 @@ private bool GetItemEnable(int playerIndex, int itemKind, int itemId)
+         switch (itemKind)
+         {
+             case 0:
+-                result = userData.PartnerList.Find((UserItem t) => t.itemId == itemId) == null;
++                result = userData.PartnerList.Find((UserItem t) => t.ItemId == itemId) == null;
+                 break;
+             case 1:
+                 result = userData.CharaList.Find((UserChara t) => t.ID == itemId) == null;
+@@ -325,16 +325,16 @@ private bool GetItemEnable(int playerIndex, int itemKind, int itemId)
+                 result = !userData.MusicUnlockList.Contains(itemId);
+                 break;
+             case 3:
+-                result = userData.TitleList.Find((UserItem t) => t.itemId == itemId) == null;
++                result = userData.TitleList.Find((UserItem t) => t.ItemId == itemId) == null;
+                 break;
+             case 4:
+-                result = userData.PlateList.Find((UserItem t) => t.itemId == itemId) == null;
++                result = userData.PlateList.Find((UserItem t) => t.ItemId == itemId) == null;
+                 break;
+             case 5:
+-                result = userData.IconList.Find((UserItem t) => t.itemId == itemId) == null;
++                result = userData.IconList.Find((UserItem t) => t.ItemId == itemId) == null;
+                 break;
+             case 6:
+-                result = userData.FrameList.Find((UserItem t) => t.itemId == itemId) == null;
++                result = userData.FrameList.Find((UserItem t) => t.ItemId == itemId) == null;
+                 break;
+             case 7:
+                 result = true;
+diff --git a/src/SinmaiLib/Manager/TicketManager.cs b/src/SinmaiLib/Manager/TicketManager.cs
+index 12c83e4..c825c1e 100644
+--- a/src/SinmaiLib/Manager/TicketManager.cs
++++ b/src/SinmaiLib/Manager/TicketManager.cs
+@@ -100,10 +100,10 @@ select x
+             ticketSelectData.ticketKind = (TicketKind)item.ticketKind.id;
+             Manager.UserDatas.UserItem userItem = Singleton<UserDataManager>
+                 .Instance.GetUserData(playerId)
+-                .TicketList.Find((Manager.UserDatas.UserItem t) => t.itemId == ticketId);
++                .TicketList.Find((Manager.UserDatas.UserItem t) => t.ItemId == ticketId);
+             if (userItem != null)
+             {
+-                ticketSelectData.ticketNum = userItem.stock;
++                ticketSelectData.ticketNum = userItem.Stock;
+             }
+             else
+             {
+@@ -178,14 +178,14 @@ public bool UseTicketPrepare(int playerId, int ticketId)
+                 }
+                 Manager.UserDatas.UserItem userItem = Singleton<UserDataManager>
+                     .Instance.GetUserData(playerId)
+-                    .TicketList.Find((Manager.UserDatas.UserItem t) => t.itemId == ticketId);
+-                if (userItem != null && userItem.stock > 0)
++                    .TicketList.Find((Manager.UserDatas.UserItem t) => t.ItemId == ticketId);
++                if (userItem != null && userItem.Stock > 0)
+                 {
+                     _connectTicketData[playerId].isConnectFinish = true;
+                     _connectTicketData[playerId].connectTicketId = ticketId;
+                     _connectTicketData[playerId].credit = 0;
+                     _useTicketId[playerId] = ticketId;
+-                    userItem.stock--;
++                    userItem.Stock--;
+                     return true;
+                 }
+             }
+@@ -342,13 +342,13 @@ public int GetFreedomPlayTicketId(int playerId)
+     {
+         Manager.UserDatas.UserItem userItem = Singleton<UserDataManager>
+             .Instance.GetUserData(playerId)
+-            .TicketList.Find((Manager.UserDatas.UserItem t) => t.itemId == 11001);
++            .TicketList.Find((Manager.UserDatas.UserItem t) => t.ItemId == 11001);
+         TicketData ticket = Singleton<DataManager>.Instance.GetTicket(11001);
+         if (ticket != null)
+         {
+             if (userItem != null)
+             {
+-                if (userItem.stock < ticket.maxCount)
++                if (userItem.Stock < ticket.maxCount)
+                 {
+                     return 11001;
+                 }
+@@ -372,13 +372,13 @@ public int GetTrialPlayTicketId(int playerId)
+     {
+         Manager.UserDatas.UserItem userItem = Singleton<UserDataManager>
+             .Instance.GetUserData(playerId)
+-            .TicketList.Find((Manager.UserDatas.UserItem t) => t.itemId == 11001);
++            .TicketList.Find((Manager.UserDatas.UserItem t) => t.ItemId == 11001);
+         TicketData ticket = Singleton<DataManager>.Instance.GetTicket(11001);
+         if (ticket != null)
+         {
+             if (userItem != null)
+             {
+-                if (userItem.stock < ticket.maxCount)
++                if (userItem.Stock < ticket.maxCount)
+                 {
+                     return 11001;
+                 }
+@@ -435,7 +435,7 @@ public void checkAndSaveFriendBattleTicketGet(int playerId, int ticketId, bool a
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(playerId);
+         Manager.UserDatas.UserItem userItem = userData.TicketList.Find(
+-            (Manager.UserDatas.UserItem t) => t.itemId == ticketId
++            (Manager.UserDatas.UserItem t) => t.ItemId == ticketId
+         );
+         TicketData ticket = Singleton<DataManager>.Instance.GetTicket(ticketId);
+         bool flag = false;
+@@ -443,7 +443,7 @@ public void checkAndSaveFriendBattleTicketGet(int playerId, int ticketId, bool a
+         {
+             if (userItem != null)
+             {
+-                if (userItem.stock < ticket.maxCount)
++                if (userItem.Stock < ticket.maxCount)
+                 {
+                     flag = true;
+                 }
+@@ -471,7 +471,7 @@ bool addNewGet
+         bool result = false;
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(playerId);
+         Manager.UserDatas.UserItem userItem = userData.TicketList.Find(
+-            (Manager.UserDatas.UserItem t) => t.itemId == ticketId
++            (Manager.UserDatas.UserItem t) => t.ItemId == ticketId
+         );
+         TicketData ticket = Singleton<DataManager>.Instance.GetTicket(ticketId);
+         for (int num2 = 0; num2 < num; num2++)
+@@ -480,14 +480,14 @@ bool addNewGet
+             if (userItem == null)
+             {
+                 userItem = userData.TicketList.Find(
+-                    (Manager.UserDatas.UserItem t) => t.itemId == ticketId
++                    (Manager.UserDatas.UserItem t) => t.ItemId == ticketId
+                 );
+             }
+             if (ticket != null)
+             {
+                 if (userItem != null)
+                 {
+-                    if (userItem.stock < ticket.maxCount)
++                    if (userItem.Stock < ticket.maxCount)
+                     {
+                         flag = true;
+                     }
+@@ -510,7 +510,7 @@ public void checkAndSaveTicketGet(int playerId, int ticketId, bool addNewGet)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(playerId);
+         Manager.UserDatas.UserItem userItem = userData.TicketList.Find(
+-            (Manager.UserDatas.UserItem t) => t.itemId == ticketId
++            (Manager.UserDatas.UserItem t) => t.ItemId == ticketId
+         );
+         TicketData ticket = Singleton<DataManager>.Instance.GetTicket(ticketId);
+         bool flag = false;
+@@ -518,7 +518,7 @@ public void checkAndSaveTicketGet(int playerId, int ticketId, bool addNewGet)
+         {
+             if (userItem != null)
+             {
+-                if (userItem.stock < ticket.maxCount)
++                if (userItem.Stock < ticket.maxCount)
+                 {
+                     flag = true;
+                 }
+@@ -551,14 +551,14 @@ public int GetCoursePlayTicketId(int playerId)
+         )
+         {
+             Manager.UserDatas.UserItem userItem = userData.TicketList.Find(
+-                (Manager.UserDatas.UserItem t) => t.itemId == 11001
++                (Manager.UserDatas.UserItem t) => t.ItemId == 11001
+             );
+             TicketData ticket = Singleton<DataManager>.Instance.GetTicket(11001);
+             if (ticket != null)
+             {
+                 if (userItem != null)
+                 {
+-                    if (userItem.stock < ticket.maxCount)
++                    if (userItem.Stock < ticket.maxCount)
+                     {
+                         return 11001;
+                     }
+diff --git a/src/SinmaiLib/Manager/UserData.cs b/src/SinmaiLib/Manager/UserData.cs
+index f893370..8669b7b 100644
+--- a/src/SinmaiLib/Manager/UserData.cs
++++ b/src/SinmaiLib/Manager/UserData.cs
+@@ -617,7 +617,7 @@ public bool AddCollections(Collection type, int id, bool addNewGet = false)
+         }
+         if (
+             list.Select((Manager.UserDatas.UserItem s) => s)
+-                .All((Manager.UserDatas.UserItem x) => x.itemId != id)
++                .All((Manager.UserDatas.UserItem x) => x.ItemId != id)
+         )
+         {
+             list.Add(new Manager.UserDatas.UserItem(id));
+@@ -629,7 +629,7 @@ public bool AddCollections(Collection type, int id, bool addNewGet = false)
+         }
+         if (type == Collection.Ticket)
+         {
+-            list.Find((Manager.UserDatas.UserItem x) => x.itemId == id).stock++;
++            list.Find((Manager.UserDatas.UserItem x) => x.ItemId == id).Stock++;
+             if (addNewGet)
+             {
+                 list2.Add(id);
+@@ -637,11 +637,11 @@ public bool AddCollections(Collection type, int id, bool addNewGet = false)
+             return true;
+         }
+         Manager.UserDatas.UserItem userItem = list.Find(
+-            (Manager.UserDatas.UserItem x) => x.itemId == id
++            (Manager.UserDatas.UserItem x) => x.ItemId == id
+         );
+-        if (userItem.stock == 0)
++        if (userItem.Stock == 0)
+         {
+-            userItem.stock++;
++            userItem.Stock++;
+             if (addNewGet)
+             {
+                 list2.Add(id);
+@@ -1293,7 +1293,7 @@ public void CheckDisableCollection(CollectionGenreID type)
+                     Detail.EquipIconID == 2
+                     || Detail.EquipIconID == 3
+                     || IconList.Find(
+-                        (Manager.UserDatas.UserItem item) => item.itemId == Detail.EquipIconID
++                        (Manager.UserDatas.UserItem item) => item.ItemId == Detail.EquipIconID
+                     ) != null;
+                 if (icon == null || (icon != null && icon.disable) || !flag2)
+                 {
+@@ -1308,7 +1308,7 @@ public void CheckDisableCollection(CollectionGenreID type)
+                     Detail.EquipPlateID == 2
+                     || Detail.EquipPlateID == 3
+                     || PlateList.Find(
+-                        (Manager.UserDatas.UserItem item) => item.itemId == Detail.EquipPlateID
++                        (Manager.UserDatas.UserItem item) => item.ItemId == Detail.EquipPlateID
+                     ) != null;
+                 if (plate == null || (plate != null && plate.disable) || !flag3)
+                 {
+@@ -1323,7 +1323,7 @@ public void CheckDisableCollection(CollectionGenreID type)
+                     Detail.EquipFrameID == 2
+                     || Detail.EquipFrameID == 3
+                     || FrameList.Find(
+-                        (Manager.UserDatas.UserItem item) => item.itemId == Detail.EquipFrameID
++                        (Manager.UserDatas.UserItem item) => item.ItemId == Detail.EquipFrameID
+                     ) != null;
+                 if (frame == null || (frame != null && frame.disable) || !flag4)
+                 {
+@@ -1338,7 +1338,7 @@ public void CheckDisableCollection(CollectionGenreID type)
+                     Detail.EquipTitleID == 2
+                     || Detail.EquipTitleID == 3
+                     || TitleList.Find(
+-                        (Manager.UserDatas.UserItem item) => item.itemId == Detail.EquipTitleID
++                        (Manager.UserDatas.UserItem item) => item.ItemId == Detail.EquipTitleID
+                     ) != null;
+                 if (title == null || (title != null && title.disable) || !flag)
+                 {
+@@ -1362,7 +1362,7 @@ public void CheckDisableFavoriteCollection(CollectionGenreID type)
+                     if (
+                         d4 == null
+                         || (d4 != null && d4.disable)
+-                        || IconList.Find((Manager.UserDatas.UserItem x) => x.itemId == d4.GetID())
++                        || IconList.Find((Manager.UserDatas.UserItem x) => x.ItemId == d4.GetID())
+                             == null
+                     )
+                     {
+@@ -1382,7 +1382,7 @@ public void CheckDisableFavoriteCollection(CollectionGenreID type)
+                     if (
+                         d2 == null
+                         || (d2 != null && d2.disable)
+-                        || PlateList.Find((Manager.UserDatas.UserItem x) => x.itemId == d2.GetID())
++                        || PlateList.Find((Manager.UserDatas.UserItem x) => x.ItemId == d2.GetID())
+                             == null
+                     )
+                     {
+@@ -1402,7 +1402,7 @@ public void CheckDisableFavoriteCollection(CollectionGenreID type)
+                     if (
+                         d3 == null
+                         || (d3 != null && d3.disable)
+-                        || FrameList.Find((Manager.UserDatas.UserItem x) => x.itemId == d3.GetID())
++                        || FrameList.Find((Manager.UserDatas.UserItem x) => x.ItemId == d3.GetID())
+                             == null
+                     )
+                     {
+@@ -1420,7 +1420,7 @@ public void CheckDisableFavoriteCollection(CollectionGenreID type)
+                     if (
+                         d == null
+                         || (d != null && d.disable)
+-                        || TitleList.Find((Manager.UserDatas.UserItem x) => x.itemId == d.GetID())
++                        || TitleList.Find((Manager.UserDatas.UserItem x) => x.ItemId == d.GetID())
+                             == null
+                     )
+                     {
+@@ -1445,7 +1445,7 @@ public void SetCollectionID(CollectionGenreID type, int ID)
+                             new List<Manager.UserDatas.UserItem>();
+                         for (int j = 0; j < IconList.Count; j++)
+                         {
+-                            if (IconList[j].itemId != 10)
++                            if (IconList[j].ItemId != 10)
+                             {
+                                 list2.Add(IconList[j]);
+                             }
+@@ -1547,7 +1547,7 @@ public void SetCollectionID(CollectionGenreID type, int ID)
+     public int GetCollectionRandomID(List<Manager.UserDatas.UserItem> list)
+     {
+         int index = Random.Range(0, list.Count);
+-        return list[index].itemId;
++        return list[index].ItemId;
+     }
+ 
+     public int GetFavoriteCollectionRandomID(List<int> list)
+@@ -1561,16 +1561,16 @@ public void AddIntimateItem(int num)
+         if (IntimateItemList.Count == 0)
+         {
+             Manager.UserDatas.UserItem userItem = new Manager.UserDatas.UserItem(10001);
+-            userItem.stock = 0;
++            userItem.Stock = 0;
+             IntimateItemList.Add(userItem);
+         }
+-        int stock = IntimateItemList[0].stock;
+-        IntimateItemList[0].stock += num;
+-        if (IntimateItemList[0].stock > 9999)
++        int stock = IntimateItemList[0].Stock;
++        IntimateItemList[0].Stock += num;
++        if (IntimateItemList[0].Stock > 9999)
+         {
+-            IntimateItemList[0].stock = 9999;
++            IntimateItemList[0].Stock = 9999;
+         }
+-        int num2 = IntimateItemList[0].stock - stock;
++        int num2 = IntimateItemList[0].Stock - stock;
+         for (int i = 0; i < num2; i++)
+         {
+             NewItemList.Add(new Manager.UserDatas.UserItem(14));
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserItem.cs b/src/SinmaiLib/Manager/UserDatas/UserItem.cs
+index fc483a4..e6a1537 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserItem.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserItem.cs
+@@ -5,23 +5,18 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class UserItem
+ {
+-    public int itemId;
++    public int ItemId { get; set; }
+ 
+-    public int stock;
++    public int Stock { get; set; }
+ 
+-    public bool isValid;
++    public bool IsValid { get; set; }
+ 
+-    public UserItem()
+-    {
+-        itemId = 0;
+-        stock = 0;
+-        isValid = false;
+-    }
++    public UserItem() { }
+ 
+     public UserItem(int id)
+     {
+-        itemId = id;
+-        stock = 1;
+-        isValid = true;
++        ItemId = id;
++        Stock = 1;
++        IsValid = true;
+     }
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserShopStock.cs b/src/SinmaiLib/Manager/UserDatas/UserShopStock.cs
+index 0647db5..52265ac 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserShopStock.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserShopStock.cs
+@@ -5,7 +5,7 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class UserShopStock
+ {
+-    public int shopItemId;
++    public int ShopItemId { get; set; }
+ 
+-    public int tradeCount;
++    public int TradeCount { get; set; }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+index f7a0148..af76ed6 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+@@ -15,7 +15,7 @@
+ 
+ namespace Net.VO.Mai2;
+ 
+-public static class VOExtensions
++internal static class VOExtensions
+ {
+     internal static void Export(this DailyLog src, out ClientBookkeeping dst)
+     {
+@@ -288,19 +288,19 @@ internal static void ExportUserAll(this UserData src, int index, out UserAll dst
+         );
+         UserLoginBonus[] loginBonusList = netUserData.LoginBonusList;
+         UserLoginBonus[] nsrc3 = src.LoginBonusList.Export();
+-        dst.userLoginBonusList = BuildListData(
+-            out dst.isNewLoginBonusList,
++        dst.UserLoginBonusList = BuildListData(
++            out dst.IsNewLoginBonusList,
+             nsrc3,
+             loginBonusList,
+-            (UserLoginBonus a, UserLoginBonus b) => a.bonusId == b.bonusId
++            (a, b) => a.BonusId == b.BonusId
+         );
+         UserItem[] osrc = netUserData.ExportUserItems();
+         UserItem[] nsrc4 = src.ExportUserItems();
+-        dst.userItemList = BuildListData(
+-            out dst.isNewItemList,
++        dst.UserItemList = BuildListData(
++            out dst.IsNewItemList,
+             nsrc4,
+             osrc,
+-            (UserItem a, UserItem b) => a.itemId == b.itemId && a.itemKind == b.itemKind
++            (a, b) => a.ItemId == b.ItemId && a.ItemKind == b.ItemKind
+         );
+         UserMusicDetail[] musicDetailList = netUserData.MusicDetailList;
+         UserMusicDetail[] nsrc5 = src.ExportScoreDetailList();
+@@ -934,76 +934,18 @@ public static UserGhost Export(this Manager.UserDatas.UserGhost src)
+         return dst;
+     }
+ 
+-    public static List<Manager.UserDatas.UserItem> Export(this UserItem[] src)
+-    {
+-        return src.Select((UserItem s) => s.Convert()).ToList();
+-    }
+-
+-    public static List<int> ExportToIntList(this UserItem[] src)
+-    {
+-        return src.Select((UserItem i) => i.itemId).ToList();
+-    }
+-
+     internal static UserItem[] ExportUserItems(this UserData src)
+     {
+         return
+         [
+-            .. src.PlateList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Plate,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.TitleList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Title,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.IconList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Icon,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.PartnerList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Partner,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.PresentList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Present,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.FrameList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Frame,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.TicketList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.Ticket,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
+-            .. src.IntimateItemList.Select(i => new UserItem
+-            {
+-                ItemKind = ItemKind.IntimateItem,
+-                ItemId = i.itemId,
+-                Stock = i.stock,
+-                IsValid = i.isValid,
+-            }),
++            .. src.PlateList.Select(i => i.ToVO(ItemKind.Plate)),
++            .. src.TitleList.Select(i => i.ToVO(ItemKind.Title)),
++            .. src.IconList.Select(i => i.ToVO(ItemKind.Icon)),
++            .. src.PartnerList.Select(i => i.ToVO(ItemKind.Partner)),
++            .. src.PresentList.Select(i => i.ToVO(ItemKind.Present)),
++            .. src.FrameList.Select(i => i.ToVO(ItemKind.Frame)),
++            .. src.TicketList.Select(i => i.ToVO(ItemKind.Ticket)),
++            .. src.IntimateItemList.Select(i => i.ToVO(ItemKind.IntimateItem)),
+             .. src.MusicUnlockList.Select(i => new UserItem
+             {
+                 ItemKind = ItemKind.Music,
+@@ -1035,16 +977,6 @@ internal static UserItem[] ExportUserItems(this UserData src)
+         ];
+     }
+ 
+-    private static Manager.UserDatas.UserItem Convert(this UserItem src)
+-    {
+-        return new Manager.UserDatas.UserItem
+-        {
+-            itemId = src.ItemId,
+-            isValid = src.IsValid,
+-            stock = src.Stock,
+-        };
+-    }
+-
+     internal static List<Manager.UserDatas.UserKaleidxScope> Export(this UserKaleidxScope[] src)
+     {
+         return [.. src.Select(r => r.Convert())];
+@@ -1732,8 +1664,8 @@ private static Manager.UserDatas.UserShopStock Convert(this UserShopStock src)
+     {
+         return new Manager.UserDatas.UserShopStock
+         {
+-            shopItemId = src.shopItemId,
+-            tradeCount = src.tradeCount,
++            ShopItemId = src.shopItemId,
++            TradeCount = src.tradeCount,
+         };
+     }
+ 
+@@ -1744,7 +1676,7 @@ public static UserGetPoint[] Export(this List<Manager.UserDatas.UserGetPoint> sr
+ 
+     private static UserGetPoint Convert(this Manager.UserDatas.UserGetPoint src)
+     {
+-        return new UserGetPoint { getKind = src.getKind, point = src.point };
++        return new UserGetPoint { GetKind = src.getKind, Point = src.point };
+     }
+ 
+     public static UserTradeItem[] Export(this List<Manager.UserDatas.UserTradeItem> src)
+@@ -1756,22 +1688,12 @@ private static UserTradeItem Convert(this Manager.UserDatas.UserTradeItem src)
+     {
+         return new UserTradeItem
+         {
+-            shopItemId = src.shopItemId,
+-            point = src.point,
+-            tradeCount = src.tradeCount,
++            ShopItemId = src.shopItemId,
++            Point = src.point,
++            TradeCount = src.tradeCount,
+         };
+     }
+ 
+-    public static UserShopStock[] ExportToNet(this List<Manager.UserDatas.UserShopStock> src)
+-    {
+-        return src.Select((Manager.UserDatas.UserShopStock r) => r.ConvertToNet()).ToArray();
+-    }
+-
+-    private static UserShopStock ConvertToNet(this Manager.UserDatas.UserShopStock src)
+-    {
+-        return new UserShopStock { shopItemId = src.shopItemId, tradeCount = src.tradeCount };
+-    }
+-
+     public static Manager.UserDatas.UserUdemae Export(this UserUdemae src)
+     {
+         Manager.UserDatas.UserUdemae dst = new Manager.UserDatas.UserUdemae();
+diff --git a/src/SinmaiLib/Process/GetMusicProcess.cs b/src/SinmaiLib/Process/GetMusicProcess.cs
+index 7ff3413..d33f963 100644
+--- a/src/SinmaiLib/Process/GetMusicProcess.cs
++++ b/src/SinmaiLib/Process/GetMusicProcess.cs
+@@ -65,7 +65,7 @@ public override void OnStart()
+             }
+             foreach (Manager.UserDatas.UserItem present in userData.PresentList)
+             {
+-                if (present.stock <= 0 || !present.isValid)
++                if (present.Stock <= 0 || !present.IsValid)
+                 {
+                     continue;
+                 }
+@@ -73,7 +73,7 @@ public override void OnStart()
+                 int itemId = 0;
+                 if (
+                     Singleton<DataManager>.Instance.ConvertPresentID2Item(
+-                        present.itemId,
++                        present.ItemId,
+                         out itemId,
+                         out itemType
+                     )
+@@ -135,7 +135,7 @@ out itemType
+                             );
+                             break;
+                     }
+-                    present.stock = 0;
++                    present.Stock = 0;
+                 }
+             }
+             _monitors[i].SetInfoList(infoList[i]);
+diff --git a/src/SinmaiLib/Process/GetPresentProcess.cs b/src/SinmaiLib/Process/GetPresentProcess.cs
+index 1e43aa6..c060c1c 100644
+--- a/src/SinmaiLib/Process/GetPresentProcess.cs
++++ b/src/SinmaiLib/Process/GetPresentProcess.cs
+@@ -197,7 +197,7 @@ public override void OnLateUpdate() { }
+     private void GetCollection(int monitorId, Manager.UserDatas.UserItem item)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorId);
+-        if (item.stock <= 0 || !item.isValid)
++        if (item.Stock <= 0 || !item.IsValid)
+         {
+             return;
+         }
+@@ -206,7 +206,7 @@ private void GetCollection(int monitorId, Manager.UserDatas.UserItem item)
+         bool flag = false;
+         if (
+             !Singleton<DataManager>.Instance.ConvertPresentID2Item(
+-                item.itemId,
++                item.ItemId,
+                 out itemId,
+                 out itemType
+             )
+@@ -220,7 +220,7 @@ out itemType
+                 if (_type == GetPresentType.ALL || _type == GetPresentType.Music)
+                 {
+                     flag = userData.AddUnlockMusic(UserData.MusicUnlock.Base, itemId);
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Ticket:
+@@ -230,11 +230,11 @@ out itemType
+                     flag = Singleton<TicketManager>.Instance.checkAndSaveAddPresentTicket(
+                         monitorId,
+                         itemId,
+-                        item.stock,
++                        item.Stock,
+                         out stock,
+                         addNewGet: true
+                     );
+-                    item.stock = stock;
++                    item.Stock = stock;
+                 }
+                 break;
+             case ItemKind.Icon:
+@@ -245,7 +245,7 @@ out itemType
+                         itemId,
+                         addNewGet: true
+                     );
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Plate:
+@@ -256,7 +256,7 @@ out itemType
+                         itemId,
+                         addNewGet: true
+                     );
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Frame:
+@@ -267,7 +267,7 @@ out itemType
+                         itemId,
+                         addNewGet: true
+                     );
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Character:
+@@ -278,7 +278,7 @@ out itemType
+                         itemId,
+                         addNewGet: true
+                     );
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Title:
+@@ -289,7 +289,7 @@ out itemType
+                         itemId,
+                         addNewGet: true
+                     );
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Partner:
+@@ -300,29 +300,29 @@ out itemType
+                         itemId,
+                         addNewGet: true
+                     );
+-                    item.stock = 0;
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.Mile:
+                 if (_type == GetPresentType.ALL)
+                 {
+                     flag = false;
+-                    userData.AddPresentMile(item.stock);
+-                    item.stock = 0;
++                    userData.AddPresentMile(item.Stock);
++                    item.Stock = 0;
+                 }
+                 break;
+             case ItemKind.IntimateItem:
+                 if (_type == GetPresentType.ALL)
+                 {
+                     flag = false;
+-                    userData.AddIntimateItem(item.stock);
+-                    item.stock = 0;
++                    userData.AddIntimateItem(item.Stock);
++                    item.Stock = 0;
+                 }
+                 break;
+         }
+         if (flag)
+         {
+-            infoList[monitorId].Add(item.itemId);
++            infoList[monitorId].Add(item.ItemId);
+         }
+     }
+ }
+diff --git a/src/SinmaiLib/Process/PhotoEditProcess.cs b/src/SinmaiLib/Process/PhotoEditProcess.cs
+index 937670c..55a074a 100644
+--- a/src/SinmaiLib/Process/PhotoEditProcess.cs
++++ b/src/SinmaiLib/Process/PhotoEditProcess.cs
+@@ -514,7 +514,7 @@ public override void OnUpdate()
+                     foreach (Manager.UserDatas.UserItem newItem in userData.NewItemList)
+                     {
+                         Singleton<DataManager>.Instance.ConvertPresentID2Item(
+-                            newItem.itemId,
++                            newItem.ItemId,
+                             out var _,
+                             out var itemType
+                         );
+@@ -526,10 +526,10 @@ out var itemType
+                     }
+                     foreach (Manager.UserDatas.UserItem present in userData.PresentList)
+                     {
+-                        if (present.stock != 0 && present.isValid)
++                        if (present.Stock != 0 && present.IsValid)
+                         {
+                             Singleton<DataManager>.Instance.ConvertPresentID2Item(
+-                                present.itemId,
++                                present.ItemId,
+                                 out var _,
+                                 out var itemType2
+                             );
+diff --git a/src/SinmaiLib/Process/PlInformationProcess.cs b/src/SinmaiLib/Process/PlInformationProcess.cs
+index e18a9a0..5b1f098 100644
+--- a/src/SinmaiLib/Process/PlInformationProcess.cs
++++ b/src/SinmaiLib/Process/PlInformationProcess.cs
+@@ -1104,21 +1104,21 @@ Manager.UserDatas.UserItem ticket2 in Singleton<UserDataManager>
+                 .TicketList
+         )
+         {
+-            if (ticket2.stock <= 0)
++            if (ticket2.Stock <= 0)
+             {
+                 continue;
+             }
+-            TicketData ticket = Singleton<DataManager>.Instance.GetTicket(ticket2.itemId);
++            TicketData ticket = Singleton<DataManager>.Instance.GetTicket(ticket2.ItemId);
+             if (ticket != null)
+             {
+                 if (ticket.ticketKind.id == 2)
+                 {
+-                    ticket2.stock = 0;
++                    ticket2.Stock = 0;
+                 }
+             }
+             else
+             {
+-                ticket2.stock = 0;
++                ticket2.Stock = 0;
+             }
+         }
+     }
+@@ -1199,7 +1199,7 @@ private void ConvertMapRunMeterValue(int monitorID)
+                         if (item_id > 0)
+                         {
+                             num2 = userData.PlateList.FindIndex(
+-                                (Manager.UserDatas.UserItem m) => m.itemId == item_id
++                                (Manager.UserDatas.UserItem m) => m.ItemId == item_id
+                             );
+                         }
+                         if (num2 < 0)
+@@ -1304,7 +1304,7 @@ select x
+         {
+             if (
+                 userData.PartnerList.FindIndex(
+-                    (Manager.UserDatas.UserItem m) => m.itemId == v.Value.GetID()
++                    (Manager.UserDatas.UserItem m) => m.ItemId == v.Value.GetID()
+                 ) < 0
+             )
+             {
+@@ -1313,7 +1313,7 @@ select x
+         }
+         int set_id = id;
+         if (
+-            userData.PartnerList.FindIndex((Manager.UserDatas.UserItem m) => m.itemId == set_id)
++            userData.PartnerList.FindIndex((Manager.UserDatas.UserItem m) => m.ItemId == set_id)
+             >= 0
+         )
+         {
+@@ -1333,7 +1333,7 @@ select x
+         {
+             if (
+                 userData.FrameList.FindIndex(
+-                    (Manager.UserDatas.UserItem m) => m.itemId == v.Value.GetID()
++                    (Manager.UserDatas.UserItem m) => m.ItemId == v.Value.GetID()
+                 ) < 0
+             )
+             {
+@@ -1342,7 +1342,7 @@ select x
+         }
+         int set_id = id;
+         if (
+-            userData.PartnerList.FindIndex((Manager.UserDatas.UserItem m) => m.itemId == set_id)
++            userData.PartnerList.FindIndex((Manager.UserDatas.UserItem m) => m.ItemId == set_id)
+             >= 0
+         )
+         {
+@@ -1562,13 +1562,13 @@ private void ResetUnGetCollection(int monitorId)
+             foreach (int deprivateItem in array2)
+             {
+                 Manager.UserDatas.UserItem userItem = tuple.Item2.Find(
+-                    (Manager.UserDatas.UserItem t) => t.itemId == deprivateItem
++                    (Manager.UserDatas.UserItem t) => t.ItemId == deprivateItem
+                 );
+                 if (userItem == null)
+                 {
+                     continue;
+                 }
+-                userItem.stock = 0;
++                userItem.Stock = 0;
+                 switch (tuple.Item1)
+                 {
+                     case ItemKind.Plate:
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserNewItemListDownload.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserNewItemListDownload.cs
+index 76e568e..81105f2 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserNewItemListDownload.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserNewItemListDownload.cs
+@@ -57,8 +57,8 @@ private void AddNewItemList(Net.VO.Mai2.UserItem[] userItems)
+             Net.VO.Mai2.UserItem userItem = userItems[i];
+             if (
+                 Singleton<DataManager>.Instance.ConvertItem2PresentID(
+-                    (ItemKind)userItem.itemKind,
+-                    userItem.itemId,
++                    userItem.ItemKind,
++                    userItem.ItemId,
+                     out var presentId
+                 )
+             )
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs
+index 0ee69d7..a2a83fc 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs
+@@ -3,6 +3,7 @@
+ using Manager;
+ using Manager.UserDatas;
+ using Net.VO.Mai2;
++using Net.VO.Mapper;
+ 
+ namespace Process.UserDataNet.State.UserDataDLState.Exist;
+ 
+@@ -29,20 +30,20 @@ private void Init(NetUserData src, UserData dst)
+         dst.Detail = src.Detail.Export(src.UserId);
+         dst.CardList = src.CardList.Export();
+         dst.Option = src.Option.Export();
+-        dst.Extend = src.Extend.Export();
++        dst.Extend = src.Extend.ToModel();
+         dst.RatingList = src.Rating.Export();
+         dst.PlayRegionList = src.RegionList.Export();
+-        dst.PlateList = src.ItemLists[ItemKind.Plate].Export();
+-        dst.TitleList = src.ItemLists[ItemKind.Title].Export();
+-        dst.IconList = src.ItemLists[ItemKind.Icon].Export();
+-        dst.PartnerList = src.ItemLists[ItemKind.Partner].Export();
+-        dst.PresentList = src.ItemLists[ItemKind.Present].Export();
+-        dst.FrameList = src.ItemLists[ItemKind.Frame].Export();
+-        dst.TicketList = src.ItemLists[ItemKind.Ticket].Export();
+-        dst.MusicUnlockList = src.ItemLists[ItemKind.Music].ExportToIntList();
+-        dst.MusicUnlockMasterList = src.ItemLists[ItemKind.MusicMas].ExportToIntList();
+-        dst.MusicUnlockReMasterList = src.ItemLists[ItemKind.MusicRem].ExportToIntList();
+-        dst.MusicUnlockStrongList = src.ItemLists[ItemKind.MusicSrg].ExportToIntList();
++        dst.PlateList = src.ItemLists[ItemKind.Plate].ToModelList();
++        dst.TitleList = src.ItemLists[ItemKind.Title].ToModelList();
++        dst.IconList = src.ItemLists[ItemKind.Icon].ToModelList();
++        dst.PartnerList = src.ItemLists[ItemKind.Partner].ToModelList();
++        dst.PresentList = src.ItemLists[ItemKind.Present].ToModelList();
++        dst.FrameList = src.ItemLists[ItemKind.Frame].ToModelList();
++        dst.TicketList = src.ItemLists[ItemKind.Ticket].ToModelList();
++        dst.MusicUnlockList = src.ItemLists[ItemKind.Music].ToIdList();
++        dst.MusicUnlockMasterList = src.ItemLists[ItemKind.MusicMas].ToIdList();
++        dst.MusicUnlockReMasterList = src.ItemLists[ItemKind.MusicRem].ToIdList();
++        dst.MusicUnlockStrongList = src.ItemLists[ItemKind.MusicSrg].ToIdList();
+         dst.FavoriteIconList = (
+             src.FavoriteList.ContainsKey(ItemKind.Icon)
+                 ? src.FavoriteList[ItemKind.Icon].Export()
+@@ -96,7 +97,7 @@ private void Init(NetUserData src, UserData dst)
+         dst.MissionList = src.MissionList.Export();
+         dst.UpdateMissionActive();
+         dst.PartnerClosenesses = src.UserPartnerClosenessDataList.Export();
+-        dst.IntimateItemList = src.ItemLists[ItemKind.IntimateItem].Export();
++        dst.IntimateItemList = src.ItemLists[ItemKind.IntimateItem].ToModelList();
+         dst.ShopStockList = src.UserShopStockDataList.Export();
+         dst.CheckDisableCollection(CollectionGenreID.Icon);
+         dst.CheckDisableCollection(CollectionGenreID.Plate);
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateUserInheritStore.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateUserInheritStore.cs
+index afe5b86..95857f0 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateUserInheritStore.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateUserInheritStore.cs
+@@ -1,6 +1,7 @@
+ using MAI2.Util;
+ using Manager;
+ using Net.VO.Mai2;
++using Net.VO.Mapper;
+ 
+ namespace Process.UserDataNet.State.UserDataDLState.Inherit;
+ 
+@@ -11,9 +12,9 @@ public override void Init(params object[] args)
+         int num = (int)args[0];
+         NetUserData netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(num);
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(num);
+-        userData.PlateList = netUserData.ItemLists[ItemKind.Plate].Export();
+-        userData.TitleList = netUserData.ItemLists[ItemKind.Title].Export();
+-        userData.IconList = netUserData.ItemLists[ItemKind.Icon].Export();
++        userData.PlateList = netUserData.ItemLists[ItemKind.Plate].ToModelList();
++        userData.TitleList = netUserData.ItemLists[ItemKind.Title].ToModelList();
++        userData.IconList = netUserData.ItemLists[ItemKind.Icon].ToModelList();
+         userData.ScoreDic = netUserData.MusicDetailList.ExportScoreDictionary();
+         Process.ToNextUser();
+     }
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index c79b918..51bc0d0 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -40,10 +40,14 @@
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs" Link="Source/VO/Mapper/UserActMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs" Link="Source/VO/Mapper/UserCourseMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserExtendMapper.cs" Link="Source/VO/Mapper/UserExtendMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs" Link="Source/VO/Mapper/UserItemMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs" Link="Source/VO/Mapper/UserShopStockMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/MapEncountNpcMapper.cs" Link="Source/VO/Mapper/MapEncountNpcMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserAct.cs" Link="Source/UserDatas/UserAct.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserCourse.cs" Link="Source/UserDatas/UserCourse.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtend.cs" Link="Source/UserDatas/UserExtend.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserItem.cs" Link="Source/UserDatas/UserItem.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserShopStock.cs" Link="Source/UserDatas/UserShopStock.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtendContentBit.cs" Link="Source/UserDatas/UserExtendContentBit.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs" Link="Source/UserDatas/MapEncountNpc.cs" />
+     <Compile Include="../../src/SinmaiLib/DB/ExtendContentBitID.cs" Link="Source/DB/ExtendContentBitID.cs" />
+diff --git a/tests/NetHttpClient.Tests/README.md b/tests/NetHttpClient.Tests/README.md
+index 4ce1d5b..46df9c7 100644
+--- a/tests/NetHttpClient.Tests/README.md
++++ b/tests/NetHttpClient.Tests/README.md
+@@ -19,11 +19,16 @@ # NetHttpClient 测试
+ Charge、Course、Data、Extend、Favorite、FavoriteItem、FriendBonus、FriendCheck Packet，
+ 以及生产环境的 NetQuery、JSON 上下文、VO、FriendBonus Mapper 和相关枚举，
+ 覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
++FavoriteItem 分页是特例：测试固定其后续请求游标始终为 0、重复获取首页且无法完成
++分页的现有行为，通过有限次请求断言该失败情形。
+ `Fixtures/UserDetailResponse.json` 提供包含全部必填字段的模拟用户响应。
+ `UserExtendMapperTests` 直接编译生产环境的 Extend/NPC Mapper 和模型，覆盖全部
+ 32 种扩展位标志组合、JSON 往返、卡片与 NPC 列表顺序、快照隔离、旧布尔字段和
+ 未知位的处理，以及初始化默认值。这些测试不编译依赖 Unity 的 `VOExtensions.cs`
+ 或游戏调用方，因此不能验证其签名迁移和整合编译。
++`UserItemMapperTests` 和 `UserShopStockMapperTests` 直接编译生产 Mapper 和模型，
++覆盖物品种类参数、JSON 往返、零库存与无效标记、列表顺序与重复 ID，以及库存
++修改前后的快照隔离；同样不验证 `VOExtensions.cs` 和游戏调用方的整合编译。
+ TLS 证书校验和原生认证交互不在
+ 这组测试的范围内。
+ 
+diff --git a/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs b/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
+index 2a50cb3..e248b95 100644
+--- a/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
++++ b/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
+@@ -206,28 +206,25 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+     [Theory]
+     [InlineData(FavoriteItemKind.FavoriteMusic, false)]
+     [InlineData(FavoriteItemKind.RivalScore, true)]
+-    public async Task UserDownload_FavoriteItemPaginatesThroughEmptyPageWithUnsignedCursor(
++    public async Task UserDownload_FavoriteItemPaginationRemainsIncompleteWithCursorFixedAtZero(
+         FavoriteItemKind kind, bool isAllFavoriteItem)
+     {
+         const ulong cursor = ulong.MaxValue - 1;
+         var first = JsonNode.Parse(DownloadResponse("FavoriteItem"))!;
+         first["kind"] = (int)kind;
+         first["nextIndex"] = cursor;
+-        var empty = first.DeepClone();
+-        empty["nextIndex"] = cursor + 1;
+-        empty["userFavoriteItemList"] = new JsonArray();
+-        var last = JsonNode.Parse(DownloadResponse("FavoriteItem"))!;
+-        last["kind"] = (int)kind;
+-        last["userFavoriteItemList"]![0]!["id"] = 22UL;
++        // Preserve the existing pagination failure: requests keep using zero, so the
++        // server repeats the first page and the completion callback is never reached.
++        // Observe a bounded number of requests instead of waiting for completion.
+         await using var server = await LoopbackServer.StartAsync(
+-            JsonResponse(first.ToJsonString()), JsonResponse(empty.ToJsonString()), JsonResponse(last.ToJsonString()));
++            JsonResponse(first.ToJsonString()), JsonResponse(first.ToJsonString()), JsonResponse(first.ToJsonString()));
+         _manager.BaseUri = new Uri(server.Url).GetLeftPart(UriPartial.Authority) + "/";
+         var results = new List<UserFavoriteItem[]>();
+         var errors = new List<PacketStatus>();
+         using var lease = new DownloadPacketLease(new PacketGetUserFavoriteItem(
+             DownloadUserId, kind, isAllFavoriteItem, results.Add, errors.Add));
+ 
+-        foreach (var expectedCursor in new[] { 0UL, cursor, cursor + 1 })
++        for (var page = 0; page < 3; page++)
+         {
+             var request = await server.ReceiveAsync();
+             using var json = JsonDocument.Parse(WirePayload.Decode(request.Body));
+@@ -235,13 +232,13 @@ public async Task UserDownload_FavoriteItemPaginatesThroughEmptyPageWithUnsigned
+             Assert.Equal((int)kind, json.RootElement.GetProperty("kind").GetInt32());
+             Assert.Equal(isAllFavoriteItem, json.RootElement.GetProperty("isAllFavoriteItem").GetBoolean());
+             Assert.Equal(100, json.RootElement.GetProperty("maxCount").GetInt32());
+-            Assert.Equal(expectedCursor, json.RootElement.GetProperty("nextIndex").GetUInt64());
++            Assert.Equal(0UL, json.RootElement.GetProperty("nextIndex").GetUInt64());
+             Assert.Empty(results);
+             await lease.WaitForRequestAsync();
+-            Assert.Equal(expectedCursor == cursor + 1 ? PacketState.Done : PacketState.Process, lease.Packet.Proc());
++            Assert.Equal(PacketState.Process, lease.Packet.Proc());
+         }
+ 
+-        Assert.Equal(new[] { DownloadUserId + 1, 22UL }, Assert.Single(results).Select(item => item.Id));
++        Assert.Empty(results);
+         Assert.Empty(errors);
+     }
+ 

@@ -1,0 +1,3 @@
+src/SinmaiLib/Net/NetErrorKind.cs
+src/SinmaiLib/Net/NetHttpException.cs
+src/SinmaiLib/Net/NetHttpResponse.cs

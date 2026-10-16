@@ -1,0 +1,1159 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 16 Oct 2026 11:36:50 +0800
+Subject: [PATCH] refactor(net)!: migrate extend, favorite and friend packets
+
+Adapt five user packets to immutable typed VOs and enum-based favorite
+item kinds. Extract friend bonus mapping and update download call sites.
+Remove obsolete network helpers and extend packet integration coverage.
+
+Validation: 113 tests pass; two regression cases still expose the existing
+favorite-item pagination defect, which remains unchanged.
+
+BREAKING CHANGE: The five packet classes are now internal, and favorite
+item queries require FavoriteItemKind. NetPacketUtil.GetUserAgent and
+NetPacketUtil.CopyMember are removed.
+
+diff --git a/src/SinmaiLib/Net/NetPacketUtil.cs b/src/SinmaiLib/Net/NetPacketUtil.cs
+dissimilarity index 68%
+index 3e1cead..90bc8b9 100644
+--- a/src/SinmaiLib/Net/NetPacketUtil.cs
++++ b/src/SinmaiLib/Net/NetPacketUtil.cs
+@@ -1,141 +1,56 @@
+-using System.Linq;
+-using System.Reflection;
+-using MAI2.Util;
+-using Manager;
+-using Net.Packet;
+-using Net.Packet.Mai2;
+-using Net.VO.Mai2;
+-
+-namespace Net;
+-
+-public static class NetPacketUtil
+-{
+-    public static string GetUserAgent(INetQuery query)
+-    {
+-        if (query.UserId != 0L)
+-        {
+-            return $"{Net.Packet.Packet.Obfuscator(query.Api)}#{query.UserId}";
+-        }
+-        return Net.Packet.Packet.Obfuscator(query.Api) + "#" + NetConfig.ClientId;
+-    }
+-
+-    public static void ForcedUserLogout(LogoutType logoutType)
+-    {
+-        if (Singleton<OperationManager>.Instance.NetIconStatus != OperationManager.NetStatus.Online)
+-        {
+-            return;
+-        }
+-        for (int i = 0; i < 2; i++)
+-        {
+-            UserData userData = Singleton<UserDataManager>.Instance.GetUserData(i);
+-            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserID))
+-            {
+-                new PacketUserLogout(
+-                    i,
+-                    userData.Detail.UserID,
+-                    logoutType,
+-                    userData.Detail.AccessCode,
+-                    delegate { }
+-                ).Proc();
+-            }
+-        }
+-    }
+-
+-    public static void ForcedUserLogout(int id)
+-    {
+-        if (
+-            Singleton<OperationManager>.Instance.NetIconStatus == OperationManager.NetStatus.Online
+-            && id >= 0
+-            && id < 2
+-        )
+-        {
+-            UserData userData = Singleton<UserDataManager>.Instance.GetUserData(id);
+-            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserID))
+-            {
+-                new PacketUserLogout(
+-                    id,
+-                    userData.Detail.UserID,
+-                    LogoutType.Cancel,
+-                    userData.Detail.AccessCode,
+-                    delegate { }
+-                ).Proc();
+-            }
+-        }
+-    }
+-
+-    public static void CopyMember<TDst, TSrc>(ref TDst dst, TSrc src)
+-    {
+-        var first =
+-            from f in src.GetType()
+-                .GetFields(BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public)
+-            where
+-                f.FieldType == typeof(char)
+-                || f.FieldType == typeof(byte)
+-                || f.FieldType == typeof(short)
+-                || f.FieldType == typeof(ushort)
+-                || f.FieldType == typeof(int)
+-                || f.FieldType == typeof(uint)
+-                || f.FieldType == typeof(long)
+-                || f.FieldType == typeof(ulong)
+-                || f.FieldType == typeof(float)
+-                || f.FieldType == typeof(double)
+-                || f.FieldType == typeof(bool)
+-                || f.FieldType == typeof(string)
+-                || f.FieldType.IsEnum
+-            select new
+-            {
+-                name = char.ToUpper(f.Name[0]) + f.Name.Substring(1),
+-                type = f.FieldType,
+-                data = f.GetValue(src),
+-            };
+-        var second =
+-            from p in src.GetType()
+-                .GetProperties(
+-                    BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public
+-                )
+-            where
+-                p.PropertyType == typeof(char)
+-                || p.PropertyType == typeof(byte)
+-                || p.PropertyType == typeof(short)
+-                || p.PropertyType == typeof(ushort)
+-                || p.PropertyType == typeof(int)
+-                || p.PropertyType == typeof(uint)
+-                || p.PropertyType == typeof(long)
+-                || p.PropertyType == typeof(ulong)
+-                || p.PropertyType == typeof(float)
+-                || p.PropertyType == typeof(double)
+-                || p.PropertyType == typeof(bool)
+-                || p.PropertyType == typeof(string)
+-                || p.PropertyType.IsEnum
+-            select new
+-            {
+-                name = char.ToUpper(p.Name[0]) + p.Name.Substring(1),
+-                type = p.PropertyType,
+-                data = p.GetValue(src),
+-            };
+-        var list = first.Concat(second).ToList();
+-        object obj = dst;
+-        var source = (
+-            from f in dst.GetType()
+-                .GetFields(BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public)
+-            select new { name = char.ToUpper(f.Name[0]) + f.Name.Substring(1), info = f }
+-        ).ToArray();
+-        var source2 = (
+-            from p in dst.GetType()
+-                .GetProperties(
+-                    BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public
+-                )
+-            select new { name = char.ToUpper(p.Name[0]) + p.Name.Substring(1), info = p }
+-        ).ToArray();
+-        foreach (var s in list)
+-        {
+-            source
+-                .FirstOrDefault(f => f.name == s.name && f.info.FieldType == s.type)
+-                ?.info.SetValue(obj, s.data);
+-            source2
+-                .FirstOrDefault(f => f.name == s.name && f.info.PropertyType == s.type)
+-                ?.info.SetValue(obj, s.data);
+-        }
+-        dst = (TDst)obj;
+-    }
+-}
++using System.Linq;
++using System.Reflection;
++using MAI2.Util;
++using Manager;
++using Net.Packet;
++using Net.Packet.Mai2;
++using Net.VO.Mai2;
++
++namespace Net;
++
++public static class NetPacketUtil
++{
++    public static void ForcedUserLogout(LogoutType logoutType)
++    {
++        if (Singleton<OperationManager>.Instance.NetIconStatus != OperationManager.NetStatus.Online)
++        {
++            return;
++        }
++        for (int i = 0; i < 2; i++)
++        {
++            UserData userData = Singleton<UserDataManager>.Instance.GetUserData(i);
++            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserID))
++            {
++                new PacketUserLogout(
++                    i,
++                    userData.Detail.UserID,
++                    logoutType,
++                    userData.Detail.AccessCode,
++                    delegate { }
++                ).Proc();
++            }
++        }
++    }
++
++    public static void ForcedUserLogout(int id)
++    {
++        if (
++            Singleton<OperationManager>.Instance.NetIconStatus == OperationManager.NetStatus.Online
++            && id >= 0
++            && id < 2
++        )
++        {
++            UserData userData = Singleton<UserDataManager>.Instance.GetUserData(id);
++            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserID))
++            {
++                new PacketUserLogout(
++                    id,
++                    userData.Detail.UserID,
++                    LogoutType.Cancel,
++                    userData.Detail.AccessCode,
++                    delegate { }
++                ).Proc();
++            }
++        }
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserExtend.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserExtend.cs
+dissimilarity index 65%
+index b1ba320..ceb268b 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserExtend.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserExtend.cs
+@@ -1,59 +1,53 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserExtend : Packet
+-{
+-    private readonly Action<UserExtend> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserExtend(
+-        ulong userId,
+-        Action<UserExtend> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserExtendRequestVO, UserExtendResponseVO> netQuery = new NetQuery<
+-            UserExtendRequestVO,
+-            UserExtendResponseVO
+-        >("GetUserExtendApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserExtendRequestVO, UserExtendResponseVO> netQuery =
+-                    base.Query as NetQuery<UserExtendRequestVO, UserExtendResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userExtend);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserExtendResponseVO src)
+-    {
+-        if (src.userExtend.selectedCardList == null)
+-        {
+-            src.userExtend.selectedCardList = Array.Empty<int>();
+-        }
+-        if (src.userExtend.encountMapNpcList == null)
+-        {
+-            src.userExtend.encountMapNpcList = Array.Empty<MapEncountNpc>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserExtend : Packet
++{
++    private readonly Action<UserExtend> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserExtend(
++        ulong userId,
++        Action<UserExtend> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserExtendRequestVO, UserExtendResponseVO>(
++            "GetUserExtendApi",
++            userId
++        )
++        {
++            Request = new UserExtendRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserExtendRequestVO, UserExtendResponseVO>)Query;
++                _onDone(netQuery.Response!.UserExtend);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavorite.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavorite.cs
+dissimilarity index 62%
+index c84915b..a6ef7e9 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavorite.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavorite.cs
+@@ -1,57 +1,47 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserFavorite : Packet
+-{
+-    private readonly Action<UserFavorite> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserFavorite(
+-        ulong userId,
+-        int kind,
+-        Action<UserFavorite> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserFavoriteRequestVO, UserFavoriteResponseVO> netQuery = new NetQuery<
+-            UserFavoriteRequestVO,
+-            UserFavoriteResponseVO
+-        >("GetUserFavoriteApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.itemKind = kind;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserFavoriteRequestVO, UserFavoriteResponseVO> netQuery =
+-                    base.Query as NetQuery<UserFavoriteRequestVO, UserFavoriteResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userFavorite);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserFavoriteResponseVO src)
+-    {
+-        if (src.userFavorite.itemIdList == null)
+-        {
+-            src.userFavorite.itemIdList = Array.Empty<int>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserFavorite : Packet
++{
++    private readonly Action<UserFavorite> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserFavorite(
++        ulong userId,
++        int kind,
++        Action<UserFavorite> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserFavoriteRequestVO, UserFavoriteResponseVO>(
++            "GetUserFavoriteApi",
++            userId
++        )
++        {
++            Request = new UserFavoriteRequestVO() { UserId = userId, ItemKind = kind },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserFavoriteRequestVO, UserFavoriteResponseVO>)Query;
++                _onDone(netQuery.Response!.UserFavorite);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavoriteItem.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavoriteItem.cs
+dissimilarity index 62%
+index 51cd852..92150c7 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavoriteItem.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavoriteItem.cs
+@@ -1,95 +1,84 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserFavoriteItem : Packet
+-{
+-    private readonly Action<UserFavoriteItem[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserFavoriteItemResponseVO> _responseVOs;
+-
+-    private bool _isAllFavoriteItem;
+-
+-    public PacketGetUserFavoriteItem(
+-        ulong userId,
+-        int kind,
+-        bool isAllFavoriteItem,
+-        Action<UserFavoriteItem[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        _isAllFavoriteItem = isAllFavoriteItem;
+-        _responseVOs = new List<UserFavoriteItemResponseVO>();
+-        Create(GetNetQuery(userId, kind, 0uL, _isAllFavoriteItem));
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserFavoriteItemRequestVO, UserFavoriteItemResponseVO> netQuery =
+-                    base.Query as NetQuery<UserFavoriteItemRequestVO, UserFavoriteItemResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0L)
+-                {
+-                    Create(
+-                        GetNetQuery(
+-                            netQuery.Response.userId,
+-                            netQuery.Response.kind,
+-                            0uL,
+-                            _isAllFavoriteItem
+-                        )
+-                    );
+-                    break;
+-                }
+-                _onDone(
+-                    _responseVOs
+-                        .SelectMany((UserFavoriteItemResponseVO i) => i.userFavoriteItemList)
+-                        .ToArray()
+-                );
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<UserFavoriteItemRequestVO, UserFavoriteItemResponseVO> GetNetQuery(
+-        ulong userId,
+-        int kind,
+-        ulong nextIndex,
+-        bool isAllFavoriteItem
+-    )
+-    {
+-        NetQuery<UserFavoriteItemRequestVO, UserFavoriteItemResponseVO> netQuery = new NetQuery<
+-            UserFavoriteItemRequestVO,
+-            UserFavoriteItemResponseVO
+-        >("GetUserFavoriteItemApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.kind = kind;
+-        netQuery.Request.nextIndex = nextIndex;
+-        netQuery.Request.isAllFavoriteItem = isAllFavoriteItem;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserFavoriteItemResponseVO src)
+-    {
+-        if (src.userFavoriteItemList == null)
+-        {
+-            src.userFavoriteItemList = Array.Empty<UserFavoriteItem>();
+-        }
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserFavoriteItem : Packet
++{
++    private readonly Action<UserFavoriteItem[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserFavoriteItemResponseVO> _responseVOList = [];
++    private readonly bool _isAllFavoriteItem;
++
++    public PacketGetUserFavoriteItem(
++        ulong userId,
++        FavoriteItemKind kind,
++        bool isAllFavoriteItem,
++        Action<UserFavoriteItem[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        _isAllFavoriteItem = isAllFavoriteItem;
++        Create(GetNetQuery(userId, kind, 0, _isAllFavoriteItem));
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery =
++                    (NetQuery<UserFavoriteItemRequestVO, UserFavoriteItemResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0L)
++                {
++                    Create(
++                        GetNetQuery(
++                            netQuery.Response.UserId,
++                            netQuery.Response.Kind,
++                            0uL,
++                            _isAllFavoriteItem
++                        )
++                    );
++                    break;
++                }
++                _onDone([.. _responseVOList.SelectMany(i => i.UserFavoriteItemList)]);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private static NetQuery<UserFavoriteItemRequestVO, UserFavoriteItemResponseVO> GetNetQuery(
++        ulong userId,
++        FavoriteItemKind kind,
++        ulong nextIndex,
++        bool isAllFavoriteItem
++    ) =>
++        new("GetUserFavoriteItemApi", userId)
++        {
++            Request = new UserFavoriteItemRequestVO
++            {
++                UserId = userId,
++                Kind = kind,
++                NextIndex = nextIndex,
++                IsAllFavoriteItem = isAllFavoriteItem,
++            },
++        };
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs
+dissimilarity index 68%
+index ca41421..be35192 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs
+@@ -1,61 +1,55 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserFriendBonus : Packet
+-{
+-    private readonly Action<UserFriendBonus> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserFriendBonus(
+-        ulong userId,
+-        Action<UserFriendBonus> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        Create(GetNetQuery(userId));
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserFriendBonusRequestVO, UserFriendBonusResponseVO> netQuery =
+-                    base.Query as NetQuery<UserFriendBonusRequestVO, UserFriendBonusResponseVO>;
+-                UserFriendBonus obj = CreateFriendBonus(netQuery.Response);
+-                _onDone(obj);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<UserFriendBonusRequestVO, UserFriendBonusResponseVO> GetNetQuery(ulong userId)
+-    {
+-        NetQuery<UserFriendBonusRequestVO, UserFriendBonusResponseVO> netQuery = new NetQuery<
+-            UserFriendBonusRequestVO,
+-            UserFriendBonusResponseVO
+-        >("GetUserFriendBonusApi", userId);
+-        netQuery.Request.userId = userId;
+-        return netQuery;
+-    }
+-
+-    private UserFriendBonus CreateFriendBonus(UserFriendBonusResponseVO response)
+-    {
+-        return new UserFriendBonus
+-        {
+-            returnCode = response.returnCode,
+-            getMiles = response.getMiles,
+-        };
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++using Net.VO.Mapper;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserFriendBonus : Packet
++{
++    private readonly Action<UserFriendBonus> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserFriendBonus(
++        ulong userId,
++        Action<UserFriendBonus> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        Create(
++            new NetQuery<UserFriendBonusRequestVO, UserFriendBonusResponseVO>(
++                "GetUserFriendBonusApi",
++                userId
++            )
++            {
++                Request = new UserFriendBonusRequestVO { UserId = userId },
++            }
++        );
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserFriendBonusRequestVO, UserFriendBonusResponseVO>)Query;
++                _onDone(UserFriendBonusMapper.FromResponseVO(netQuery.Response!));
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs
+index 17d71eb..ebc24a1 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs
+@@ -4,27 +4,27 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserFriendCheck : Packet
++internal class PacketGetUserFriendCheck : Packet
+ {
+     private readonly Action<UserFriendCheckResponseVO> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserFriendCheck(
+         ulong userId1,
+         ulong userId2,
+         Action<UserFriendCheckResponseVO> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserFriendCheckRequestVO, UserFriendCheckResponseVO> netQuery = new NetQuery<
+-            UserFriendCheckRequestVO,
+-            UserFriendCheckResponseVO
+-        >("GetUserFriendCheckApi", userId1);
+-        netQuery.Request.userId1 = userId1;
+-        netQuery.Request.userId2 = userId2;
++        var netQuery = new NetQuery<UserFriendCheckRequestVO, UserFriendCheckResponseVO>(
++            "GetUserFriendCheckApi",
++            userId1
++        )
++        {
++            Request = new UserFriendCheckRequestVO { UserId1 = userId1, UserId2 = userId2 },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -34,15 +34,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserFriendCheckRequestVO, UserFriendCheckResponseVO> netQuery =
+-                    base.Query as NetQuery<UserFriendCheckRequestVO, UserFriendCheckResponseVO>;
+-                _onDone(netQuery.Response);
++                var netQuery = (NetQuery<UserFriendCheckRequestVO, UserFriendCheckResponseVO>)Query;
++                _onDone(netQuery.Response!);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs
+index 3e35c6f..eefbdc0 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs
+@@ -152,11 +152,9 @@ private void GetUserData()
+         PacketHelper.StartPacket(
+             new PacketGetUserData(
+                 _userId,
+-                delegate(UserDetail data, int banState)
++                (data, banState) =>
+                 {
+-                    _dst.Detail = data;
+-                    _dst.Detail.accessCode = _accessCode;
+-                    _dst.Detail.banState = banState;
++                    _dst.Detail = data with { AccessCode = _accessCode, BanState = banState };
+                     CheckNextQueue();
+                 },
+                 Process.OnError
+@@ -605,7 +603,7 @@ private void GetUserFavoriteItem(FavoriteItemKind kind, bool isAllFavoriteItem)
+         PacketHelper.StartPacket(
+             new PacketGetUserFavoriteItem(
+                 _userId,
+-                (int)kind,
++                kind,
+                 isAllFavoriteItem,
+                 delegate(UserFavoriteItem[] data)
+                 {
+@@ -664,7 +662,7 @@ private void GetUserFavoriteMusic()
+         PacketHelper.StartPacket(
+             new PacketGetUserFavoriteItem(
+                 _userId,
+-                1,
++                FavoriteItemKind.FavoriteMusic,
+                 isAllFavoriteItem: false,
+                 delegate(UserFavoriteItem[] data)
+                 {
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index d1d43e9..830b9dd 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -10,6 +10,7 @@
+     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+     <PackageReference Include="xunit" Version="2.9.2" />
+     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
++    <PackageReference Include="Riok.Mapperly" Version="4.3.1" />
+   </ItemGroup>
+   <ItemGroup>
+     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+@@ -30,6 +31,12 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCharge.cs" Link="Source/PacketGetUserCharge.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserCourse.cs" Link="Source/PacketGetUserCourse.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserData.cs" Link="Source/PacketGetUserData.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserExtend.cs" Link="Source/PacketGetUserExtend.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavorite.cs" Link="Source/PacketGetUserFavorite.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavoriteItem.cs" Link="Source/PacketGetUserFavoriteItem.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs" Link="Source/PacketGetUserFriendBonus.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs" Link="Source/PacketGetUserFriendCheck.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+     <!-- Keep the production JSON context and its full VO graph so wire validation is exercised too. -->
+     <Compile Include="../../src/SinmaiLib/Net/VO/*.cs" Link="Source/VO/%(Filename)%(Extension)" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mai2/*.cs"
+diff --git a/tests/NetHttpClient.Tests/README.md b/tests/NetHttpClient.Tests/README.md
+index edc78fc..9ce7ff0 100644
+--- a/tests/NetHttpClient.Tests/README.md
++++ b/tests/NetHttpClient.Tests/README.md
+@@ -16,7 +16,8 @@ # NetHttpClient 测试
+ Cookie、HTTP 错误与解码错误、超时和取消、重复请求结果独立、Task 异步完成，
+ 以及资源释放。Packet 测试覆盖等待任务、响应处理、重试、意外任务异常、登录
+ Cookie、Ping 特殊处理、延迟统计和完成通知。用户下载测试直接编译 Card、Character、
+-Charge、Course、Data Packet，以及生产环境的 NetQuery、JSON 上下文、VO 和相关枚举，
++Charge、Course、Data、Extend、Favorite、FavoriteItem、FriendBonus、FriendCheck Packet，
++以及生产环境的 NetQuery、JSON 上下文、VO、FriendBonus Mapper 和相关枚举，
+ 覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
+ `Fixtures/UserDetailResponse.json` 提供包含全部必填字段的模拟用户响应。
+ TLS 证书校验和原生认证交互不在
+diff --git a/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs b/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
+index 2d133c0..2a50cb3 100644
+--- a/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
++++ b/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
+@@ -22,6 +22,11 @@ public sealed partial class PacketTests
+     [InlineData("Charge")]
+     [InlineData("Course")]
+     [InlineData("Data")]
++    [InlineData("Extend")]
++    [InlineData("Favorite")]
++    [InlineData("FavoriteItem")]
++    [InlineData("FriendBonus")]
++    [InlineData("FriendCheck")]
+     public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(JsonResponse(DownloadResponse(kind)));
+@@ -34,13 +39,31 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+ 
+         Assert.Equal($"GetUser{kind}ApiMaimaiChn", packet.Query.Api);
+         Assert.Equal(DownloadUserId, packet.Query.UserId);
+-        Assert.Equal(DownloadUserId, json.RootElement.GetProperty("userId").GetUInt64());
+-        Assert.Equal(kind == "Card" ? 3 : kind == "Course" ? 2 : 1,
+-            json.RootElement.EnumerateObject().Count());
++        Assert.Equal(DownloadUserId,
++            json.RootElement.GetProperty(kind == "FriendCheck" ? "userId1" : "userId").GetUInt64());
++        var fieldCount = kind switch
++        {
++            "Card" => 3,
++            "Course" or "Favorite" or "FriendCheck" => 2,
++            "FavoriteItem" => 5,
++            _ => 1,
++        };
++        Assert.Equal(fieldCount, json.RootElement.EnumerateObject().Count());
+         if (kind is "Card" or "Course")
+             Assert.Equal(0, json.RootElement.GetProperty("nextIndex").GetInt64());
+         if (kind == "Card")
+             Assert.Equal(20, json.RootElement.GetProperty("maxCount").GetInt32());
++        if (kind == "Favorite")
++            Assert.Equal(3, json.RootElement.GetProperty("itemKind").GetInt32());
++        if (kind == "FavoriteItem")
++        {
++            Assert.Equal((int)FavoriteItemKind.RivalScore, json.RootElement.GetProperty("kind").GetInt32());
++            Assert.Equal(0UL, json.RootElement.GetProperty("nextIndex").GetUInt64());
++            Assert.Equal(100, json.RootElement.GetProperty("maxCount").GetInt32());
++            Assert.True(json.RootElement.GetProperty("isAllFavoriteItem").GetBoolean());
++        }
++        if (kind == "FriendCheck")
++            Assert.Equal(DownloadUserId + 1, json.RootElement.GetProperty("userId2").GetUInt64());
+ 
+         await lease.WaitForRequestAsync();
+         Assert.Equal(PacketState.Done, packet.Proc());
+@@ -65,6 +88,33 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+                 Assert.Equal(new[] { 1, 2, 3, 4, 5 }, detail.CharaSlot);
+                 Assert.Equal(1, banState);
+                 break;
++            case "Extend":
++                var extend = Assert.IsType<UserExtend>(result);
++                Assert.Equal(11, extend.SelectMusicId);
++                Assert.Equal(DownloadUserId, extend.ExtendContentBit);
++                Assert.Equal(new[] { 1, 2 }, extend.SelectedCardList);
++                var npc = Assert.Single(extend.EncountMapNpcList);
++                Assert.Equal(3, npc.NpcId);
++                Assert.Equal(4, npc.MusicId);
++                break;
++            case "Favorite":
++                var favorite = Assert.IsType<UserFavorite>(result);
++                Assert.Equal(3, favorite.ItemKind);
++                Assert.Equal(new[] { 11, 22 }, favorite.ItemIdList);
++                break;
++            case "FavoriteItem":
++                var item = Assert.Single(Assert.IsType<UserFavoriteItem[]>(result));
++                Assert.Equal(DownloadUserId, item.OrderId);
++                Assert.Equal(DownloadUserId + 1, item.Id);
++                break;
++            case "FriendBonus":
++                var bonus = Assert.IsType<UserFriendBonus>(result);
++                Assert.Equal(2, bonus.ReturnCode);
++                Assert.Equal(DownloadUserId, bonus.GetMiles);
++                break;
++            case "FriendCheck":
++                Assert.Equal(2, Assert.IsType<UserFriendCheckResponseVO>(result).ReturnCode);
++                break;
+         }
+         Assert.Empty(errors);
+     }
+@@ -74,6 +124,7 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+     [InlineData("Character")]
+     [InlineData("Charge")]
+     [InlineData("Course")]
++    [InlineData("FavoriteItem")]
+     public async Task UserDownload_EmptyListCompletesWithEmptyArray(string kind)
+     {
+         var response = JsonNode.Parse(DownloadResponse(kind))!;
+@@ -87,6 +138,33 @@ public async Task UserDownload_EmptyListCompletesWithEmptyArray(string kind)
+         Assert.Empty(Assert.IsAssignableFrom<Array>(Assert.Single(results)));
+     }
+ 
++    [Theory]
++    [InlineData("Extend", "selectedCardList", "encountMapNpcList")]
++    [InlineData("Favorite", "itemIdList", null)]
++    public async Task UserDownload_EmptyNestedListsComplete(string kind, string firstList, string? secondList)
++    {
++        var response = JsonNode.Parse(DownloadResponse(kind))!;
++        var nested = response[$"user{kind}"]!;
++        nested[firstList] = new JsonArray();
++        if (secondList is not null)
++            nested[secondList] = new JsonArray();
++        await using var server = await LoopbackServer.StartAsync(JsonResponse(response.ToJsonString()));
++        var results = new List<object>();
++        using var lease = CreateDownloadPacket(server, kind, results.Add);
++
++        await lease.WaitForRequestAsync();
++        Assert.Equal(PacketState.Done, lease.Packet.Proc());
++        var result = Assert.Single(results);
++        if (kind == "Extend")
++        {
++            var extend = Assert.IsType<UserExtend>(result);
++            Assert.Empty(extend.SelectedCardList);
++            Assert.Empty(extend.EncountMapNpcList);
++        }
++        else
++            Assert.Empty(Assert.IsType<UserFavorite>(result).ItemIdList);
++    }
++
+     [Theory]
+     [InlineData("Card", 7L)]
+     [InlineData("Course", 10000000000L)]
+@@ -125,6 +203,48 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+         Assert.Empty(errors);
+     }
+ 
++    [Theory]
++    [InlineData(FavoriteItemKind.FavoriteMusic, false)]
++    [InlineData(FavoriteItemKind.RivalScore, true)]
++    public async Task UserDownload_FavoriteItemPaginatesThroughEmptyPageWithUnsignedCursor(
++        FavoriteItemKind kind, bool isAllFavoriteItem)
++    {
++        const ulong cursor = ulong.MaxValue - 1;
++        var first = JsonNode.Parse(DownloadResponse("FavoriteItem"))!;
++        first["kind"] = (int)kind;
++        first["nextIndex"] = cursor;
++        var empty = first.DeepClone();
++        empty["nextIndex"] = cursor + 1;
++        empty["userFavoriteItemList"] = new JsonArray();
++        var last = JsonNode.Parse(DownloadResponse("FavoriteItem"))!;
++        last["kind"] = (int)kind;
++        last["userFavoriteItemList"]![0]!["id"] = 22UL;
++        await using var server = await LoopbackServer.StartAsync(
++            JsonResponse(first.ToJsonString()), JsonResponse(empty.ToJsonString()), JsonResponse(last.ToJsonString()));
++        _manager.BaseUri = new Uri(server.Url).GetLeftPart(UriPartial.Authority) + "/";
++        var results = new List<UserFavoriteItem[]>();
++        var errors = new List<PacketStatus>();
++        using var lease = new DownloadPacketLease(new PacketGetUserFavoriteItem(
++            DownloadUserId, kind, isAllFavoriteItem, results.Add, errors.Add));
++
++        foreach (var expectedCursor in new[] { 0UL, cursor, cursor + 1 })
++        {
++            var request = await server.ReceiveAsync();
++            using var json = JsonDocument.Parse(WirePayload.Decode(request.Body));
++            Assert.Equal(DownloadUserId, json.RootElement.GetProperty("userId").GetUInt64());
++            Assert.Equal((int)kind, json.RootElement.GetProperty("kind").GetInt32());
++            Assert.Equal(isAllFavoriteItem, json.RootElement.GetProperty("isAllFavoriteItem").GetBoolean());
++            Assert.Equal(100, json.RootElement.GetProperty("maxCount").GetInt32());
++            Assert.Equal(expectedCursor, json.RootElement.GetProperty("nextIndex").GetUInt64());
++            Assert.Empty(results);
++            await lease.WaitForRequestAsync();
++            Assert.Equal(expectedCursor == cursor + 1 ? PacketState.Done : PacketState.Process, lease.Packet.Proc());
++        }
++
++        Assert.Equal(new[] { DownloadUserId + 1, 22UL }, Assert.Single(results).Select(item => item.Id));
++        Assert.Empty(errors);
++    }
++
+     [Theory]
+     [InlineData("Card", "userCardList")]
+     [InlineData("Character", "userCharacterList")]
+@@ -132,16 +252,26 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+     [InlineData("Course", "userCourseList")]
+     [InlineData("Data", "userData")]
+     [InlineData("Data", "charaSlot")]
++    [InlineData("Extend", "userExtend")]
++    [InlineData("Extend", "userExtend.selectedCardList")]
++    [InlineData("Extend", "userExtend.encountMapNpcList")]
++    [InlineData("Favorite", "userFavorite")]
++    [InlineData("Favorite", "userFavorite.itemIdList")]
++    [InlineData("FavoriteItem", "userFavoriteItemList")]
++    [InlineData("FriendBonus", "returnCode")]
++    [InlineData("FriendBonus", "getMiles")]
++    [InlineData("FriendCheck", "returnCode")]
+     public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind, string member)
+     {
+         foreach (var omit in new[] { false, true })
+         {
+             var response = JsonNode.Parse(DownloadResponse(kind))!.AsObject();
+-            var target = member == "charaSlot" ? response["userData"]!.AsObject() : response;
++            var path = member == "charaSlot" ? new[] { "userData", member } : member.Split('.');
++            var target = path.Length == 2 ? response[path[0]]!.AsObject() : response;
+             if (omit)
+-                target.Remove(member);
++                target.Remove(path[^1]);
+             else
+-                target[member] = null;
++                target[path[^1]] = null;
+             await using var server = await LoopbackServer.StartAsync(JsonResponse(response.ToJsonString()));
+             var results = new List<object>();
+             var errors = new List<PacketStatus>();
+@@ -160,6 +290,11 @@ public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind,
+     [InlineData("Charge")]
+     [InlineData("Course")]
+     [InlineData("Data")]
++    [InlineData("Extend")]
++    [InlineData("Favorite")]
++    [InlineData("FavoriteItem")]
++    [InlineData("FriendBonus")]
++    [InlineData("FriendCheck")]
+     public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(HttpStatusCode.InternalServerError));
+@@ -184,6 +319,13 @@ private DownloadPacketLease CreateDownloadPacket(
+             "Charge" => new PacketGetUserCharge(DownloadUserId, data => onDone(data), onError),
+             "Course" => new PacketGetUserCourse(DownloadUserId, data => onDone(data), onError),
+             "Data" => new PacketGetUserData(DownloadUserId, (data, ban) => onDone((data, ban)), onError),
++            "Extend" => new PacketGetUserExtend(DownloadUserId, data => onDone(data), onError),
++            "Favorite" => new PacketGetUserFavorite(DownloadUserId, 3, data => onDone(data), onError),
++            "FavoriteItem" => new PacketGetUserFavoriteItem(DownloadUserId, FavoriteItemKind.RivalScore,
++                true, data => onDone(data), onError),
++            "FriendBonus" => new PacketGetUserFriendBonus(DownloadUserId, data => onDone(data), onError),
++            "FriendCheck" => new PacketGetUserFriendCheck(DownloadUserId, DownloadUserId + 1,
++                data => onDone(data), onError),
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+         return new DownloadPacketLease(packet);
+@@ -212,6 +354,27 @@ private static TestResponse JsonResponse(string json) =>
+                "bestAchievementDate":"2026-01-01","bestDeluxscore":7,"bestDeluxscoreDate":"2026-01-01"}]}
+             """,
+         "Data" => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "UserDetailResponse.json")),
++        "Extend" => """
++            {"userId":9007199254740993,"userExtend":{
++              "selectMusicId":11,"selectDifficultyId":2,"categoryIndex":3,"musicIndex":4,"extraFlag":5,
++              "selectScoreType":1,"extendContentBit":9007199254740993,"isPhotoAgree":true,"isGotoCodeRead":false,
++              "selectResultDetails":true,"selectResultScoreViewType":2,"sortCategorySetting":0,
++              "sortMusicSetting":0,"playStatusSetting":0,"selectedCardList":[1,2],
++              "encountMapNpcList":[{"npcId":3,"musicId":4}]}}
++            """,
++        "Favorite" => """
++            {"userId":9007199254740993,"userFavorite":{"itemKind":3,"itemIdList":[11,22]}}
++            """,
++        "FavoriteItem" => """
++            {"userId":9007199254740993,"kind":2,"nextIndex":0,"userFavoriteItemList":[
++              {"orderId":9007199254740993,"id":9007199254740994}]}
++            """,
++        "FriendBonus" => """
++            {"userId":9007199254740993,"returnCode":2,"getMiles":9007199254740993}
++            """,
++        "FriendCheck" => """
++            {"returnCode":2}
++            """,
+         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+     };
+ 

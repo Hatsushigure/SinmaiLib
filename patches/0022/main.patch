@@ -1,0 +1,1601 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 16 Oct 2026 16:24:59 +0800
+Subject: [PATCH] refactor(net): migrate VO conversions and add extend mapper
+ tests
+
+
+diff --git a/src/SinmaiLib/Main/GameMain.cs b/src/SinmaiLib/Main/GameMain.cs
+index 5955fc1..6645335 100644
+--- a/src/SinmaiLib/Main/GameMain.cs
++++ b/src/SinmaiLib/Main/GameMain.cs
+@@ -398,7 +398,7 @@ public void DebugSetData(int index)
+         RestoreGhost(index);
+         userData.CheckUserData();
+         NetUserData netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(index);
+-        userData.Extend = netUserData.Extend.Export();
++        userData.Extend = netUserData.Extend.ToModel();
+         userData.Detail = netUserData.Detail.Export(netUserData.UserId);
+         userData.Option = netUserData.Option.Export();
+         userData.CardList = netUserData.CardList.Export();
+@@ -429,8 +429,8 @@ public void DebugSetData(int index)
+             }
+         }
+         userData.IsSave = false;
+-        GameManager.SelectDifficultyID[index] = userData.Extend.SelectDifficultyID;
+-        GameManager.SelectMusicID[index] = userData.Extend.SelectMusicID;
++        GameManager.SelectDifficultyID[index] = userData.Extend.SelectDifficultyId;
++        GameManager.SelectMusicID[index] = userData.Extend.SelectMusicId;
+         GameManager.SelectResultScoreViewType[index] = (ResultProcess.ResultScoreViewType)
+             userData.Extend.SelectResultScoreViewType;
+         SoundManager.SetHeadPhoneVolume(
+diff --git a/src/SinmaiLib/Manager/UserData.cs b/src/SinmaiLib/Manager/UserData.cs
+index aa07fc2..f893370 100644
+--- a/src/SinmaiLib/Manager/UserData.cs
++++ b/src/SinmaiLib/Manager/UserData.cs
+@@ -709,7 +709,7 @@ public bool AddUnlockMusic(MusicUnlock type, int id)
+             musicUnlockList.Add(id);
+             if (type == MusicUnlock.Base && !GameManager.IsFreedomMode)
+             {
+-                Extend.SelectMusicID = id;
++                Extend.SelectMusicId = id;
+                 GameManager.IsForceChangeMusic = true;
+             }
+             return true;
+diff --git a/src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs b/src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs
+index dcf8c7d..8d0540b 100644
+--- a/src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs
++++ b/src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs
+@@ -5,17 +5,9 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class MapEncountNpc
+ {
+-    public int NpcId;
++    public required int NpcId { get; set; }
+ 
+-    public int MusicId;
+-
+-    public MapEncountNpc() { }
+-
+-    public MapEncountNpc(int ncpId, int musicId)
+-    {
+-        NpcId = ncpId;
+-        MusicId = musicId;
+-    }
++    public required int MusicId { get; set; }
+ 
+     public void Clear()
+     {
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserExtend.cs b/src/SinmaiLib/Manager/UserDatas/UserExtend.cs
+index e2589bf..08cc931 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserExtend.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserExtend.cs
+@@ -1,5 +1,5 @@
++using System;
+ using System.Collections.Generic;
+-using System.Linq;
+ using DB;
+ using Manager.MaiStudio.CardTypeName;
+ 
+@@ -7,23 +7,23 @@ namespace Manager.UserDatas;
+ 
+ public class UserExtend
+ {
+-    public bool SelectResultDetails;
++    public bool SelectResultDetails { get; set; }
+ 
+-    public int SelectResultScoreViewType;
++    public int SelectResultScoreViewType { get; set; }
+ 
+-    public int SelectMusicID { get; set; }
++    public int SelectMusicId { get; set; }
+ 
+-    public int SelectDifficultyID { get; set; }
++    public int SelectDifficultyId { get; set; }
+ 
+-    public int CategoryIndex { get; set; }
++    public int CategoryIndex { get; set; } = 1;
+ 
+     public int MusicIndex { get; set; }
+ 
+     public int ExtraFlag { get; set; }
+ 
+-    public int SelectScoreType { get; set; }
++    public int SelectScoreType { get; set; } = 1;
+ 
+-    public UserExtendContentBit ExtendContendBit { get; set; } = new UserExtendContentBit();
++    public UserExtendContentBit ExtendContendBit { get; set; } = new();
+ 
+     public SortTabID SortCategorySetting { get; set; }
+ 
+@@ -31,19 +31,14 @@ public class UserExtend
+ 
+     public PlaystatusTabID PlayStatusSetting { get; set; }
+ 
+-    public List<int> SelectedCardList { get; set; } = new List<int>();
++    public List<int> SelectedCardList { get; set; } = [];
+ 
+-    public List<MapEncountNpc> EncountMapNpcList { get; set; } = new List<MapEncountNpc>();
+-
+-    public UserExtend()
+-    {
+-        Initialize();
+-    }
++    public List<MapEncountNpc> EncountMapNpcList { get; set; } = [];
+ 
+     public void Initialize()
+     {
+-        SelectMusicID = 0;
+-        SelectDifficultyID = 0;
++        SelectMusicId = 0;
++        SelectDifficultyId = 0;
+         CategoryIndex = 1;
+         MusicIndex = 0;
+         ExtraFlag = 0;
+@@ -55,14 +50,13 @@ public void Initialize()
+         PlayStatusSetting = PlaystatusTabID.ClearNum;
+         SelectedCardList.Clear();
+         EncountMapNpcList.Clear();
+-        SelectedCardList.Clear();
+         ExtendContendBit.Clear();
+     }
+ 
+     public void TakeOverReset()
+     {
+-        SelectMusicID = 0;
+-        SelectDifficultyID = 0;
++        SelectMusicId = 0;
++        SelectDifficultyId = 0;
+         CategoryIndex = 1;
+         MusicIndex = 0;
+         ExtraFlag = 0;
+@@ -78,37 +72,40 @@ public void TakeOverReset()
+ 
+     public void AddEncountMapNpc(int mapNpcId, int mapNpcMusic)
+     {
+-        MapEncountNpc mapEncountNpc = EncountMapNpcList.FirstOrDefault(
+-            (MapEncountNpc a) => a.NpcId == mapNpcId
+-        );
+-        MapEncountNpc item = new MapEncountNpc(mapNpcId, mapNpcMusic);
+-        if (mapEncountNpc != null)
+-        {
+-            ClearEncountMapNpc(mapNpcId);
+-        }
+-        EncountMapNpcList.Insert(0, item);
+-        while (EncountMapNpcList.Count > 3)
++        EncountMapNpcList.RemoveAll(x => x.NpcId == mapNpcId);
++        EncountMapNpcList.Insert(0, new MapEncountNpc { NpcId = mapNpcId, MusicId = mapNpcMusic });
++        if (EncountMapNpcList.Count > 3)
+         {
+-            EncountMapNpcList.RemoveAt(EncountMapNpcList.Count - 1);
++            EncountMapNpcList.RemoveRange(3, EncountMapNpcList.Count - 3);
+         }
+     }
+ 
+     public void ClearEncountMapNpc(int mapNpcId)
+     {
+-        EncountMapNpcList.RemoveAll((MapEncountNpc x) => x.NpcId == mapNpcId);
++        EncountMapNpcList.RemoveAll(x => x.NpcId == mapNpcId);
+     }
+ 
+     public void UpsertCardLog(int cardType)
+     {
+         SelectedCardList.RemoveAll((int x) => x == cardType);
+-        Table table = (Table)cardType;
+-        if ((uint)(table - 2) <= 2u || table == Table.FreedomPass)
++        switch ((Table)cardType)
+         {
+-            SelectedCardList.Insert(0, cardType);
++            case Table.BronzePass:
++            case Table.SilverPass:
++            case Table.GoldPass:
++            case Table.FreedomPass:
++                SelectedCardList.Insert(0, cardType);
++                break;
++            case Table.None:
++            case Table.OutOfEffect:
++            case Table.PlatinumPass:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException(nameof(cardType), cardType, null);
+         }
+-        while (SelectedCardList.Count > 5)
++        if (SelectedCardList.Count > 5)
+         {
+-            SelectedCardList.RemoveAt(SelectedCardList.Count - 1);
++            SelectedCardList.RemoveRange(5, SelectedCardList.Count - 5);
+         }
+     }
+ }
+diff --git a/src/SinmaiLib/Monitor/MapResultMonitor.cs b/src/SinmaiLib/Monitor/MapResultMonitor.cs
+index 35ee5cc..491beba 100644
+--- a/src/SinmaiLib/Monitor/MapResultMonitor.cs
++++ b/src/SinmaiLib/Monitor/MapResultMonitor.cs
+@@ -1741,7 +1741,7 @@ private void CheckChallengeStatus()
+             _phase2.m._isCommonStart = true;
+             GameManager.CategoryIndex = 10;
+             _userData.Extend.CategoryIndex = 10;
+-            _userData.Extend.SelectMusicID = num;
++            _userData.Extend.SelectMusicId = num;
+         }
+         else
+         {
+@@ -4525,7 +4525,7 @@ var item in list2.Select(
+                     }
+                     GameManager.CategoryIndex = categoryIndex;
+                     _userData.Extend.CategoryIndex = categoryIndex;
+-                    _userData.Extend.SelectMusicID = challengeMusicID;
++                    _userData.Extend.SelectMusicId = challengeMusicID;
+                     GameManager.IsForceChangeMusic = true;
+                 }
+                 bool flag6 = false;
+diff --git a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+index 7e75134..f7a0148 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+@@ -11,119 +11,137 @@
+ using Manager;
+ using Manager.MaiStudio;
+ using Manager.UserDatas;
+-using UnityEngine;
++using Net.VO.Mapper;
+ 
+ namespace Net.VO.Mai2;
+ 
+ public static class VOExtensions
+ {
+-    public static void Export(this DailyLog src, ref ClientBookkeeping dst)
+-    {
+-        dst.placeId = (int)Auth.LocationId;
+-        dst.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        dst.updateDate = BackUpTimeUtil.toString(src.dateTime);
+-        dst.creditSetting0 = (int)AMDaemon.Credit.Players[0].GameCosts[0];
+-        dst.creditSetting1 = (int)AMDaemon.Credit.Players[0].GameCosts[1];
+-        dst.creditSetting2 = (int)AMDaemon.Credit.Players[0].GameCosts[2];
+-        dst.regionId = Auth.RegionCode;
+-        dst.playCount = SingletonStateMachine<AmManager, AmManager.EState>
+-            .Instance
+-            .Backup
+-            .localParameter
+-            .playCount;
+-        dst.coinToCredit = (int)AMDaemon.Credit.Players[0].CoinToCredit;
+-        dst.errorNum = SingletonStateMachine<AmManager, AmManager.EState>
+-            .Instance
+-            .Backup
+-            .networkInformation
+-            .errorNum;
+-        dst.error2Num = SingletonStateMachine<AmManager, AmManager.EState>
+-            .Instance
+-            .Backup
+-            .networkInformation
+-            .error2Num;
+-        dst.pingResult = SingletonStateMachine<AmManager, AmManager.EState>
+-            .Instance
+-            .Backup
+-            .networkInformation
+-            .pingResult;
+-        dst.creditCoin = (int)src.coinCredit;
+-        dst.creditService = (int)src.serviceCredit;
+-        dst.creditEmoney = (int)src.emoneyCredit;
+-        dst.credits1P = (int)src.credits1P;
+-        dst.credits2P = (int)src.credits2P;
+-        dst.creditsFreedom = (int)src.creditsFreedom;
+-        dst.creditsTicket = (int)src.reserved[0];
+-        dst.timeTotal = (int)src.totalRunningTime.TotalSeconds;
+-        dst.timeTotalPlay = (int)src.totalPlayTime.TotalSeconds;
+-        dst.timeLongest1P = 0;
+-        dst.timeShortest1P = 0;
+-        dst.timeLongest2P = 0;
+-        dst.timeLongestFreedom = 0;
+-        dst.timeShortest2P = 0;
+-        dst.timeShortestFreedom = 0;
+-        dst.aimeLoginNum = (int)src.aimeLoginNum;
+-        dst.guestLoginNum = (int)src.guestLoginNum;
+-        dst.play1PNum = (int)src.play1PNum;
+-        dst.play2PNum = (int)src.play2PNum;
+-        dst.playFreedomNum = (int)src.playFreedomNum;
+-        dst.newFreeUserNum = (int)src.newCardFreePlayNum;
+-        dst.tutorialPlay = (int)src.tutorialNum;
+-    }
+-
+-    public static void Export(this DailyLog src, ref ClientPlayTime dst)
++    internal static void Export(this DailyLog src, out ClientBookkeeping dst)
++    {
++        dst = new()
++        {
++            PlaceId = (int)Auth.LocationId,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++            UpdateDate = BackUpTimeUtil.toString(src.dateTime),
++            CreditSetting0 = (int)AMDaemon.Credit.Players[0].GameCosts[0],
++            CreditSetting1 = (int)AMDaemon.Credit.Players[0].GameCosts[1],
++            CreditSetting2 = (int)AMDaemon.Credit.Players[0].GameCosts[2],
++            RegionId = Auth.RegionCode,
++            PlayCount = SingletonStateMachine<AmManager, AmManager.EState>
++                .Instance
++                .Backup
++                .localParameter
++                .playCount,
++            CoinToCredit = (int)AMDaemon.Credit.Players[0].CoinToCredit,
++            ErrorNum = SingletonStateMachine<AmManager, AmManager.EState>
++                .Instance
++                .Backup
++                .networkInformation
++                .errorNum,
++            Error2Num = SingletonStateMachine<AmManager, AmManager.EState>
++                .Instance
++                .Backup
++                .networkInformation
++                .error2Num,
++            PingResult = SingletonStateMachine<AmManager, AmManager.EState>
++                .Instance
++                .Backup
++                .networkInformation
++                .pingResult,
++            CreditCoin = (int)src.coinCredit,
++            CreditService = (int)src.serviceCredit,
++            CreditEmoney = (int)src.emoneyCredit,
++            Credits1P = (int)src.credits1P,
++            Credits2P = (int)src.credits2P,
++            CreditsFreedom = (int)src.creditsFreedom,
++            CreditsTicket = (int)src.reserved[0],
++            TimeTotal = (int)src.totalRunningTime.TotalSeconds,
++            TimeTotalPlay = (int)src.totalPlayTime.TotalSeconds,
++            TimeLongest1P = 0,
++            TimeShortest1P = 0,
++            TimeLongest2P = 0,
++            TimeLongestFreedom = 0,
++            TimeShortest2P = 0,
++            TimeShortestFreedom = 0,
++            AimeLoginNum = (int)src.aimeLoginNum,
++            GuestLoginNum = (int)src.guestLoginNum,
++            Play1PNum = (int)src.play1PNum,
++            Play2PNum = (int)src.play2PNum,
++            PlayFreedomNum = (int)src.playFreedomNum,
++            NewFreeUserNum = (int)src.newCardFreePlayNum,
++            TutorialPlay = (int)src.tutorialNum,
++        };
++    }
++
++    internal static void Export(this DailyLog src, out ClientPlayTime dst)
+     {
+-        dst.placeId = (int)Auth.LocationId;
+-        dst.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        dst.updateDate = BackUpTimeUtil.toString(src.dateTime);
+-        dst.regionId = Auth.RegionCode;
+-        dst.playTimeTrack3 = 0;
+-        dst.playTimeTrack4 = 0;
+-        dst.playTime2P = 0;
+-        dst.playTrack3Num = 0;
+-        dst.playTrack4Num = 0;
+-        dst.play2PNum = (int)src.play2PNum;
++        dst = new()
++        {
++            PlaceId = (int)Auth.LocationId,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++            UpdateDate = BackUpTimeUtil.toString(src.dateTime),
++            RegionId = Auth.RegionCode,
++            PlayTimeTrack3 = 0,
++            PlayTimeTrack4 = 0,
++            PlayTime2P = 0,
++            PlayTrack3Num = 0,
++            PlayTrack4Num = 0,
++            Play2PNum = (int)src.play2PNum,
++        };
+     }
+ 
+-    public static void ExportClientSetting(ref ClientSetting dst)
++    internal static void ExportClientSetting(out ClientSetting dst)
+     {
+-        dst.bordId = AMDaemon.System.BoardId.ShortValue;
+-        dst.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        dst.placeId = (int)Auth.LocationId;
+-        dst.placeName = Auth.LocationName;
+-        dst.regionId = Auth.RegionCode;
+-        dst.regionName = Auth.RegionNames[0];
+-        dst.romVersion = 25500;
+-        dst.isAou = false;
+-        dst.isDevelop = false;
++        dst = new()
++        {
++            BordId = AMDaemon.System.BoardId.ShortValue,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++            PlaceId = (int)Auth.LocationId,
++            PlaceName = Auth.LocationName,
++            RegionId = Auth.RegionCode,
++            RegionName = Auth.RegionNames[0],
++            RomVersion = 25500,
++            IsAou = false,
++            IsDevelop = false,
++        };
+     }
+ 
+-    public static void ExportClientTestmode(ref ClientTestmode dst)
++    internal static void ExportClientTestmode(out ClientTestmode dst)
+     {
+-        dst.placeId = (int)Auth.LocationId;
+-        dst.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        Manager.Backup backup = SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup;
+-        if (backup != null)
+-        {
+-            dst.trackSingle = (backup.gameSetting.IsStandardSettingMachine ? 1 : 0);
+-            dst.trackMulti = (int)backup.gameSetting.MachineGroupID;
+-            dst.trackEvent = (int)backup.gameSetting.AdvVol;
+-            dst.totalMachine = backup.systemSetting.touchSens1P;
+-            dst.satelliteId = backup.systemSetting.touchSens2P;
+-            dst.cameraPosition = (backup.gameSetting.IsContinue ? 1 : 0);
+-        }
++        dst = ClientTestmode.Default with
++        {
++            PlaceId = (int)Auth.LocationId,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++        };
++        var backup = SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup;
++        if (backup == null)
++            return;
++
++        dst = dst with
++        {
++            TrackSingle = (backup.gameSetting.IsStandardSettingMachine ? 1 : 0),
++            TrackMulti = (int)backup.gameSetting.MachineGroupID,
++            TrackEvent = (int)backup.gameSetting.AdvVol,
++            TotalMachine = backup.systemSetting.touchSens1P,
++            SatelliteId = backup.systemSetting.touchSens2P,
++            CameraPosition = (backup.gameSetting.IsContinue ? 1 : 0),
++        };
+     }
+ 
+-    public static void Export(ref ClientUpload dst, string fname)
++    internal static void Export(out ClientUpload dst, string fileName)
+     {
+-        dst.orderId = 0;
+-        dst.divNumber = 0;
+-        dst.divLength = 0;
+-        dst.divData = null;
+-        dst.placeId = (int)Auth.LocationId;
+-        dst.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        dst.uploadDate = TimeManager.GetNowDateString();
+-        dst.fileName = fname;
++        dst = new()
++        {
++            OrderId = 0,
++            DivNumber = 0,
++            DivLength = 0,
++            DivData = "",
++            PlaceId = (int)Auth.LocationId,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++            UploadDate = TimeManager.GetNowDateString(),
++            FileName = fileName,
++        };
+     }
+ 
+     public static void ExportPhotoData(
+@@ -145,12 +163,12 @@ int trackNo
+         dst.trackNo = trackNo;
+     }
+ 
+-    public static void Create(this User2pPlaylog requestVO)
++    internal static void Create(this User2pPlaylog requestVO)
+     {
+-        UserData userData = Singleton<UserDataManager>.Instance.GetUserData(0L);
+-        UserData userData2 = Singleton<UserDataManager>.Instance.GetUserData(1L);
+-        int scoreListCount = Singleton<GamePlayManager>.Instance.GetScoreListCount();
+-        List<User2pPlaylogDetail> list = new List<User2pPlaylogDetail>();
++        var userData = Singleton<UserDataManager>.Instance.GetUserData(0L);
++        var userData2 = Singleton<UserDataManager>.Instance.GetUserData(1L);
++        var scoreListCount = Singleton<GamePlayManager>.Instance.GetScoreListCount();
++        List<User2pPlaylogDetail> list = [];
+         if (userData.IsEntry && !userData.IsGuest() && userData2.IsEntry && !userData2.IsGuest())
+         {
+             requestVO.userId1 = userData.Detail.UserID;
+@@ -162,8 +180,8 @@ public static void Create(this User2pPlaylog requestVO)
+             for (int i = 0; i < scoreListCount; i++)
+             {
+                 User2pPlaylogDetail item = default(User2pPlaylogDetail);
+-                GameScoreList gameScore = Singleton<GamePlayManager>.Instance.GetGameScore(0, i);
+-                GameScoreList gameScore2 = Singleton<GamePlayManager>.Instance.GetGameScore(1, i);
++                var gameScore = Singleton<GamePlayManager>.Instance.GetGameScore(0, i);
++                var gameScore2 = Singleton<GamePlayManager>.Instance.GetGameScore(1, i);
+                 if (gameScore.SessionInfo.difficulty != gameScore2.SessionInfo.difficulty)
+                 {
+                     continue;
+@@ -210,82 +228,42 @@ public static void Create(this User2pPlaylog requestVO)
+         requestVO.user2pPlaylogDetailList = list;
+     }
+ 
+-    public static Manager.UserDatas.UserActivity Export(this UserActivity src)
+-    {
+-        return new Manager.UserDatas.UserActivity
+-        {
+-            PlayList = src.playList.Select((UserAct r) => r.Convert()).ToList(),
+-            MusicList = src.musicList.Select((UserAct r) => r.Convert()).ToList(),
+-        };
+-    }
++    internal static Manager.UserDatas.UserActivity Export(this UserActivity src) => src.ToModel();
+ 
+-    public static UserActivity Export(this Manager.UserDatas.UserActivity src)
+-    {
+-        return new UserActivity
+-        {
+-            playList = src.PlayList.Select((Manager.UserDatas.UserAct r) => r.Convert()).ToArray(),
+-            musicList = src
+-                .MusicList.Select((Manager.UserDatas.UserAct r) => r.Convert())
+-                .ToArray(),
+-        };
+-    }
++    internal static UserActivity Export(this Manager.UserDatas.UserActivity src) => src.ToVO();
+ 
+-    private static Manager.UserDatas.UserAct Convert(this UserAct src)
+-    {
+-        return new Manager.UserDatas.UserAct(
+-            src.kind,
+-            src.id,
+-            src.sortNumber,
+-            src.param1,
+-            src.param2,
+-            src.param3,
+-            src.param4
+-        );
+-    }
+-
+-    private static UserAct Convert(this Manager.UserDatas.UserAct src)
+-    {
+-        UserAct dst = default(UserAct);
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        return dst;
+-    }
++    internal static UserActivity Clone(this UserActivity src) => src with { };
+ 
+-    public static UserActivity Clone(this UserActivity src)
+-    {
+-        using MemoryStream memoryStream = new MemoryStream();
+-        BinaryFormatter binaryFormatter = new BinaryFormatter();
+-        binaryFormatter.Serialize(memoryStream, src);
+-        memoryStream.Seek(0L, SeekOrigin.Begin);
+-        return (UserActivity)binaryFormatter.Deserialize(memoryStream);
+-    }
+-
+-    public static void ExportUserAll(this UserData src, int index, ref UserAll dst)
++    internal static void ExportUserAll(this UserData src, int index, out UserAll dst)
+     {
+         if (!UserID.IsGuest(src.Detail.UserID))
+         {
+-            index = (
+-                (
+-                    Singleton<UserDataManager>.Instance.GetUserData(0L).Detail.UserID
+-                    != src.Detail.UserID
+-                )
+-                    ? (
+-                        (
+-                            Singleton<UserDataManager>.Instance.GetUserData(1L).Detail.UserID
+-                            == src.Detail.UserID
+-                        )
+-                            ? 1
+-                            : (-1)
+-                    )
+-                    : 0
+-            );
++            if (
++                src.Detail.UserID
++                == Singleton<UserDataManager>.Instance.GetUserData(0L).Detail.UserID
++            )
++            {
++                index = 0;
++            }
++            else if (
++                src.Detail.UserID
++                == Singleton<UserDataManager>.Instance.GetUserData(1L).Detail.UserID
++            )
++            {
++                index = 1;
++            }
++            else
++            {
++                index = -1;
++            }
+         }
+         if (index == -1)
+         {
+             return;
+         }
+-        NetUserData netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(index);
++        var netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(index);
+         dst.userData = new UserDetail[1] { src.Detail.Export() };
+-        dst.userExtend = new UserExtend[1] { src.Extend.Export() };
++        dst.userExtend = new UserExtend[1] { src.Extend.ToVO() };
+         dst.userOption = new UserOption[1] { src.Option.Export() };
+         dst.userGhost = (
+             (!src.MyGhost.NeedSave) ? null : new UserGhost[1] { src.MyGhost.Export() }
+@@ -342,7 +320,7 @@ public static void ExportUserAll(this UserData src, int index, ref UserAll dst)
+             }
+         }
+         UserCourse[] courseList = netUserData.CourseList;
+-        UserCourse[] nsrc6 = src.CourseList.Export();
++        UserCourse[] nsrc6 = [.. src.CourseList.Select(x => x.ToVO())];
+         dst.userCourseList = BuildListData(
+             out dst.isNewCourseList,
+             nsrc6,
+@@ -364,9 +342,9 @@ public static void ExportUserAll(this UserData src, int index, ref UserAll dst)
+         int count = src.Activity.MusicList.Count;
+         for (int num3 = 0; num3 < count; num3++)
+         {
+-            if (src.Activity.MusicList[num3].id >= 100000)
++            if (src.Activity.MusicList[num3].Id >= 100000)
+             {
+-                src.Activity.MusicList[num3].param2 = 10;
++                src.Activity.MusicList[num3].Param2 = 10;
+             }
+         }
+         dst.userMissionDataList = src.MissionList.Export();
+@@ -410,18 +388,18 @@ public static void ExportUserAll(this UserData src, int index, ref UserAll dst)
+ 
+     public static T[] BuildListData<T>(
+         out string flags,
+-        T[] nsrc,
+-        T[] osrc,
++        T[] newList,
++        T[] oldList,
+         Func<T, T, bool> compare
+     )
+     {
+-        T[] except = nsrc.Except(osrc).ToArray();
+-        string[] array = Enumerable.Repeat("1", except.Length).ToArray();
++        T[] except = [.. newList.Except(oldList)];
++        string[] array = [.. Enumerable.Repeat("1", except.Length)];
+         T val = default(T);
+         int i;
+         for (i = 0; i < except.Length; i++)
+         {
+-            if (!osrc.FirstOrDefault((T n) => compare(n, except[i])).Equals(val))
++            if (!oldList.FirstOrDefault(n => compare(n, except[i])).Equals(val))
+             {
+                 array[i] = "0";
+             }
+@@ -432,20 +410,20 @@ Func<T, T, bool> compare
+ 
+     public static T[] BuildListData2<T>(
+         out string flags,
+-        T[] nsrc,
+-        T[] osrc,
++        T[] newList,
++        T[] oldList,
+         Func<T, T, bool> compare
+     )
+     {
+-        IEnumerable<string> first = nsrc.Select((T val2) => JsonUtility.ToJson(val2));
+-        IEnumerable<string> second = osrc.Select((T val2) => JsonUtility.ToJson(val2));
++        IEnumerable<string> first = newList.Select((T val2) => JsonUtility.ToJson(val2));
++        IEnumerable<string> second = oldList.Select((T val2) => JsonUtility.ToJson(val2));
+         T[] except = first.Except(second).Select(JsonUtility.FromJson<T>).ToArray();
+         string[] array = Enumerable.Repeat("1", except.Length).ToArray();
+         T val = default(T);
+         int i;
+         for (i = 0; i < except.Length; i++)
+         {
+-            if (!osrc.FirstOrDefault((T n) => compare(n, except[i])).Equals(val))
++            if (!oldList.FirstOrDefault((T n) => compare(n, except[i])).Equals(val))
+             {
+                 array[i] = "0";
+             }
+@@ -456,145 +434,105 @@ Func<T, T, bool> compare
+ 
+     public static UserFavorite[] BuildListData(
+         out string flags,
+-        UserFavorite[] nsrc,
+-        UserFavorite[] osrc
++        UserFavorite[] newList,
++        UserFavorite[] oldList
+     )
+     {
+-        UserFavorite[] array = nsrc.Except(osrc).ToArray();
++        UserFavorite[] array = [.. newList.Except(oldList)];
+         flags = "";
+-        string[] array2 = Enumerable.Repeat("1", array.Length).ToArray();
+-        _ = new int[0];
+-        for (int i = 0; i < array.Length; i++)
++        string[] diffArray = [.. Enumerable.Repeat("1", array.Length)];
++        for (var i = 0; i < array.Length; i++)
+         {
+-            if (osrc.Length > i && nsrc[i].itemKind == osrc[i].itemKind)
++            if (oldList.Length <= i || newList[i].ItemKind != oldList[i].ItemKind)
++                continue;
++
++            if (!newList[i].ItemIdList.Order().SequenceEqual(oldList[i].ItemIdList.Order()))
+             {
+-                if (
+-                    !nsrc[i]
+-                        .itemIdList.OrderBy((int e) => e)
+-                        .SequenceEqual(osrc[i].itemIdList.OrderBy((int e) => e))
+-                )
+-                {
+-                    array2[i] = "0";
+-                }
+-                else
+-                {
+-                    array2[i] = "2";
+-                }
++                diffArray[i] = "0";
++            }
++            else
++            {
++                diffArray[i] = "2";
+             }
+         }
+-        flags = string.Join("", array2);
+-        return nsrc;
++        flags = string.Join("", diffArray);
++        return newList;
+     }
+ 
+-    public static List<Manager.UserDatas.UserCard> Export(this UserCard[] src)
++    internal static List<Manager.UserDatas.UserCard> Export(this UserCard[] src)
+     {
+-        return src.Select((UserCard c) => c.Convert()).ToList();
++        return [.. src.Select(c => c.Convert())];
+     }
+ 
+-    private static Manager.UserDatas.UserCard Convert(this UserCard src)
+-    {
+-        return new Manager.UserDatas.UserCard
++    private static Manager.UserDatas.UserCard Convert(this UserCard src) =>
++        new()
+         {
+-            cardId = src.cardId,
+-            cardTypeId = src.cardTypeId,
+-            charaId = src.charaId,
+-            mapId = src.mapId,
+-            startDate = TimeManager.GetUnixTime(src.startDate),
+-            endDataDate = TimeManager.GetUnixTime(src.endDate),
++            cardId = src.CardId,
++            cardTypeId = src.CardTypeId,
++            charaId = src.CharaId,
++            mapId = src.MapId,
++            startDate = TimeManager.GetUnixTime(src.StartDate),
++            endDataDate = TimeManager.GetUnixTime(src.EndDate),
+         };
+-    }
+ 
+-    public static UserCharacter[] Export(this List<UserChara> src)
+-    {
+-        return src.Select((UserChara c) => c.Convert()).ToArray();
+-    }
++    internal static UserCharacter[] Export(this List<UserChara> src) =>
++        [.. src.Select(c => c.Convert())];
+ 
+-    private static UserCharacter Convert(this UserChara src)
+-    {
+-        return new UserCharacter
++    private static UserCharacter Convert(this UserChara src) =>
++        new()
+         {
+-            characterId = src.ID,
+-            level = src.Level,
+-            awakening = src.Awakening,
+-            useCount = src.Count,
++            CharacterId = src.ID,
++            Level = src.Level,
++            Awakening = src.Awakening,
++            UseCount = src.Count,
+         };
+-    }
+-
+-    public static UserChargelog ExportUserChargelog(this UserData src, int ticketID)
+-    {
+-        UserChargelog result = default(UserChargelog);
+-        TicketData ticket = Singleton<DataManager>.Instance.GetTicket(ticketID);
+-        result.chargeId = ticketID;
+-        if (ticket != null)
+-        {
+-            result.price = ticket.creditNum;
+-        }
+-        result.purchaseDate = TimeManager.GetNowDateString();
+-        result.playCount = src.Detail.PlayCount;
+-        result.playerRating = (int)src.Detail.Rating;
+-        result.placeId = (int)Auth.LocationId;
+-        result.regionId = Auth.RegionCode;
+-        result.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        return result;
+-    }
+ 
+-    public static UserCharge[] ExportUserChargeList(this UserData src)
++    internal static UserChargelog ExportUserChargelog(this UserData src, int ticketId)
+     {
+-        UserCharge[] array = new UserCharge[src.ChargeList.Count];
+-        int num = 0;
+-        foreach (Manager.UserDatas.UserCharge charge in src.ChargeList)
++        var ticket = Singleton<DataManager>.Instance.GetTicket(ticketId);
++        return new()
+         {
+-            array[num].chargeId = charge.chargeId;
+-            array[num].stock = charge.stock;
+-            array[num].purchaseDate = charge.purchaseDate;
+-            array[num].validDate = charge.validDate;
+-            num++;
+-        }
+-        return array;
++            ChargeId = ticketId,
++            Price = ticket?.creditNum ?? 0,
++            PurchaseDate = TimeManager.GetNowDateString(),
++            PlayCount = src.Detail.PlayCount,
++            PlayerRating = (int)src.Detail.Rating,
++            PlaceId = (int)Auth.LocationId,
++            RegionId = Auth.RegionCode,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++        };
+     }
+ 
+-    public static UserCharge ExportEnableUserCharge(this UserData src, int ticketId)
++    internal static UserCharge[] ExportUserChargeList(this UserData src)
+     {
+-        UserCharge result = default(UserCharge);
+-        foreach (Manager.UserDatas.UserCharge charge in src.ChargeList)
+-        {
+-            if (charge.stock > 0 && charge.chargeId == ticketId)
++        return
++        [
++            .. src.ChargeList.Select(charge => new UserCharge
+             {
+-                result.chargeId = charge.chargeId;
+-                result.stock = charge.stock;
+-                result.purchaseDate = charge.purchaseDate;
+-                result.validDate = charge.validDate;
+-                break;
+-            }
+-        }
+-        return result;
++                ChargeId = charge.chargeId,
++                Stock = charge.stock,
++                PurchaseDate = charge.purchaseDate,
++                ValidDate = charge.validDate,
++            }),
++        ];
+     }
+ 
+-    public static UserCourse[] Export(this List<Manager.UserDatas.UserCourse> src)
++    internal static UserCharge? ExportEnableUserCharge(this UserData src, int ticketId)
+     {
+-        return src.Select((Manager.UserDatas.UserCourse c) => c.Convert()).ToArray();
+-    }
++        var charge = src.ChargeList.Find(ch => ch.stock > 0 && ch.chargeId == ticketId);
++        if (charge == null)
++            return null;
+ 
+-    private static UserCourse Convert(this Manager.UserDatas.UserCourse src)
+-    {
+-        return new UserCourse
++        return new()
+         {
+-            courseId = src.courseId,
+-            isLastClear = src.isLastClear,
+-            totalRestlife = src.totalRestlife,
+-            totalAchievement = src.totalAchievement,
+-            totalDeluxscore = src.totalDeluxscore,
+-            playCount = src.playCount,
+-            clearDate = src.clearDate,
+-            lastPlayDate = src.lastPlayDate,
+-            bestAchievement = src.bestAchievement,
+-            bestAchievementDate = src.bestAchievementDate,
+-            bestDeluxscore = src.bestDeluxscore,
+-            bestDeluxscoreDate = src.bestDeluxscoreDate,
++            ChargeId = charge.chargeId,
++            Stock = charge.stock,
++            PurchaseDate = charge.purchaseDate,
++            ValidDate = charge.validDate,
+         };
+     }
+ 
+-    public static Manager.UserDatas.UserDetail Export(this UserDetail src, ulong userId)
++    internal static Manager.UserDatas.UserDetail Export(this UserDetail src, ulong userId)
+     {
+         return new Manager.UserDatas.UserDetail
+         {
+@@ -806,17 +744,17 @@ public static UserDetail Export(this Manager.UserDatas.UserDetail src)
+ 
+     private static UserContentBit ToContentBit(ulong src)
+     {
+-        UserContentBit userContentBit = new UserContentBit();
++        var userContentBit = new UserContentBit();
+         for (
+-            ContentBitID contentBitID = ContentBitID.FirstPlay;
++            var contentBitID = ContentBitID.FirstPlay;
+             contentBitID < ContentBitID.End;
+             contentBitID++
+         )
+         {
+-            ulong num = (ulong)(1L << (int)contentBitID);
++            var num = 1UL << (int)contentBitID;
+             if ((src & num) != 0L)
+             {
+-                userContentBit.SetFlag(contentBitID, flag: true);
++                userContentBit.SetFlag(contentBitID, true);
+             }
+         }
+         return userContentBit;
+@@ -824,178 +762,77 @@ private static UserContentBit ToContentBit(ulong src)
+ 
+     private static ulong FromContentBit(UserContentBit src)
+     {
+-        ulong num = 0uL;
++        var num = 0uL;
+         for (
+-            ContentBitID contentBitID = ContentBitID.FirstPlay;
++            var contentBitID = ContentBitID.FirstPlay;
+             contentBitID < ContentBitID.End;
+             contentBitID++
+         )
+         {
+             if (src.IsFlagOn(contentBitID))
+             {
+-                num |= (ulong)(1L << (int)contentBitID);
++                num |= 1UL << (int)contentBitID;
+             }
+         }
+         return num;
+     }
+ 
+-    public static Manager.UserDatas.UserExtend Export(this UserExtend src)
+-    {
+-        return new Manager.UserDatas.UserExtend
+-        {
+-            SelectMusicID = src.selectMusicId,
+-            SelectDifficultyID = src.selectDifficultyId,
+-            CategoryIndex = src.categoryIndex,
+-            MusicIndex = src.musicIndex,
+-            ExtraFlag = src.extraFlag,
+-            ExtendContendBit = ToExtendContentBit(src.extendContentBit),
+-            SelectScoreType = src.selectScoreType,
+-            SelectResultDetails = src.selectResultDetails,
+-            SelectResultScoreViewType = src.selectResultScoreViewType,
+-            SortCategorySetting = src.sortCategorySetting,
+-            SortMusicSetting = src.sortMusicSetting,
+-            PlayStatusSetting = src.playStatusSetting,
+-            EncountMapNpcList = src
+-                .encountMapNpcList.Select((MapEncountNpc r) => r.Convert())
+-                .ToList(),
+-        };
+-    }
+-
+-    public static UserExtend Export(this Manager.UserDatas.UserExtend src)
+-    {
+-        return new UserExtend
+-        {
+-            selectMusicId = src.SelectMusicID,
+-            selectDifficultyId = src.SelectDifficultyID,
+-            categoryIndex = src.CategoryIndex,
+-            musicIndex = src.MusicIndex,
+-            extraFlag = src.ExtraFlag,
+-            extendContentBit = FromExtendContentBit(src.ExtendContendBit),
+-            selectScoreType = src.SelectScoreType,
+-            selectResultDetails = src.SelectResultDetails,
+-            selectResultScoreViewType = src.SelectResultScoreViewType,
+-            sortCategorySetting = src.SortCategorySetting,
+-            sortMusicSetting = src.SortMusicSetting,
+-            playStatusSetting = src.PlayStatusSetting,
+-            encountMapNpcList = src
+-                .EncountMapNpcList.Select((Manager.UserDatas.MapEncountNpc r) => r.Convert())
+-                .ToArray(),
+-        };
+-    }
+-
+-    private static Manager.UserDatas.MapEncountNpc Convert(this MapEncountNpc src)
++    internal static List<int> ExportFavouriteMusic(this UserFavoriteItem[] src)
+     {
+-        return new Manager.UserDatas.MapEncountNpc(src.npcId, src.musicId);
++        return [.. src.Select(userFavoriteItem => (int)userFavoriteItem.Id)];
+     }
+ 
+-    private static MapEncountNpc Convert(this Manager.UserDatas.MapEncountNpc src)
++    internal static UserFavoriteItem[] ConvertFavoriteMusic(this List<int> src)
+     {
+-        MapEncountNpc dst = default(MapEncountNpc);
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        return dst;
+-    }
+-
+-    private static UserExtendContentBit ToExtendContentBit(ulong src)
+-    {
+-        UserExtendContentBit userExtendContentBit = new UserExtendContentBit();
+-        for (
+-            ExtendContentBitID extendContentBitID = ExtendContentBitID.PhotoAgree;
+-            extendContentBitID < ExtendContentBitID.End;
+-            extendContentBitID++
+-        )
+-        {
+-            ulong num = (ulong)(1L << (int)extendContentBitID);
+-            if ((src & num) != 0L)
+-            {
+-                userExtendContentBit.SetFlag(extendContentBitID, flag: true);
+-            }
+-        }
+-        return userExtendContentBit;
+-    }
+-
+-    private static ulong FromExtendContentBit(UserExtendContentBit src)
+-    {
+-        ulong num = 0uL;
+-        for (
+-            ExtendContentBitID extendContentBitID = ExtendContentBitID.PhotoAgree;
+-            extendContentBitID < ExtendContentBitID.End;
+-            extendContentBitID++
+-        )
+-        {
+-            if (src.IsFlagOn(extendContentBitID))
+-            {
+-                num |= (ulong)(1L << (int)extendContentBitID);
+-            }
+-        }
+-        return num;
+-    }
+-
+-    public static List<int> ExportFavouriteMusic(this UserFavoriteItem[] src)
+-    {
+-        List<int> list = new List<int>();
+-        for (int i = 0; i < src.Length; i++)
+-        {
+-            UserFavoriteItem userFavoriteItem = src[i];
+-            list.Add((int)userFavoriteItem.id);
+-        }
+-        return list;
+-    }
+-
+-    public static UserFavoriteItem[] ConvertFavoriteMusic(this List<int> src)
+-    {
+-        List<UserFavoriteItem> list = new List<UserFavoriteItem>();
+-        for (int i = 0; i < src.Count; i++)
+-        {
+-            list.Add(new UserFavoriteItem { orderId = (ulong)(i + 1), id = (ulong)src[i] });
+-        }
+-        return list.ToArray();
++        return
++        [
++            .. src.Select(
++                (id, idx) => new UserFavoriteItem { OrderId = (ulong)(idx + 1), Id = (ulong)id }
++            ),
++        ];
+     }
+ 
+-    public static List<int> Export(this UserFavorite src)
++    internal static List<int> Export(this UserFavorite src)
+     {
+-        return src.itemIdList.ToList();
++        return [.. src.ItemIdList];
+     }
+ 
+-    public static UserFavorite[] ExportUserFavorites(this UserData src)
++    internal static UserFavorite[] ExportUserFavorites(this UserData src)
+     {
+-        return new UserFavorite[5]
+-        {
+-            new UserFavorite { itemKind = 3, itemIdList = src.FavoriteIconList.ToArray() },
+-            new UserFavorite { itemKind = 1, itemIdList = src.FavoritePlateList.ToArray() },
+-            new UserFavorite { itemKind = 2, itemIdList = src.FavoriteTitleList.ToArray() },
+-            new UserFavorite { itemKind = 10, itemIdList = src.FavoriteCharaList.ToArray() },
+-            new UserFavorite { itemKind = 11, itemIdList = src.FavoriteFrameList.ToArray() },
+-        };
++        return
++        [
++            new UserFavorite { ItemKind = 3, ItemIdList = [.. src.FavoriteIconList] },
++            new UserFavorite { ItemKind = 1, ItemIdList = [.. src.FavoritePlateList] },
++            new UserFavorite { ItemKind = 2, ItemIdList = [.. src.FavoriteTitleList] },
++            new UserFavorite { ItemKind = 10, ItemIdList = [.. src.FavoriteCharaList] },
++            new UserFavorite { ItemKind = 11, ItemIdList = [.. src.FavoriteFrameList] },
++        ];
+     }
+ 
+-    public static Manager.UserDatas.UserFriendBonus Export(this UserFriendBonus src)
++    internal static Manager.UserDatas.UserFriendBonus Export(this UserFriendBonus src)
+     {
+-        return new Manager.UserDatas.UserFriendBonus
+-        {
+-            ReturnCode = src.returnCode,
+-            GetMiles = src.getMiles,
+-        };
++        return new() { ReturnCode = src.ReturnCode, GetMiles = src.GetMiles };
+     }
+ 
+-    public static UserFriendSeasonRanking[] Export(
++    internal static UserFriendSeasonRanking[] Export(
+         this List<Manager.UserDatas.UserFriendSeasonRanking> src
+     )
+     {
+-        return src.Select((Manager.UserDatas.UserFriendSeasonRanking c) => c.Convert()).ToArray();
++        return [.. src.Select(c => c.Convert())];
+     }
+ 
+     private static UserFriendSeasonRanking Convert(
+         this Manager.UserDatas.UserFriendSeasonRanking src
+     )
+     {
+-        return new UserFriendSeasonRanking
++        return new()
+         {
+-            seasonId = src.seasonId,
+-            point = src.point,
+-            rank = src.rank,
+-            rewardGet = src.rewardGet,
+-            userName = src.userName,
+-            recordDate = src.recordDate,
++            SeasonId = src.seasonId,
++            Point = src.point,
++            Rank = src.rank,
++            RewardGet = src.rewardGet,
++            UserName = src.userName,
++            RecordDate = src.recordDate,
+         };
+     }
+ 
+@@ -1003,8 +840,8 @@ public static UserGamePlaylog ExportUserGamePlaylog(this UserData src, int playe
+     {
+         UserGamePlaylog result = new UserGamePlaylog
+         {
+-            playlogId = (
+-                Singleton<NetDataManager>.Instance.GetLoginVO(playerId)?.loginId
++            PlaylogId = (
++                Singleton<NetDataManager>.Instance.GetLoginVO(playerId)?.LoginId
+                 ?? Singleton<NetDataManager>.Instance.GetGuestLogId(playerId)
+             ),
+         };
+@@ -1081,8 +918,8 @@ private static Manager.UserDatas.UserGhost Export(this UserGhost src)
+     {
+         Manager.UserDatas.UserGhost dst = new Manager.UserDatas.UserGhost();
+         NetPacketUtil.CopyMember(ref dst, src);
+-        dst.UnixTime = TimeManager.GetUnixTime(src.playDatetime);
+-        dst.ResultBitList = src.resultBitList.ToList();
++        dst.UnixTime = TimeManager.GetUnixTime(src.PlayDatetime);
++        dst.ResultBitList = src.ResultBitList.ToList();
+         return dst;
+     }
+ 
+@@ -1090,9 +927,9 @@ public static UserGhost Export(this Manager.UserDatas.UserGhost src)
+     {
+         UserGhost dst = default(UserGhost);
+         NetPacketUtil.CopyMember(ref dst, src);
+-        dst.playDatetime = TimeManager.GetDateString(src.UnixTime);
+-        dst.resultBitList = src.ResultBitList.ToArray();
+-        dst.version = (int)
++        dst.PlayDatetime = TimeManager.GetDateString(src.UnixTime);
++        dst.ResultBitList = src.ResultBitList.ToArray();
++        dst.Version = (int)
+             Singleton<SystemConfig>.Instance.config.dataVersionInfo.versionNo.versionCode;
+         return dst;
+     }
+@@ -1107,212 +944,176 @@ public static List<int> ExportToIntList(this UserItem[] src)
+         return src.Select((UserItem i) => i.itemId).ToList();
+     }
+ 
+-    public static UserItem[] ExportUserItems(this UserData src)
++    internal static UserItem[] ExportUserItems(this UserData src)
+     {
+-        return new List<IEnumerable<UserItem>>
+-        {
+-            src.PlateList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 1,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.TitleList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 2,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.IconList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 3,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.PartnerList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 10,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.PresentList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 4,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.FrameList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 11,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.TicketList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 12,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.IntimateItemList.Select(
+-                (Manager.UserDatas.UserItem i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 14,
+-                        itemId = i.itemId,
+-                        stock = i.stock,
+-                        isValid = i.isValid,
+-                    }
+-            ),
+-            src.MusicUnlockList.Select(
+-                (int i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 5,
+-                        itemId = i,
+-                        stock = 1,
+-                        isValid = true,
+-                    }
+-            ),
+-            src.MusicUnlockMasterList.Select(
+-                (int i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 6,
+-                        itemId = i,
+-                        stock = 1,
+-                        isValid = true,
+-                    }
+-            ),
+-            src.MusicUnlockReMasterList.Select(
+-                (int i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 7,
+-                        itemId = i,
+-                        stock = 1,
+-                        isValid = true,
+-                    }
+-            ),
+-            src.MusicUnlockStrongList.Select(
+-                (int i) =>
+-                    new UserItem
+-                    {
+-                        itemKind = 8,
+-                        itemId = i,
+-                        stock = 1,
+-                        isValid = true,
+-                    }
+-            ),
+-        }
+-            .SelectMany((IEnumerable<UserItem> i) => i)
+-            .ToArray();
++        return
++        [
++            .. src.PlateList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Plate,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.TitleList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Title,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.IconList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Icon,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.PartnerList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Partner,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.PresentList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Present,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.FrameList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Frame,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.TicketList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Ticket,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.IntimateItemList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.IntimateItem,
++                ItemId = i.itemId,
++                Stock = i.stock,
++                IsValid = i.isValid,
++            }),
++            .. src.MusicUnlockList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.Music,
++                ItemId = i,
++                Stock = 1,
++                IsValid = true,
++            }),
++            .. src.MusicUnlockMasterList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.MusicMas,
++                ItemId = i,
++                Stock = 1,
++                IsValid = true,
++            }),
++            .. src.MusicUnlockReMasterList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.MusicRem,
++                ItemId = i,
++                Stock = 1,
++                IsValid = true,
++            }),
++            .. src.MusicUnlockStrongList.Select(i => new UserItem
++            {
++                ItemKind = ItemKind.MusicSrg,
++                ItemId = i,
++                Stock = 1,
++                IsValid = true,
++            }),
++        ];
+     }
+ 
+     private static Manager.UserDatas.UserItem Convert(this UserItem src)
+     {
+         return new Manager.UserDatas.UserItem
+         {
+-            itemId = src.itemId,
+-            isValid = src.isValid,
+-            stock = src.stock,
++            itemId = src.ItemId,
++            isValid = src.IsValid,
++            stock = src.Stock,
+         };
+     }
+ 
+-    public static List<Manager.UserDatas.UserKaleidxScope> Export(this UserKaleidxScope[] src)
++    internal static List<Manager.UserDatas.UserKaleidxScope> Export(this UserKaleidxScope[] src)
+     {
+-        return src.Select((UserKaleidxScope r) => r.Convert()).ToList();
++        return [.. src.Select(r => r.Convert())];
+     }
+ 
+     private static Manager.UserDatas.UserKaleidxScope Convert(this UserKaleidxScope src)
+     {
+         return new Manager.UserDatas.UserKaleidxScope
+         {
+-            gateId = src.gateId,
+-            isGateFound = src.isGateFound,
+-            isKeyFound = src.isKeyFound,
+-            isClear = src.isClear,
+-            totalRestLife = src.totalRestLife,
+-            totalAchievement = src.totalAchievement,
+-            totalDeluxscore = src.totalDeluxscore,
+-            bestAchievement = src.bestAchievement,
+-            bestDeluxscore = src.bestDeluxscore,
+-            bestAchievementDate = src.bestAchievementDate,
+-            bestDeluxscoreDate = src.bestDeluxscoreDate,
+-            playCount = src.playCount,
+-            clearDate = src.clearDate,
+-            lastPlayDate = src.lastPlayDate,
+-            isInfoWatched = src.isInfoWatched,
++            gateId = src.GateId,
++            isGateFound = src.IsGateFound,
++            isKeyFound = src.IsKeyFound,
++            isClear = src.IsClear,
++            totalRestLife = src.TotalRestLife,
++            totalAchievement = src.TotalAchievement,
++            totalDeluxscore = src.TotalDeluxscore,
++            bestAchievement = src.BestAchievement,
++            bestDeluxscore = src.BestDeluxscore,
++            bestAchievementDate = src.BestAchievementDate,
++            bestDeluxscoreDate = src.BestDeluxscoreDate,
++            playCount = src.PlayCount,
++            clearDate = src.ClearDate,
++            lastPlayDate = src.LastPlayDate,
++            isInfoWatched = src.IsInfoWatched,
+         };
+     }
+ 
+-    public static UserKaleidxScope[] ExportToNet(this List<Manager.UserDatas.UserKaleidxScope> src)
++    internal static UserKaleidxScope[] ExportToNet(
++        this List<Manager.UserDatas.UserKaleidxScope> src
++    )
+     {
+-        return src.Select((Manager.UserDatas.UserKaleidxScope r) => r.ConvertToNet()).ToArray();
++        return [.. src.Select(r => r.ConvertToNet())];
+     }
+ 
+     private static UserKaleidxScope ConvertToNet(this Manager.UserDatas.UserKaleidxScope src)
+     {
+         return new UserKaleidxScope
+         {
+-            gateId = src.gateId,
+-            isGateFound = src.isGateFound,
+-            isKeyFound = src.isKeyFound,
+-            isClear = src.isClear,
+-            totalRestLife = src.totalRestLife,
+-            totalAchievement = src.totalAchievement,
+-            totalDeluxscore = src.totalDeluxscore,
+-            bestAchievement = src.bestAchievement,
+-            bestDeluxscore = src.bestDeluxscore,
+-            bestAchievementDate = src.bestAchievementDate,
+-            bestDeluxscoreDate = src.bestDeluxscoreDate,
+-            playCount = src.playCount,
+-            clearDate = src.clearDate,
+-            lastPlayDate = src.lastPlayDate,
+-            isInfoWatched = src.isInfoWatched,
++            GateId = src.gateId,
++            IsGateFound = src.isGateFound,
++            IsKeyFound = src.isKeyFound,
++            IsClear = src.isClear,
++            TotalRestLife = src.totalRestLife,
++            TotalAchievement = src.totalAchievement,
++            TotalDeluxscore = src.totalDeluxscore,
++            BestAchievement = src.bestAchievement,
++            BestDeluxscore = src.bestDeluxscore,
++            BestAchievementDate = src.bestAchievementDate,
++            BestDeluxscoreDate = src.bestDeluxscoreDate,
++            PlayCount = src.playCount,
++            ClearDate = src.clearDate,
++            LastPlayDate = src.lastPlayDate,
++            IsInfoWatched = src.isInfoWatched,
+         };
+     }
+ 
+-    public static UserLoginBonus[] Export(this List<global::UserLoginBonus> src)
++    internal static UserLoginBonus[] Export(this List<global::UserLoginBonus> src)
+     {
+-        return src.Select((global::UserLoginBonus m) => m.Convert()).ToArray();
++        return [.. src.Select(m => m.Convert())];
+     }
+ 
+     private static UserLoginBonus Convert(this global::UserLoginBonus src)
+     {
+         return new UserLoginBonus
+         {
+-            bonusId = src.ID,
+-            point = src.Point,
+-            isCurrent = src.IsCurrent,
+-            isComplete = src.IsComplete,
++            BonusId = src.ID,
++            Point = src.Point,
++            IsCurrent = src.IsCurrent,
++            IsComplete = src.IsComplete,
+         };
+     }
+ 
+diff --git a/src/SinmaiLib/Process/MusicSelectProcess.cs b/src/SinmaiLib/Process/MusicSelectProcess.cs
+index 1c26d62..5a600da 100644
+--- a/src/SinmaiLib/Process/MusicSelectProcess.cs
++++ b/src/SinmaiLib/Process/MusicSelectProcess.cs
+@@ -1340,9 +1340,9 @@ ref combineRecommendRateList
+                 if (userType == UserData.UserIDType.Exist)
+                 {
+                     Manager.UserDatas.UserExtend extend = userData.Extend;
+-                    GameManager.SelectDifficultyID[num12] = extend.SelectDifficultyID;
+-                    GameManager.SelectMusicID[0] = extend.SelectMusicID;
+-                    GameManager.SelectMusicID[1] = extend.SelectMusicID;
++                    GameManager.SelectDifficultyID[num12] = extend.SelectDifficultyId;
++                    GameManager.SelectMusicID[0] = extend.SelectMusicId;
++                    GameManager.SelectMusicID[1] = extend.SelectMusicId;
+                     GameManager.SelectScoreType = extend.SelectScoreType;
+                     flag2 = true;
+                 }
+@@ -1354,11 +1354,11 @@ ref combineRecommendRateList
+             else
+             {
+                 Manager.UserDatas.UserExtend extend2 = userData.Extend;
+-                GameManager.SelectDifficultyID[num12] = extend2.SelectDifficultyID;
+-                if (GameManager.SelectMusicID[num12] != extend2.SelectMusicID)
++                GameManager.SelectDifficultyID[num12] = extend2.SelectDifficultyId;
++                if (GameManager.SelectMusicID[num12] != extend2.SelectMusicId)
+                 {
+-                    GameManager.SelectMusicID[0] = extend2.SelectMusicID;
+-                    GameManager.SelectMusicID[1] = extend2.SelectMusicID;
++                    GameManager.SelectMusicID[0] = extend2.SelectMusicId;
++                    GameManager.SelectMusicID[1] = extend2.SelectMusicId;
+                     break;
+                 }
+             }
+@@ -3701,8 +3701,8 @@ private void OnGameStart()
+                 userData.Extend.MusicIndex = GameManager.MusicIndex;
+                 userData.Extend.ExtraFlag = GameManager.ExtraFlag;
+                 userData.Extend.SelectScoreType = GameManager.SelectScoreType;
+-                userData.Extend.SelectDifficultyID = GameManager.SelectDifficultyID[n];
+-                userData.Extend.SelectMusicID = GameManager.SelectMusicID[n];
++                userData.Extend.SelectDifficultyId = GameManager.SelectDifficultyID[n];
++                userData.Extend.SelectMusicId = GameManager.SelectMusicID[n];
+             }
+             SetSelectMusicRivalScoreData(
+                 n,
+diff --git a/src/SinmaiLib/Process/PlInformationProcess.cs b/src/SinmaiLib/Process/PlInformationProcess.cs
+index ee2b1e9..e18a9a0 100644
+--- a/src/SinmaiLib/Process/PlInformationProcess.cs
++++ b/src/SinmaiLib/Process/PlInformationProcess.cs
+@@ -476,8 +476,8 @@ private void UpdateUserData()
+                     }
+                     flag = true;
+                 }
+-                GameManager.SelectDifficultyID[i] = extend.SelectDifficultyID;
+-                GameManager.SelectMusicID[i] = extend.SelectMusicID;
++                GameManager.SelectDifficultyID[i] = extend.SelectDifficultyId;
++                GameManager.SelectMusicID[i] = extend.SelectMusicId;
+                 GameManager.SelectResultScoreViewType[i] = (ResultProcess.ResultScoreViewType)
+                     extend.SelectResultScoreViewType;
+                 _monitors[i]._isFinishedDataConversion = true;
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index 9c1a32f..c79b918 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -39,8 +39,15 @@
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs" Link="Source/VO/Mapper/UserActMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs" Link="Source/VO/Mapper/UserCourseMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserExtendMapper.cs" Link="Source/VO/Mapper/UserExtendMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/MapEncountNpcMapper.cs" Link="Source/VO/Mapper/MapEncountNpcMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserAct.cs" Link="Source/UserDatas/UserAct.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserCourse.cs" Link="Source/UserDatas/UserCourse.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtend.cs" Link="Source/UserDatas/UserExtend.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtendContentBit.cs" Link="Source/UserDatas/UserExtendContentBit.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs" Link="Source/UserDatas/MapEncountNpc.cs" />
++    <Compile Include="../../src/SinmaiLib/DB/ExtendContentBitID.cs" Link="Source/DB/ExtendContentBitID.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/MaiStudio/CardTypeName/Table.cs" Link="Source/CardTypeName/Table.cs" />
+     <Compile Include="../../src/SinmaiLib/Enums/ActivityKind.cs" Link="Source/Enums/ActivityKind.cs" />
+     <!-- Keep the production JSON context and its full VO graph so wire validation is exercised too. -->
+     <Compile Include="../../src/SinmaiLib/Net/VO/*.cs" Link="Source/VO/%(Filename)%(Extension)" />
+diff --git a/tests/NetHttpClient.Tests/README.md b/tests/NetHttpClient.Tests/README.md
+index 9ce7ff0..4ce1d5b 100644
+--- a/tests/NetHttpClient.Tests/README.md
++++ b/tests/NetHttpClient.Tests/README.md
+@@ -20,6 +20,10 @@ # NetHttpClient 测试
+ 以及生产环境的 NetQuery、JSON 上下文、VO、FriendBonus Mapper 和相关枚举，
+ 覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
+ `Fixtures/UserDetailResponse.json` 提供包含全部必填字段的模拟用户响应。
++`UserExtendMapperTests` 直接编译生产环境的 Extend/NPC Mapper 和模型，覆盖全部
++32 种扩展位标志组合、JSON 往返、卡片与 NPC 列表顺序、快照隔离、旧布尔字段和
++未知位的处理，以及初始化默认值。这些测试不编译依赖 Unity 的 `VOExtensions.cs`
++或游戏调用方，因此不能验证其签名迁移和整合编译。
+ TLS 证书校验和原生认证交互不在
+ 这组测试的范围内。
+ 

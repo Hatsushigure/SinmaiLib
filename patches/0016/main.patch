@@ -1,0 +1,561 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Thu, 15 Oct 2026 18:37:26 +0800
+Subject: [PATCH] refactor(net)!: modernize game packets and validate responses
+
+Use required request models and Mapperly for game music score requests. Enforce JSON nullability and report failed response deserialization through TrySetResponse. Synchronize networking test sources and query implementations.
+
+BREAKING CHANGE: INetQuery.SetResponse is renamed to TrySetResponse, and the five game packet classes are now internal.
+
+diff --git a/src/SinmaiLib/Net/INetQuery.cs b/src/SinmaiLib/Net/INetQuery.cs
+index eeeff9f..9aeea0f 100644
+--- a/src/SinmaiLib/Net/INetQuery.cs
++++ b/src/SinmaiLib/Net/INetQuery.cs
+@@ -8,5 +8,5 @@ public interface INetQuery
+ 
+     string GetRequest();
+ 
+-    bool SetResponse(string str);
++    bool TrySetResponse(string str);
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameCharge.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameCharge.cs
+index 17869ef..31d98e5 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameCharge.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameCharge.cs
+@@ -4,21 +4,19 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameCharge : Packet
++internal class PacketGetGameCharge : Packet
+ {
+     private readonly Action<GameCharge[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
+ 
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetGameCharge(Action<GameCharge[]> onDone, Action<PacketStatus> onError = null)
++    public PacketGetGameCharge(Action<GameCharge[]> onDone, Action<PacketStatus>? onError = null)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameChargeRequestVO, GameChargeResponseVO> netQuery = new NetQuery<
+-            GameChargeRequestVO,
+-            GameChargeResponseVO
+-        >("GetGameChargeApi", 0uL);
+-        netQuery.Request.isAll = false;
++        var netQuery = new NetQuery<GameChargeRequestVO, GameChargeResponseVO>("GetGameChargeApi")
++        {
++            Request = new GameChargeRequestVO { IsAll = false },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -28,15 +26,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameChargeRequestVO, GameChargeResponseVO> netQuery =
+-                    base.Query as NetQuery<GameChargeRequestVO, GameChargeResponseVO>;
+-                _onDone(netQuery.Response.gameChargeList ?? Array.Empty<GameCharge>());
++                var netQuery = (NetQuery<GameChargeRequestVO, GameChargeResponseVO>)Query;
++                _onDone(netQuery.Response!.GameChargeList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameEvent.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameEvent.cs
+index fe035aa..d7e0978 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameEvent.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameEvent.cs
+@@ -4,22 +4,19 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameEvent : Packet
++internal class PacketGetGameEvent : Packet
+ {
+     private readonly Action<GameEvent[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
+ 
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetGameEvent(Action<GameEvent[]> onDone, Action<PacketStatus> onError = null)
++    public PacketGetGameEvent(Action<GameEvent[]> onDone, Action<PacketStatus>? onError = null)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameEventRequestVO, GameEventResponseVO> netQuery = new NetQuery<
+-            GameEventRequestVO,
+-            GameEventResponseVO
+-        >("GetGameEventApi", 0uL);
+-        netQuery.Request.type = 1;
+-        netQuery.Request.isAllEvent = true;
++        var netQuery = new NetQuery<GameEventRequestVO, GameEventResponseVO>("GetGameEventApi")
++        {
++            Request = new GameEventRequestVO { Type = 1, IsAllEvent = true },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -29,15 +26,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameEventRequestVO, GameEventResponseVO> netQuery =
+-                    base.Query as NetQuery<GameEventRequestVO, GameEventResponseVO>;
+-                _onDone(netQuery.Response.gameEventList ?? Array.Empty<GameEvent>());
++                var netQuery = (NetQuery<GameEventRequestVO, GameEventResponseVO>)Query;
++                _onDone(netQuery.Response!.GameEventList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameKaleidxScope.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameKaleidxScope.cs
+index df72a6c..0b38026 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameKaleidxScope.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameKaleidxScope.cs
+@@ -4,23 +4,24 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameKaleidxScope : Packet
++internal class PacketGetGameKaleidxScope : Packet
+ {
+     private readonly Action<GameKaleidxScope[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetGameKaleidxScope(
+         Action<GameKaleidxScope[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameKaleidxScopeRequestVO, GameKaleidxScopeResponseVO> query = new NetQuery<
+-            GameKaleidxScopeRequestVO,
+-            GameKaleidxScopeResponseVO
+-        >("GetGameKaleidxScopeApi", 0uL);
++        var query = new NetQuery<GameKaleidxScopeRequestVO, GameKaleidxScopeResponseVO>(
++            "GetGameKaleidxScopeApi"
++        )
++        {
++            Request = new GameKaleidxScopeRequestVO { },
++        };
+         Create(query);
+     }
+ 
+@@ -30,15 +31,22 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameKaleidxScopeRequestVO, GameKaleidxScopeResponseVO> netQuery =
+-                    base.Query as NetQuery<GameKaleidxScopeRequestVO, GameKaleidxScopeResponseVO>;
+-                _onDone(netQuery.Response.gameKaleidxScopeList ?? Array.Empty<GameKaleidxScope>());
++                var netQuery =
++                    (NetQuery<GameKaleidxScopeRequestVO, GameKaleidxScopeResponseVO>)Query;
++                _onDone(netQuery.Response!.GameKaleidxScopeList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameMusicScore.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameMusicScore.cs
+dissimilarity index 77%
+index 05970fd..3b6913b 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameMusicScore.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameMusicScore.cs
+@@ -1,111 +1,80 @@
+-using System;
+-using System.Collections.Generic;
+-using MAI2.Util;
+-using Manager;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetGameMusicScore : Packet
+-{
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private int _index;
+-
+-    private List<Manager.MusicScore> _downloadMusicScore;
+-
+-    private bool _isDownloadScore;
+-
+-    public PacketGetGameMusicScore(Action<PacketStatus> onError = null)
+-    {
+-        _onError = onError;
+-        _downloadMusicScore = Singleton<DLMusicScoreManager>.Instance.GetMusicScoreList();
+-        if (0 >= _downloadMusicScore.Count)
+-        {
+-            return;
+-        }
+-        for (_index = 0; _index < _downloadMusicScore.Count; _index++)
+-        {
+-            if (
+-                !_downloadMusicScore[_index].IsDownloaded
+-                && Singleton<EventManager>.Instance.IsOpenEvent(_downloadMusicScore[_index].EventID)
+-            )
+-            {
+-                Create(
+-                    GetNetQuery(
+-                        _downloadMusicScore[_index].MusicID,
+-                        _downloadMusicScore[_index].Level,
+-                        (int)_downloadMusicScore[_index].Type
+-                    )
+-                );
+-                _isDownloadScore = true;
+-                break;
+-            }
+-        }
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        if (!_isDownloadScore)
+-        {
+-            return PacketState.Done;
+-        }
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<GameMusicScoreRequestVO, GameMusicScoreResponseVO> netQuery =
+-                    base.Query as NetQuery<GameMusicScoreRequestVO, GameMusicScoreResponseVO>;
+-                _downloadMusicScore[_index]
+-                    .SetScoreData(netQuery.Response.gameMusicScore.scoreData);
+-                _index++;
+-                if (_index >= _downloadMusicScore.Count)
+-                {
+-                    break;
+-                }
+-                while (_index < _downloadMusicScore.Count)
+-                {
+-                    if (
+-                        !_downloadMusicScore[_index].IsDownloaded
+-                        && Singleton<EventManager>.Instance.IsOpenEvent(
+-                            _downloadMusicScore[_index].EventID
+-                        )
+-                    )
+-                    {
+-                        Create(
+-                            GetNetQuery(
+-                                _downloadMusicScore[_index].MusicID,
+-                                _downloadMusicScore[_index].Level,
+-                                (int)_downloadMusicScore[_index].Type
+-                            )
+-                        );
+-                        break;
+-                    }
+-                    _index++;
+-                }
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<GameMusicScoreRequestVO, GameMusicScoreResponseVO> GetNetQuery(
+-        int id,
+-        int level,
+-        int type
+-    )
+-    {
+-        NetQuery<GameMusicScoreRequestVO, GameMusicScoreResponseVO> netQuery = new NetQuery<
+-            GameMusicScoreRequestVO,
+-            GameMusicScoreResponseVO
+-        >("GetGameMusicScoreApi", 0uL);
+-        netQuery.Request.musicId = id;
+-        netQuery.Request.level = level;
+-        netQuery.Request.type = type;
+-        return netQuery;
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using MAI2.Util;
++using Manager;
++using Net.VO;
++using Net.VO.Mai2;
++using Net.VO.Mapper;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetGameMusicScore : Packet
++{
++    private readonly Action<PacketStatus>? _onError;
++    private int _index;
++    private readonly List<Manager.MusicScore> _downloadMusicScore =
++        Singleton<DLMusicScoreManager>.Instance.GetMusicScoreList();
++    private bool _isDownloadScore;
++
++    public PacketGetGameMusicScore(Action<PacketStatus>? onError = null)
++    {
++        _onError = onError;
++        _isDownloadScore = StartNextDownload();
++    }
++
++    public override PacketState Proc()
++    {
++        if (!_isDownloadScore)
++        {
++            return PacketState.Done;
++        }
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<GameMusicScoreRequestVO, GameMusicScoreResponseVO>)Query;
++                _downloadMusicScore[_index]
++                    .SetScoreData(netQuery.Response!.GameMusicScore.ScoreData);
++                _index++;
++                _isDownloadScore = StartNextDownload();
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private bool StartNextDownload()
++    {
++        while (_index < _downloadMusicScore.Count)
++        {
++            var musicScore = _downloadMusicScore[_index];
++            if (
++                musicScore.IsDownloaded
++                || !Singleton<EventManager>.Instance.IsOpenEvent(musicScore.EventID)
++            )
++            {
++                _index++;
++                continue;
++            }
++
++            Create(GetNetQuery(musicScore));
++            return true;
++        }
++
++        return false;
++    }
++
++    private static NetQuery<GameMusicScoreRequestVO, GameMusicScoreResponseVO> GetNetQuery(
++        Manager.MusicScore musicScore
++    ) => new("GetGameMusicScoreApi") { Request = GameMusicScoreMapper.ToRequestVO(musicScore) };
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameNgMusicId.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameNgMusicId.cs
+index 2dffb6c..af3f3e0 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameNgMusicId.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetGameNgMusicId.cs
+@@ -4,20 +4,21 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetGameNgMusicId : Packet
++internal class PacketGetGameNgMusicId : Packet
+ {
+     private readonly Action<int[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
+ 
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetGameNgMusicId(Action<int[]> onDone, Action<PacketStatus> onError = null)
++    public PacketGetGameNgMusicId(Action<int[]> onDone, Action<PacketStatus>? onError = null)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<GameNgMusicIdRequestVO, GameNgMusicIdResponseVO> query = new NetQuery<
+-            GameNgMusicIdRequestVO,
+-            GameNgMusicIdResponseVO
+-        >("GetGameNgMusicIdApi", 0uL);
++        var query = new NetQuery<GameNgMusicIdRequestVO, GameNgMusicIdResponseVO>(
++            "GetGameNgMusicIdApi"
++        )
++        {
++            Request = new GameNgMusicIdRequestVO(),
++        };
+         Create(query);
+     }
+ 
+@@ -27,15 +28,22 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GameNgMusicIdRequestVO, GameNgMusicIdResponseVO> netQuery =
+-                    base.Query as NetQuery<GameNgMusicIdRequestVO, GameNgMusicIdResponseVO>;
+-                _onDone(netQuery.Response.musicIdList ?? Array.Empty<int>());
++                var netQuery =
++                    (NetQuery<GameNgMusicIdRequestVO, GameNgMusicIdResponseVO>)Query;
++                _onDone(netQuery.Response!.MusicIdList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Packet.cs b/src/SinmaiLib/Net/Packet/Packet.cs
+index a1b8b49..d8f9f91 100644
+--- a/src/SinmaiLib/Net/Packet/Packet.cs
++++ b/src/SinmaiLib/Net/Packet/Packet.cs
+@@ -335,7 +335,7 @@ protected PacketState ProcImpl()
+                 var response = Encoding.UTF8.GetString(responseBytes);
+                 try
+                 {
+-                    if (Query.SetResponse(response))
++                    if (Query.TrySetResponse(response))
+                     {
+                         State = PacketState.Done;
+                         Status = PacketStatus.Ok;
+diff --git a/src/SinmaiLib/Net/VO/JsonContext.cs b/src/SinmaiLib/Net/VO/JsonContext.cs
+index 73ac92b..510fd14 100644
+--- a/src/SinmaiLib/Net/VO/JsonContext.cs
++++ b/src/SinmaiLib/Net/VO/JsonContext.cs
+@@ -3,7 +3,11 @@
+ 
+ namespace Net.VO;
+ 
+-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
++[JsonSourceGenerationOptions(
++    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
++    RespectNullableAnnotations = true,
++    RespectRequiredConstructorParameters = true
++)]
+ [JsonSerializable(typeof(ClientBookkeepingRequestVO))]
+ [JsonSerializable(typeof(ClientPlayTimeRequestVO))]
+ [JsonSerializable(typeof(ClientSettingRequestVO))]
+diff --git a/src/SinmaiLib/Net/VO/NetQuery.cs b/src/SinmaiLib/Net/VO/NetQuery.cs
+index 35730bf..953a167 100644
+--- a/src/SinmaiLib/Net/VO/NetQuery.cs
++++ b/src/SinmaiLib/Net/VO/NetQuery.cs
+@@ -1,3 +1,5 @@
++using System.Diagnostics.CodeAnalysis;
++
+ namespace Net.VO;
+ 
+ internal class NetQuery<TRequest, TResponse>(string api, ulong userId = 0uL) : INetQuery
+@@ -14,14 +16,10 @@ internal class NetQuery<TRequest, TResponse>(string api, ulong userId = 0uL) : I
+ 
+     public string GetRequest() => Request.Serialize();
+ 
+-    public bool SetResponse(string str)
++    [MemberNotNullWhen(true, nameof(Response))]
++    public bool TrySetResponse(string str)
+     {
+-        if (string.IsNullOrEmpty(str))
+-        {
+-            return false;
+-        }
+-
+         Response = ISerializable<TResponse>.Deserialize(str);
+-        return true;
++        return Response is not null;
+     }
+ }
+diff --git a/src/SinmaiLib/SinmaiLib.csproj b/src/SinmaiLib/SinmaiLib.csproj
+index 6653918..5ecc04b 100644
+--- a/src/SinmaiLib/SinmaiLib.csproj
++++ b/src/SinmaiLib/SinmaiLib.csproj
+@@ -4,6 +4,7 @@
+     <Nullable>enable</Nullable>
+   </PropertyGroup>
+   <ItemGroup>
++    <PackageReference Include="Riok.Mapperly" Version="4.3.1" />
+     <PackageReference Include="ZXing.Net" Version="0.16.11" />
+   </ItemGroup>
+   <ItemGroup>
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index c94b3b4..af7d04a 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -16,6 +16,7 @@
+     <!-- Compile the real networking code without Unity or native AMDaemon dependencies. -->
+     <Compile Include="../../src/SinmaiLib/Net/NetHttpClient.cs" Link="Source/NetHttpClient.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/NetHttpException.cs" Link="Source/NetHttpException.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/NetErrorKind.cs" Link="Source/NetErrorKind.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/NetHttpResponse.cs" Link="Source/NetHttpResponse.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/CipherAes.cs" Link="Source/CipherAes.cs" />
+     <Compile Include="../../src/SinmaiLib/Mai2/Util/Singleton.cs" Link="Source/Singleton.cs" />
+diff --git a/tests/NetHttpClient.Tests/PacketTests.cs b/tests/NetHttpClient.Tests/PacketTests.cs
+index 29702e1..e438859 100644
+--- a/tests/NetHttpClient.Tests/PacketTests.cs
++++ b/tests/NetHttpClient.Tests/PacketTests.cs
+@@ -339,7 +339,7 @@ private sealed class TestQuery : INetQuery
+ 
+         public string GetRequest() => "{}";
+ 
+-        public bool SetResponse(string response)
++        public bool TrySetResponse(string response)
+         {
+             ResponseCalls++;
+             Response = response;
