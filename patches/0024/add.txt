@@ -1,0 +1,6 @@
+src/SinmaiLib/Net/VO/Mapper/UserGetPointMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserTradeItemMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserUdemaeMapper.cs
+tests/NetHttpClient.Tests/Support/UdemaeDependencies.cs
+tests/NetHttpClient.Tests/UserEconomyMapperTests.cs
+tests/NetHttpClient.Tests/UserUdemaeMapperTests.cs

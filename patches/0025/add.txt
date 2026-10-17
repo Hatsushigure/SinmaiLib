@@ -1,0 +1,5 @@
+src/SinmaiLib/Net/VO/Mapper/UserDetailMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserRateMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserRatingMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserRivalMapper.cs
+tests/NetHttpClient.Tests/UserRivalMapperTests.cs

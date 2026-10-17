@@ -1,0 +1,429 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 16 Oct 2026 23:33:37 +0800
+Subject: [PATCH] refactor(user-data): migrate point and rank mappers
+
+
+diff --git a/src/SinmaiLib/CollectionProcess.cs b/src/SinmaiLib/CollectionProcess.cs
+index fbc4e57..844d770 100644
+--- a/src/SinmaiLib/CollectionProcess.cs
++++ b/src/SinmaiLib/CollectionProcess.cs
+@@ -4562,18 +4562,18 @@ private void BuyItem(int monitorId)
+         }
+         userShopStock.TradeCount++;
+         UserTradeItem userTradeItem = userData.userTradeItemList.Find(
+-            (UserTradeItem c) => c.shopItemId == itemData.ID
++            (UserTradeItem c) => c.ShopItemId == itemData.ID
+         );
+         if (userTradeItem == null)
+         {
+             userTradeItem = new UserTradeItem();
+-            userTradeItem.shopItemId = itemData.ID;
+-            userTradeItem.point = 0L;
+-            userTradeItem.tradeCount = 0;
++            userTradeItem.ShopItemId = itemData.ID;
++            userTradeItem.Point = 0L;
++            userTradeItem.TradeCount = 0;
+             userData.userTradeItemList.Add(userTradeItem);
+         }
+-        userTradeItem.point += shopItem.itemCost;
+-        userTradeItem.tradeCount++;
++        userTradeItem.Point += shopItem.itemCost;
++        userTradeItem.TradeCount++;
+         userData.Detail.Point -= shopItem.itemCost;
+         switch (shopItem.shopItemCategoryName.id)
+         {
+diff --git a/src/SinmaiLib/Manager/UserData.cs b/src/SinmaiLib/Manager/UserData.cs
+index 8669b7b..029678e 100644
+--- a/src/SinmaiLib/Manager/UserData.cs
++++ b/src/SinmaiLib/Manager/UserData.cs
+@@ -357,9 +357,9 @@ private void AddMilePointLog(int num, MaiMileGetKind kind)
+         bool flag = false;
+         for (int i = 0; i < userGetPointList.Count; i++)
+         {
+-            if (userGetPointList[i].getKind == (int)kind)
++            if (userGetPointList[i].GetKind == (int)kind)
+             {
+-                userGetPointList[i].point += num;
++                userGetPointList[i].Point += num;
+                 flag = true;
+                 break;
+             }
+@@ -367,8 +367,8 @@ private void AddMilePointLog(int num, MaiMileGetKind kind)
+         if (!flag)
+         {
+             Manager.UserDatas.UserGetPoint userGetPoint = new Manager.UserDatas.UserGetPoint();
+-            userGetPoint.getKind = (int)kind;
+-            userGetPoint.point = num;
++            userGetPoint.GetKind = (int)kind;
++            userGetPoint.Point = num;
+             userGetPointList.Add(userGetPoint);
+         }
+     }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserGetPoint.cs b/src/SinmaiLib/Manager/UserDatas/UserGetPoint.cs
+index 0e15501..2c7abd7 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserGetPoint.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserGetPoint.cs
+@@ -5,7 +5,7 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class UserGetPoint
+ {
+-    public int getKind;
++    public int GetKind { get; set; }
+ 
+-    public long point;
++    public long Point { get; set; }
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserTradeItem.cs b/src/SinmaiLib/Manager/UserDatas/UserTradeItem.cs
+index 017f038..2f447db 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserTradeItem.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserTradeItem.cs
+@@ -5,9 +5,9 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class UserTradeItem
+ {
+-    public long shopItemId;
++    public long ShopItemId { get; set; }
+ 
+-    public long point;
++    public long Point { get; set; }
+ 
+-    public int tradeCount;
++    public int TradeCount { get; set; }
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserUdemae.cs b/src/SinmaiLib/Manager/UserDatas/UserUdemae.cs
+index 23dfba3..45ce37d 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserUdemae.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserUdemae.cs
+@@ -8,55 +8,47 @@ namespace Manager.UserDatas;
+ 
+ public class UserUdemae
+ {
+-    public enum ChangeGrade
+-    {
+-        Even,
+-        WinUp,
+-        LoseDown,
+-        BossWinUp,
+-        BossStay,
+-        End,
+-    }
+-
+-    public int UdemaeValue;
++    private const int ClassMaxPoint = 10000;
+ 
+-    public int MaxUdemaeValue;
++    [Obsolete]
++    public int UdemaeValue { get; set; }
+ 
+-    public int ClassValue;
++    [Obsolete]
++    public int MaxUdemaeValue { get; set; }
+ 
+-    public int MaxClassValue;
++    public int ClassValue { get; set; }
+ 
+-    public uint TotalWinNum;
++    public int MaxClassValue { get; set; }
+ 
+-    public uint TotalLoseNum;
++    public uint TotalWinNum { get; set; }
+ 
+-    public uint MaxWinNum;
++    public uint TotalLoseNum { get; set; }
+ 
+-    public uint MaxLoseNum;
++    public uint MaxWinNum { get; set; }
+ 
+-    public uint WinNum;
++    public uint MaxLoseNum { get; set; }
+ 
+-    public uint LoseNum;
++    public uint WinNum { get; set; }
+ 
+-    public uint NpcTotalWinNum;
++    public uint LoseNum { get; set; }
+ 
+-    public uint NpcTotalLoseNum;
++    public uint NpcTotalWinNum { get; set; }
+ 
+-    public uint NpcMaxWinNum;
++    public uint NpcTotalLoseNum { get; set; }
+ 
+-    public uint NpcMaxLoseNum;
++    public uint NpcMaxWinNum { get; set; }
+ 
+-    public uint NpcWinNum;
++    public uint NpcMaxLoseNum { get; set; }
+ 
+-    public uint NpcLoseNum;
++    public uint NpcWinNum { get; set; }
+ 
+-    public UdemaeID ClassID;
++    public uint NpcLoseNum { get; set; }
+ 
+-    public int ClassPoint;
++    public UdemaeID ClassID { get; set; }
+ 
+-    public UdemaeID MaxClassID;
++    public int ClassPoint { get; set; }
+ 
+-    public const int CLASS_MAX_POINT = 10000;
++    public UdemaeID MaxClassID { get; set; }
+ 
+     public UserUdemae()
+     {
+@@ -65,8 +57,6 @@ public UserUdemae()
+ 
+     public void Initialize()
+     {
+-        UdemaeValue = 0;
+-        MaxUdemaeValue = 0;
+         ClassValue = 0;
+         MaxClassValue = 0;
+         TotalWinNum = 0u;
+@@ -100,41 +90,40 @@ public void SetMaxClassValue(int maxCassValue)
+ 
+     private void SetClassData()
+     {
+-        UdemaeID udemaeID = (UdemaeID)(ClassValue / 10000);
+-        int num = ClassValue % 10000;
+-        ClassID = ((udemaeID < UdemaeID.End) ? udemaeID : UdemaeID.Class_LEGEND);
+-        ClassData classData = Singleton<DataManager>.Instance.GetClass((int)ClassID);
++        var udemaeId = (ClassValue / ClassMaxPoint);
++        var point = ClassValue % ClassMaxPoint;
++        ClassID = udemaeId < (int)UdemaeID.End ? (UdemaeID)udemaeId : UdemaeID.Class_LEGEND;
++        var classData = Singleton<DataManager>.Instance.GetClass((int)ClassID);
+         if (classData == null)
+         {
+             return;
+         }
+-        int classupPoint = classData.classupPoint;
+-        if (num < classupPoint)
++        if (point < classData.classupPoint)
+         {
+-            ClassPoint = num;
++            ClassPoint = point;
+             return;
+         }
+-        if (num > classupPoint)
++        if (point > classData.classupPoint)
+         {
+             ClassPoint = 0;
+             return;
+         }
+-        ClassPoint = classupPoint;
++        ClassPoint = classData.classupPoint;
+         if (!IsBossBattleEnable())
+         {
+-            ClassPoint = classupPoint - 1;
++            ClassPoint = classData.classupPoint - 1;
+         }
+     }
+ 
+     private void SetMaxClassData()
+     {
+-        UdemaeID udemaeID = (UdemaeID)(MaxClassValue / 10000);
+-        MaxClassID = ((udemaeID < UdemaeID.End) ? udemaeID : UdemaeID.Class_LEGEND);
++        var udemaeId = (MaxClassValue / ClassMaxPoint);
++        MaxClassID = udemaeId < (int)UdemaeID.End ? (UdemaeID)udemaeId : UdemaeID.Class_LEGEND;
+     }
+ 
+     public static UdemaeID GetRateToUdemaeID(int classValue)
+     {
+-        UdemaeID udemaeID = (UdemaeID)(classValue / 10000);
++        UdemaeID udemaeID = (UdemaeID)(classValue / ClassMaxPoint);
+         if (udemaeID >= UdemaeID.End)
+         {
+             return UdemaeID.Class_LEGEND;
+@@ -144,8 +133,8 @@ public static UdemaeID GetRateToUdemaeID(int classValue)
+ 
+     public static int GetClassPointToClassValue(int classValue)
+     {
+-        UdemaeID udemaeID = (UdemaeID)(classValue / 10000);
+-        int num = classValue % 10000;
++        UdemaeID udemaeID = (UdemaeID)(classValue / ClassMaxPoint);
++        int num = classValue % ClassMaxPoint;
+         int result = 0;
+         udemaeID = ((udemaeID < UdemaeID.End) ? udemaeID : UdemaeID.Class_LEGEND);
+         ClassData classData = Singleton<DataManager>.Instance.GetClass((int)udemaeID);
+@@ -468,4 +457,14 @@ private static UdemaeBossData GetBossData(int bossId)
+         }
+         return Singleton<DataManager>.Instance.GetUdemaeBoss(bossId);
+     }
++
++    public enum ChangeGrade
++    {
++        Even,
++        WinUp,
++        LoseDown,
++        BossWinUp,
++        BossStay,
++        End,
++    }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs b/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs
+index 7c3f672..98f3895 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserUdemae.cs
+@@ -1,10 +1,14 @@
++using System;
++
+ namespace Net.VO.Mai2;
+ 
+ internal sealed record UserUdemae
+ {
+-    public required int Rate { get; init; }
++    [Obsolete]
++    public int Rate { get; init; }
+ 
+-    public required int MaxRate { get; init; }
++    [Obsolete]
++    public int MaxRate { get; init; }
+ 
+     public required int ClassValue { get; init; }
+ 
+diff --git a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+index af76ed6..c040f09 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+@@ -366,8 +366,8 @@ internal static void ExportUserAll(this UserData src, int index, out UserAll dst
+                 (UserIntimate a, UserIntimate b) => a.partnerId == b.partnerId
+             );
+         }
+-        dst.userGetPointList = src.userGetPointList.Export();
+-        dst.userTradeItemList = src.userTradeItemList.Export();
++        dst.userGetPointList = src.userGetPointList.ToVOArray();
++        dst.userTradeItemList = src.userTradeItemList.ToVOArray();
+         UserKaleidxScope[] userKaleidxScopeDataList = netUserData.UserKaleidxScopeDataList;
+         UserKaleidxScope[] array2 = src.userKaleidxScopeList.ExportToNet();
+         if (array2.Length != 0)
+@@ -1521,12 +1521,12 @@ public static Manager.UserDatas.UserRating Export(this UserRating src)
+     {
+         return new Manager.UserDatas.UserRating
+         {
+-            Rating = src.rating,
+-            RatingList = src.ratingList.Select((UserRate r) => r.Convert()).ToList(),
+-            NewRatingList = src.newRatingList.Select((UserRate r) => r.Convert()).ToList(),
+-            NextRatingList = src.nextRatingList.Select((UserRate r) => r.Convert()).ToList(),
+-            NextNewRatingList = src.nextNewRatingList.Select((UserRate r) => r.Convert()).ToList(),
+-            Udemae = src.udemae.Export(),
++            Rating = src.Rating,
++            RatingList = [.. src.RatingList.Select((UserRate r) => r.Convert())],
++            NewRatingList = [.. src.NewRatingList.Select((UserRate r) => r.Convert())],
++            NextRatingList = [.. src.NextRatingList.Select((UserRate r) => r.Convert())],
++            NextNewRatingList = [.. src.NextNewRatingList.Select((UserRate r) => r.Convert())],
++            Udemae = src.Udemae.ToModel(),
+         };
+     }
+ 
+@@ -1534,20 +1534,20 @@ public static UserRating Export(this Manager.UserDatas.UserRating src)
+     {
+         return new UserRating
+         {
+-            rating = src.Rating,
+-            ratingList = src
++            Rating = src.Rating,
++            RatingList = src
+                 .RatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+                 .ToArray(),
+-            newRatingList = src
++            NewRatingList = src
+                 .NewRatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+                 .ToArray(),
+-            nextRatingList = src
++            NextRatingList = src
+                 .NextRatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+                 .ToArray(),
+-            nextNewRatingList = src
++            NextNewRatingList = src
+                 .NextNewRatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+                 .ToArray(),
+-            udemae = src.Udemae.Export(),
++            Udemae = src.Udemae.ToVO(),
+         };
+     }
+ 
+@@ -1668,47 +1668,4 @@ private static Manager.UserDatas.UserShopStock Convert(this UserShopStock src)
+             TradeCount = src.tradeCount,
+         };
+     }
+-
+-    public static UserGetPoint[] Export(this List<Manager.UserDatas.UserGetPoint> src)
+-    {
+-        return src.Select((Manager.UserDatas.UserGetPoint r) => r.Convert()).ToArray();
+-    }
+-
+-    private static UserGetPoint Convert(this Manager.UserDatas.UserGetPoint src)
+-    {
+-        return new UserGetPoint { GetKind = src.getKind, Point = src.point };
+-    }
+-
+-    public static UserTradeItem[] Export(this List<Manager.UserDatas.UserTradeItem> src)
+-    {
+-        return src.Select((Manager.UserDatas.UserTradeItem r) => r.Convert()).ToArray();
+-    }
+-
+-    private static UserTradeItem Convert(this Manager.UserDatas.UserTradeItem src)
+-    {
+-        return new UserTradeItem
+-        {
+-            ShopItemId = src.shopItemId,
+-            Point = src.point,
+-            TradeCount = src.tradeCount,
+-        };
+-    }
+-
+-    public static Manager.UserDatas.UserUdemae Export(this UserUdemae src)
+-    {
+-        Manager.UserDatas.UserUdemae dst = new Manager.UserDatas.UserUdemae();
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        dst.SetClassValue(src.classValue);
+-        dst.SetMaxClassValue(src.maxClassValue);
+-        return dst;
+-    }
+-
+-    public static UserUdemae Export(this Manager.UserDatas.UserUdemae src)
+-    {
+-        UserUdemae dst = default(UserUdemae);
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        dst.classValue = src.ClassValue;
+-        dst.maxClassValue = src.MaxClassValue;
+-        return dst;
+-    }
+ }
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index 51bc0d0..ca17e8a 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -42,16 +42,29 @@
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserExtendMapper.cs" Link="Source/VO/Mapper/UserExtendMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs" Link="Source/VO/Mapper/UserItemMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs" Link="Source/VO/Mapper/UserShopStockMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserGetPointMapper.cs" Link="Source/VO/Mapper/UserGetPointMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserTradeItemMapper.cs" Link="Source/VO/Mapper/UserTradeItemMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserUdemaeMapper.cs" Link="Source/VO/Mapper/UserUdemaeMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/MapEncountNpcMapper.cs" Link="Source/VO/Mapper/MapEncountNpcMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserAct.cs" Link="Source/UserDatas/UserAct.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserCourse.cs" Link="Source/UserDatas/UserCourse.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtend.cs" Link="Source/UserDatas/UserExtend.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserItem.cs" Link="Source/UserDatas/UserItem.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserShopStock.cs" Link="Source/UserDatas/UserShopStock.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserGetPoint.cs" Link="Source/UserDatas/UserGetPoint.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserTradeItem.cs" Link="Source/UserDatas/UserTradeItem.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserUdemae.cs" Link="Source/UserDatas/UserUdemae.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtendContentBit.cs" Link="Source/UserDatas/UserExtendContentBit.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/MapEncountNpc.cs" Link="Source/UserDatas/MapEncountNpc.cs" />
+     <Compile Include="../../src/SinmaiLib/DB/ExtendContentBitID.cs" Link="Source/DB/ExtendContentBitID.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/MaiStudio/CardTypeName/Table.cs" Link="Source/CardTypeName/Table.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UdemaeID.cs;../../src/SinmaiLib/Manager/UdemaeIDEnum.cs"
++             Link="Source/%(Filename)%(Extension)" />
++    <Compile Include="../../src/SinmaiLib/Manager/MaiStudio/ClassName/Table.cs" Link="Source/ClassName/Table.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/MaiStudio/AccessorBase.cs;../../src/SinmaiLib/Manager/MaiStudio/StringID.cs;../../src/SinmaiLib/Manager/MaiStudio/ClassData.cs;../../src/SinmaiLib/Manager/MaiStudio/UdemaeBossData.cs"
++             Link="Source/MaiStudio/%(Filename)%(Extension)" />
++    <Compile Include="../../src/SinmaiLib/Manager/MaiStudio/Serialize/SerializeBase.cs;../../src/SinmaiLib/Manager/MaiStudio/Serialize/ISerialize.cs;../../src/SinmaiLib/Manager/MaiStudio/Serialize/StringID.cs;../../src/SinmaiLib/Manager/MaiStudio/Serialize/ClassData.cs;../../src/SinmaiLib/Manager/MaiStudio/Serialize/UdemaeBossData.cs"
++             Link="Source/MaiStudio/Serialize/%(Filename)%(Extension)" />
+     <Compile Include="../../src/SinmaiLib/Enums/ActivityKind.cs" Link="Source/Enums/ActivityKind.cs" />
+     <!-- Keep the production JSON context and its full VO graph so wire validation is exercised too. -->
+     <Compile Include="../../src/SinmaiLib/Net/VO/*.cs" Link="Source/VO/%(Filename)%(Extension)" />

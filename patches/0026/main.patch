@@ -1,0 +1,1164 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Sat, 17 Oct 2026 21:57:36 +0800
+Subject: [PATCH] refactor(net): migrate user packets to typed VOs
+
+Update friend registration, season ranking, ghost, item, and KaleidxScope packets for typed request and response models.
+
+Rename the test project to SinmaiLib.Tests and cover serialization, validation, pagination, and callbacks. All 231 tests pass.
+
+diff --git a/SinmaiLib.slnx b/SinmaiLib.slnx
+index 347435a..b6a5f0f 100644
+--- a/SinmaiLib.slnx
++++ b/SinmaiLib.slnx
+@@ -2,4 +2,5 @@
+   <Project Path="src/SinmaiLib/SinmaiLib.csproj" />
+   <Project Path="src/AMDaemon/AMDaemon.csproj" />
+   <Project Path="src/ChimeLib/ChimeLib.csproj" />
++  <Project Path="tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj" />
+ </Solution>
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendRegist.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendRegist.cs
+index a648954..cac5e63 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendRegist.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendRegist.cs
+@@ -4,27 +4,27 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserFriendRegist : Packet
++internal class PacketGetUserFriendRegist : Packet
+ {
+     private readonly Action<UserFriendRegistResponseVO> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserFriendRegist(
+         ulong userId1,
+         ulong userId2,
+         Action<UserFriendRegistResponseVO> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserFriendRegistRequestVO, UserFriendRegistResponseVO> netQuery = new NetQuery<
+-            UserFriendRegistRequestVO,
+-            UserFriendRegistResponseVO
+-        >("UserFriendRegistApi", userId1);
+-        netQuery.Request.userId1 = userId1;
+-        netQuery.Request.userId2 = userId2;
++        var netQuery = new NetQuery<UserFriendRegistRequestVO, UserFriendRegistResponseVO>(
++            "UserFriendRegistApi",
++            userId1
++        )
++        {
++            Request = new UserFriendRegistRequestVO { UserId1 = userId1, UserId2 = userId2 },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -34,15 +34,22 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserFriendRegistRequestVO, UserFriendRegistResponseVO> netQuery =
+-                    base.Query as NetQuery<UserFriendRegistRequestVO, UserFriendRegistResponseVO>;
+-                _onDone(netQuery.Response);
++                var netQuery =
++                    (NetQuery<UserFriendRegistRequestVO, UserFriendRegistResponseVO>)Query;
++                _onDone(netQuery.Response!);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendSeasonRanking.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendSeasonRanking.cs
+dissimilarity index 62%
+index 22cdfd9..65311cb 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendSeasonRanking.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendSeasonRanking.cs
+@@ -1,96 +1,77 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserFriendSeasonRanking : Packet
+-{
+-    private readonly Action<UserFriendSeasonRanking[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserFriendSeasonRankingResponseVO> _responseVOs;
+-
+-    public PacketGetUserFriendSeasonRanking(
+-        ulong userId,
+-        Action<UserFriendSeasonRanking[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        _responseVOs = new List<UserFriendSeasonRankingResponseVO>();
+-        ResetRetryCountAtStart();
+-        Create(GetNetQuery(userId, 0L));
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                if (IsRetryCountOverAtDownload())
+-                {
+-                    AddUserDataDownloadError();
+-                    _onError?.Invoke(PacketStatus.ErrorTimeout);
+-                    break;
+-                }
+-                NetQuery<
+-                    UserFriendSeasonRankingRequestVO,
+-                    UserFriendSeasonRankingResponseVO
+-                > netQuery =
+-                    base.Query
+-                    as NetQuery<
+-                        UserFriendSeasonRankingRequestVO,
+-                        UserFriendSeasonRankingResponseVO
+-                    >;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0L)
+-                {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
+-                    break;
+-                }
+-                _onDone(
+-                    _responseVOs
+-                        .SelectMany(
+-                            (UserFriendSeasonRankingResponseVO i) => i.userFriendSeasonRankingList
+-                        )
+-                        .ToArray()
+-                );
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<
+-        UserFriendSeasonRankingRequestVO,
+-        UserFriendSeasonRankingResponseVO
+-    > GetNetQuery(ulong userId, long nextIndex)
+-    {
+-        NetQuery<UserFriendSeasonRankingRequestVO, UserFriendSeasonRankingResponseVO> netQuery =
+-            new NetQuery<UserFriendSeasonRankingRequestVO, UserFriendSeasonRankingResponseVO>(
+-                "GetUserFriendSeasonRankingApi",
+-                userId
+-            );
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserFriendSeasonRankingResponseVO src)
+-    {
+-        if (src.userFriendSeasonRankingList == null)
+-        {
+-            src.userFriendSeasonRankingList = Array.Empty<UserFriendSeasonRanking>();
+-        }
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserFriendSeasonRanking : Packet
++{
++    private readonly Action<UserFriendSeasonRanking[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserFriendSeasonRankingResponseVO> _responseVOList = [];
++
++    public PacketGetUserFriendSeasonRanking(
++        ulong userId,
++        Action<UserFriendSeasonRanking[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        ResetRetryCountAtStart();
++        Create(GetNetQuery(userId, 0L));
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                if (IsRetryCountOverAtDownload())
++                {
++                    AddUserDataDownloadError();
++                    _onError?.Invoke(PacketStatus.ErrorTimeout);
++                    break;
++                }
++                var netQuery =
++                    (NetQuery<UserFriendSeasonRankingRequestVO, UserFriendSeasonRankingResponseVO>)
++                        Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0L)
++                {
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
++                    break;
++                }
++                _onDone([.. _responseVOList.SelectMany(i => i.UserFriendSeasonRankingList)]);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private static NetQuery<
++        UserFriendSeasonRankingRequestVO,
++        UserFriendSeasonRankingResponseVO
++    > GetNetQuery(ulong userId, long nextIndex) =>
++        new("GetUserFriendSeasonRankingApi", userId)
++        {
++            Request = new UserFriendSeasonRankingRequestVO
++            {
++                UserId = userId,
++                NextIndex = nextIndex,
++            },
++        };
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserGhost.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserGhost.cs
+dissimilarity index 66%
+index f246cc3..71a9262 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserGhost.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserGhost.cs
+@@ -1,63 +1,53 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserGhost : Packet
+-{
+-    private readonly Action<UserGhost[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserGhost(
+-        ulong userId,
+-        Action<UserGhost[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserGhostRequestVO, UserGhostResponseVO> netQuery = new NetQuery<
+-            UserGhostRequestVO,
+-            UserGhostResponseVO
+-        >("GetUserGhostApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserGhostRequestVO, UserGhostResponseVO> netQuery =
+-                    base.Query as NetQuery<UserGhostRequestVO, UserGhostResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userGhostList);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserGhostResponseVO src)
+-    {
+-        if (src.userGhostList == null)
+-        {
+-            src.userGhostList = Array.Empty<UserGhost>();
+-            return;
+-        }
+-        for (int i = 0; i < src.userGhostList.Length; i++)
+-        {
+-            if (src.userGhostList[i].resultBitList == null)
+-            {
+-                src.userGhostList[i].resultBitList = Array.Empty<byte>();
+-            }
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserGhost : Packet
++{
++    private readonly Action<UserGhost[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserGhost(
++        ulong userId,
++        Action<UserGhost[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserGhostRequestVO, UserGhostResponseVO>(
++            "GetUserGhostApi",
++            userId
++        )
++        {
++            Request = new UserGhostRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserGhostRequestVO, UserGhostResponseVO>)Query;
++                _onDone(netQuery.Response!.UserGhostList);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserItem.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserItem.cs
+index 94e70c1..d5acef4 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserItem.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserItem.cs
+@@ -6,24 +6,21 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserItem : Packet
++internal class PacketGetUserItem : Packet
+ {
+     private readonly Action<UserItem[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserItemResponseVO> _responseVOs;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserItemResponseVO> _responseVOList = [];
+ 
+     public PacketGetUserItem(
+         ulong userId,
+         long itemId,
+         Action<UserItem[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        _responseVOs = new List<UserItemResponseVO>();
+         ResetRetryCountAtStart();
+         Create(GetNetQuery(userId, itemId * 10000000000L));
+     }
+@@ -40,46 +37,36 @@ public override PacketState Proc()
+                     _onError?.Invoke(PacketStatus.ErrorTimeout);
+                     break;
+                 }
+-                NetQuery<UserItemRequestVO, UserItemResponseVO> netQuery =
+-                    base.Query as NetQuery<UserItemRequestVO, UserItemResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0L)
++                var netQuery = (NetQuery<UserItemRequestVO, UserItemResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0L)
+                 {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
+                     break;
+                 }
+-                _onDone(
+-                    _responseVOs.SelectMany((UserItemResponseVO i) => i.userItemList).ToArray()
+-                );
++                _onDone([.. _responseVOList.SelectMany(i => i.UserItemList)]);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ 
+-    private NetQuery<UserItemRequestVO, UserItemResponseVO> GetNetQuery(
++    private static NetQuery<UserItemRequestVO, UserItemResponseVO> GetNetQuery(
+         ulong userId,
+         long nextIndex
+-    )
+-    {
+-        NetQuery<UserItemRequestVO, UserItemResponseVO> netQuery = new NetQuery<
+-            UserItemRequestVO,
+-            UserItemResponseVO
+-        >("GetUserItemApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserItemResponseVO src)
+-    {
+-        if (src.userItemList == null)
++    ) =>
++        new("GetUserItemApi", userId)
+         {
+-            src.userItemList = Array.Empty<UserItem>();
+-        }
+-    }
++            Request = new UserItemRequestVO { UserId = userId, NextIndex = nextIndex },
++        };
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserKaleidxScope.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserKaleidxScope.cs
+index 4690f47..0156e12 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserKaleidxScope.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserKaleidxScope.cs
+@@ -4,25 +4,26 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserKaleidxScope : Packet
++internal class PacketGetUserKaleidxScope : Packet
+ {
+     private readonly Action<UserKaleidxScope[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserKaleidxScope(
+         ulong userId,
+         Action<UserKaleidxScope[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserKaleidxScopeRequestVO, UserKaleidxScopeResponseVO> netQuery = new NetQuery<
+-            UserKaleidxScopeRequestVO,
+-            UserKaleidxScopeResponseVO
+-        >("GetUserKaleidxScopeApi", userId);
+-        netQuery.Request.userId = userId;
++        var netQuery = new NetQuery<UserKaleidxScopeRequestVO, UserKaleidxScopeResponseVO>(
++            "GetUserKaleidxScopeApi",
++            userId
++        )
++        {
++            Request = new UserKaleidxScopeRequestVO { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -32,15 +33,22 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserKaleidxScopeRequestVO, UserKaleidxScopeResponseVO> netQuery =
+-                    base.Query as NetQuery<UserKaleidxScopeRequestVO, UserKaleidxScopeResponseVO>;
+-                _onDone(netQuery.Response.userKaleidxScopeList ?? Array.Empty<UserKaleidxScope>());
++                var netQuery =
++                    (NetQuery<UserKaleidxScopeRequestVO, UserKaleidxScopeResponseVO>)Query;
++                _onDone(netQuery.Response!.UserKaleidxScopeList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/tests/NetHttpClient.Tests/Fixtures/UserDetailResponse.json b/tests/SinmaiLib.Tests/Fixtures/UserDetailResponse.json
+similarity index 100%
+rename from tests/NetHttpClient.Tests/Fixtures/UserDetailResponse.json
+rename to tests/SinmaiLib.Tests/Fixtures/UserDetailResponse.json
+diff --git a/tests/NetHttpClient.Tests/NetHttpClientTests.cs b/tests/SinmaiLib.Tests/NetHttpClientTests.cs
+similarity index 99%
+rename from tests/NetHttpClient.Tests/NetHttpClientTests.cs
+rename to tests/SinmaiLib.Tests/NetHttpClientTests.cs
+index e58281d..a3e97c0 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClientTests.cs
++++ b/tests/SinmaiLib.Tests/NetHttpClientTests.cs
+@@ -6,11 +6,11 @@
+ using MAI2.Util;
+ using Manager;
+ using Net;
+-using NetHttpClient.Tests.Support;
++using SinmaiLib.Tests.Support;
+ using Xunit;
+ using Client = Net.NetHttpClient;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class NetHttpClientTests
+ {
+diff --git a/tests/NetHttpClient.Tests/PacketTests.cs b/tests/SinmaiLib.Tests/PacketTests.cs
+similarity index 99%
+rename from tests/NetHttpClient.Tests/PacketTests.cs
+rename to tests/SinmaiLib.Tests/PacketTests.cs
+index 84baf51..9348a8f 100644
+--- a/tests/NetHttpClient.Tests/PacketTests.cs
++++ b/tests/SinmaiLib.Tests/PacketTests.cs
+@@ -5,12 +5,12 @@
+ using Manager;
+ using Net;
+ using Net.Packet;
+-using NetHttpClient.Tests.Support;
++using SinmaiLib.Tests.Support;
+ using Xunit;
+ using ErrorCounter = Manager.BackupNetworkInformationRecord.ErrorKind;
+ using HttpErrorCounter = Manager.BackupNetworkInformationRecord.Error2Kind;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ // Packet tests share the game's global managers and retry configuration.
+ [CollectionDefinition("Packet", DisableParallelization = true)]
+diff --git a/tests/NetHttpClient.Tests/README.md b/tests/SinmaiLib.Tests/README.md
+similarity index 94%
+rename from tests/NetHttpClient.Tests/README.md
+rename to tests/SinmaiLib.Tests/README.md
+index 46df9c7..9eb11f4 100644
+--- a/tests/NetHttpClient.Tests/README.md
++++ b/tests/SinmaiLib.Tests/README.md
+@@ -1,9 +1,9 @@
+-# NetHttpClient 测试
++# SinmaiLib 测试
+ 
+ 运行：
+ 
+ ```powershell
+-dotnet test tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++dotnet test tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+ ```
+ 
+ 测试项目直接编译生产代码中的 `NetHttpClient.cs`、响应和异常类型、`CipherAes.cs` 和
+@@ -16,7 +16,8 @@ # NetHttpClient 测试
+ Cookie、HTTP 错误与解码错误、超时和取消、重复请求结果独立、Task 异步完成，
+ 以及资源释放。Packet 测试覆盖等待任务、响应处理、重试、意外任务异常、登录
+ Cookie、Ping 特殊处理、延迟统计和完成通知。用户下载测试直接编译 Card、Character、
+-Charge、Course、Data、Extend、Favorite、FavoriteItem、FriendBonus、FriendCheck Packet，
++Charge、Course、Data、Extend、Favorite、FavoriteItem、FriendBonus、FriendCheck、FriendRegist、
++FriendSeasonRanking、Ghost、Item、KaleidxScope Packet，
+ 以及生产环境的 NetQuery、JSON 上下文、VO、FriendBonus Mapper 和相关枚举，
+ 覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
+ FavoriteItem 分页是特例：测试固定其后续请求游标始终为 0、重复获取首页且无法完成
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+similarity index 92%
+rename from tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+rename to tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+index 9e1eaac..c853ace 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+@@ -36,6 +36,11 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFavoriteItem.cs" Link="Source/PacketGetUserFavoriteItem.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendBonus.cs" Link="Source/PacketGetUserFriendBonus.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendCheck.cs" Link="Source/PacketGetUserFriendCheck.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendRegist.cs" Link="Source/PacketGetUserFriendRegist.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserFriendSeasonRanking.cs" Link="Source/PacketGetUserFriendSeasonRanking.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserGhost.cs" Link="Source/PacketGetUserGhost.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserItem.cs" Link="Source/PacketGetUserItem.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserKaleidxScope.cs" Link="Source/PacketGetUserKaleidxScope.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs" Link="Source/VO/Mapper/UserActMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs" Link="Source/VO/Mapper/UserCourseMapper.cs" />
+diff --git a/tests/NetHttpClient.Tests/Support/ExternalDependencies.cs b/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
+similarity index 100%
+rename from tests/NetHttpClient.Tests/Support/ExternalDependencies.cs
+rename to tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
+diff --git a/tests/NetHttpClient.Tests/Support/LoopbackServer.cs b/tests/SinmaiLib.Tests/Support/LoopbackServer.cs
+similarity index 98%
+rename from tests/NetHttpClient.Tests/Support/LoopbackServer.cs
+rename to tests/SinmaiLib.Tests/Support/LoopbackServer.cs
+index 4a7897e..dfef3ea 100644
+--- a/tests/NetHttpClient.Tests/Support/LoopbackServer.cs
++++ b/tests/SinmaiLib.Tests/Support/LoopbackServer.cs
+@@ -8,7 +8,7 @@
+ using Microsoft.Extensions.DependencyInjection;
+ using Microsoft.Extensions.Logging;
+ 
+-namespace NetHttpClient.Tests.Support;
++namespace SinmaiLib.Tests.Support;
+ 
+ internal sealed record CapturedRequest(
+     string Method,
+diff --git a/tests/NetHttpClient.Tests/Support/PacketDependencies.cs b/tests/SinmaiLib.Tests/Support/PacketDependencies.cs
+similarity index 100%
+rename from tests/NetHttpClient.Tests/Support/PacketDependencies.cs
+rename to tests/SinmaiLib.Tests/Support/PacketDependencies.cs
+diff --git a/tests/NetHttpClient.Tests/Support/UdemaeDependencies.cs b/tests/SinmaiLib.Tests/Support/UdemaeDependencies.cs
+similarity index 100%
+rename from tests/NetHttpClient.Tests/Support/UdemaeDependencies.cs
+rename to tests/SinmaiLib.Tests/Support/UdemaeDependencies.cs
+diff --git a/tests/NetHttpClient.Tests/Support/WirePayload.cs b/tests/SinmaiLib.Tests/Support/WirePayload.cs
+similarity index 94%
+rename from tests/NetHttpClient.Tests/Support/WirePayload.cs
+rename to tests/SinmaiLib.Tests/Support/WirePayload.cs
+index 41fde9a..3a02577 100644
+--- a/tests/NetHttpClient.Tests/Support/WirePayload.cs
++++ b/tests/SinmaiLib.Tests/Support/WirePayload.cs
+@@ -1,7 +1,7 @@
+ using System.IO.Compression;
+ using Net;
+ 
+-namespace NetHttpClient.Tests.Support;
++namespace SinmaiLib.Tests.Support;
+ 
+ internal static class WirePayload
+ {
+diff --git a/tests/NetHttpClient.Tests/UserActMapperTests.cs b/tests/SinmaiLib.Tests/UserActMapperTests.cs
+similarity index 98%
+rename from tests/NetHttpClient.Tests/UserActMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserActMapperTests.cs
+index 506d5e9..c731ed7 100644
+--- a/tests/NetHttpClient.Tests/UserActMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserActMapperTests.cs
+@@ -4,7 +4,7 @@
+ using SinmaiLib.Enums;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserActMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserCourseMapperTests.cs b/tests/SinmaiLib.Tests/UserCourseMapperTests.cs
+similarity index 99%
+rename from tests/NetHttpClient.Tests/UserCourseMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserCourseMapperTests.cs
+index 6b5723e..2ad12be 100644
+--- a/tests/NetHttpClient.Tests/UserCourseMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserCourseMapperTests.cs
+@@ -4,7 +4,7 @@
+ using Net.VO.Mapper;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserCourseMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+similarity index 65%
+rename from tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
+rename to tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+index e248b95..1919a1c 100644
+--- a/tests/NetHttpClient.Tests/UserDownloadPacketTests.cs
++++ b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+@@ -7,10 +7,10 @@
+ using Net.Packet;
+ using Net.Packet.Mai2;
+ using Net.VO.Mai2;
+-using NetHttpClient.Tests.Support;
++using SinmaiLib.Tests.Support;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed partial class PacketTests
+ {
+@@ -27,6 +27,11 @@ public sealed partial class PacketTests
+     [InlineData("FavoriteItem")]
+     [InlineData("FriendBonus")]
+     [InlineData("FriendCheck")]
++    [InlineData("FriendRegist")]
++    [InlineData("FriendSeasonRanking")]
++    [InlineData("Ghost")]
++    [InlineData("Item")]
++    [InlineData("KaleidxScope")]
+     public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(JsonResponse(DownloadResponse(kind)));
+@@ -37,22 +42,28 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+         var request = await server.ReceiveAsync();
+         using var json = JsonDocument.Parse(WirePayload.Decode(request.Body));
+ 
+-        Assert.Equal($"GetUser{kind}ApiMaimaiChn", packet.Query.Api);
++        Assert.Equal(kind == "FriendRegist" ? "UserFriendRegistApiMaimaiChn" : $"GetUser{kind}ApiMaimaiChn",
++            packet.Query.Api);
+         Assert.Equal(DownloadUserId, packet.Query.UserId);
+         Assert.Equal(DownloadUserId,
+-            json.RootElement.GetProperty(kind == "FriendCheck" ? "userId1" : "userId").GetUInt64());
++            json.RootElement.GetProperty(kind is "FriendCheck" or "FriendRegist" ? "userId1" : "userId").GetUInt64());
+         var fieldCount = kind switch
+         {
+-            "Card" => 3,
+-            "Course" or "Favorite" or "FriendCheck" => 2,
++            "Card" or "FriendSeasonRanking" or "Item" => 3,
++            "Course" or "Favorite" or "FriendCheck" or "FriendRegist" => 2,
+             "FavoriteItem" => 5,
+             _ => 1,
+         };
+         Assert.Equal(fieldCount, json.RootElement.EnumerateObject().Count());
+-        if (kind is "Card" or "Course")
++        if (kind is "Card" or "Course" or "FriendSeasonRanking")
+             Assert.Equal(0, json.RootElement.GetProperty("nextIndex").GetInt64());
+-        if (kind == "Card")
++        if (kind is "Card" or "FriendSeasonRanking")
+             Assert.Equal(20, json.RootElement.GetProperty("maxCount").GetInt32());
++        if (kind == "Item")
++        {
++            Assert.Equal(30000000000L, json.RootElement.GetProperty("nextIndex").GetInt64());
++            Assert.Equal(100, json.RootElement.GetProperty("maxCount").GetInt32());
++        }
+         if (kind == "Favorite")
+             Assert.Equal(3, json.RootElement.GetProperty("itemKind").GetInt32());
+         if (kind == "FavoriteItem")
+@@ -62,7 +73,7 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+             Assert.Equal(100, json.RootElement.GetProperty("maxCount").GetInt32());
+             Assert.True(json.RootElement.GetProperty("isAllFavoriteItem").GetBoolean());
+         }
+-        if (kind == "FriendCheck")
++        if (kind is "FriendCheck" or "FriendRegist")
+             Assert.Equal(DownloadUserId + 1, json.RootElement.GetProperty("userId2").GetUInt64());
+ 
+         await lease.WaitForRequestAsync();
+@@ -115,6 +126,36 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+             case "FriendCheck":
+                 Assert.Equal(2, Assert.IsType<UserFriendCheckResponseVO>(result).ReturnCode);
+                 break;
++            case "FriendRegist":
++                var regist = Assert.IsType<UserFriendRegistResponseVO>(result);
++                Assert.Equal(2, regist.ReturnCode1);
++                Assert.Equal(1, regist.ReturnCode2);
++                break;
++            case "FriendSeasonRanking":
++                var ranking = Assert.Single(Assert.IsType<UserFriendSeasonRanking[]>(result));
++                Assert.Equal(11, ranking.SeasonId);
++                Assert.Equal("Test Player", ranking.UserName);
++                Assert.True(ranking.RewardGet);
++                break;
++            case "Ghost":
++                var ghost = Assert.Single(Assert.IsType<UserGhost[]>(result));
++                Assert.Equal(11, ghost.MusicId);
++                Assert.Equal("Test Player", ghost.Name);
++                Assert.Equal(new byte[] { 0, 128, 255 }, ghost.ResultBitList);
++                break;
++            case "Item":
++                var userItem = Assert.Single(Assert.IsType<UserItem[]>(result));
++                Assert.Equal(11, userItem.ItemId);
++                Assert.Equal((ItemKind)3, userItem.ItemKind);
++                Assert.Equal(2, userItem.Stock);
++                Assert.True(userItem.IsValid);
++                break;
++            case "KaleidxScope":
++                var scope = Assert.Single(Assert.IsType<UserKaleidxScope[]>(result));
++                Assert.Equal(11, scope.GateId);
++                Assert.True(scope.IsGateFound);
++                Assert.False(scope.IsKeyFound);
++                break;
+         }
+         Assert.Empty(errors);
+     }
+@@ -125,6 +166,10 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+     [InlineData("Charge")]
+     [InlineData("Course")]
+     [InlineData("FavoriteItem")]
++    [InlineData("FriendSeasonRanking")]
++    [InlineData("Ghost")]
++    [InlineData("Item")]
++    [InlineData("KaleidxScope")]
+     public async Task UserDownload_EmptyListCompletesWithEmptyArray(string kind)
+     {
+         var response = JsonNode.Parse(DownloadResponse(kind))!;
+@@ -168,6 +213,8 @@ public async Task UserDownload_EmptyNestedListsComplete(string kind, string firs
+     [Theory]
+     [InlineData("Card", 7L)]
+     [InlineData("Course", 10000000000L)]
++    [InlineData("FriendSeasonRanking", 9007199254740993L)]
++    [InlineData("Item", 30000000100L)]
+     public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string kind, long cursor)
+     {
+         var first = JsonNode.Parse(DownloadResponse(kind))!;
+@@ -176,7 +223,14 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+         empty["nextIndex"] = cursor + 1;
+         empty[$"user{kind}List"] = new JsonArray();
+         var last = JsonNode.Parse(DownloadResponse(kind))!;
+-        var idField = kind == "Card" ? "cardId" : "courseId";
++        var idField = kind switch
++        {
++            "Card" => "cardId",
++            "Course" => "courseId",
++            "FriendSeasonRanking" => "seasonId",
++            "Item" => "itemId",
++            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
++        };
+         last[$"user{kind}List"]![0]![idField] = 22;
+         await using var server = await LoopbackServer.StartAsync(
+             JsonResponse(first.ToJsonString()), JsonResponse(empty.ToJsonString()), JsonResponse(last.ToJsonString()));
+@@ -184,7 +238,7 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+         var errors = new List<PacketStatus>();
+         using var lease = CreateDownloadPacket(server, kind, results.Add, errors.Add);
+ 
+-        foreach (var expectedCursor in new[] { 0, cursor, cursor + 1 })
++        foreach (var expectedCursor in new[] { kind == "Item" ? 30000000000L : 0, cursor, cursor + 1 })
+         {
+             var request = await server.ReceiveAsync();
+             using var json = JsonDocument.Parse(WirePayload.Decode(request.Body));
+@@ -196,9 +250,14 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+         }
+ 
+         var result = Assert.Single(results);
+-        var ids = kind == "Card"
+-            ? Assert.IsType<UserCard[]>(result).Select(card => card.CardId)
+-            : Assert.IsType<UserCourse[]>(result).Select(course => course.CourseId);
++        var ids = kind switch
++        {
++            "Card" => Assert.IsType<UserCard[]>(result).Select(card => card.CardId),
++            "Course" => Assert.IsType<UserCourse[]>(result).Select(course => course.CourseId),
++            "FriendSeasonRanking" => Assert.IsType<UserFriendSeasonRanking[]>(result).Select(ranking => ranking.SeasonId),
++            "Item" => Assert.IsType<UserItem[]>(result).Select(item => item.ItemId),
++            _ => throw new ArgumentOutOfRangeException(nameof(kind)),
++        };
+         Assert.Equal(new[] { 11, 22 }, ids);
+         Assert.Empty(errors);
+     }
+@@ -258,13 +317,31 @@ public async Task UserDownload_FavoriteItemPaginationRemainsIncompleteWithCursor
+     [InlineData("FriendBonus", "returnCode")]
+     [InlineData("FriendBonus", "getMiles")]
+     [InlineData("FriendCheck", "returnCode")]
++    [InlineData("FriendRegist", "returnCode1")]
++    [InlineData("FriendRegist", "returnCode2")]
++    [InlineData("FriendSeasonRanking", "userId")]
++    [InlineData("FriendSeasonRanking", "nextIndex")]
++    [InlineData("FriendSeasonRanking", "userFriendSeasonRankingList")]
++    [InlineData("FriendSeasonRanking", "userFriendSeasonRankingList.0.userName")]
++    [InlineData("Ghost", "userGhostList")]
++    [InlineData("Ghost", "userGhostList.0.resultBitList")]
++    [InlineData("Ghost", "userGhostList.0.name")]
++    [InlineData("Item", "nextIndex")]
++    [InlineData("Item", "itemKind")]
++    [InlineData("Item", "userItemList")]
++    [InlineData("Item", "userItemList.0.stock")]
++    [InlineData("KaleidxScope", "userKaleidxScopeList")]
++    [InlineData("KaleidxScope", "userKaleidxScopeList.0.gateId")]
+     public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind, string member)
+     {
+         foreach (var omit in new[] { false, true })
+         {
+             var response = JsonNode.Parse(DownloadResponse(kind))!.AsObject();
+             var path = member == "charaSlot" ? new[] { "userData", member } : member.Split('.');
+-            var target = path.Length == 2 ? response[path[0]]!.AsObject() : response;
++            JsonNode targetNode = response;
++            foreach (var segment in path[..^1])
++                targetNode = targetNode is JsonArray array ? array[int.Parse(segment)]! : targetNode[segment]!;
++            var target = targetNode.AsObject();
+             if (omit)
+                 target.Remove(path[^1]);
+             else
+@@ -292,6 +369,11 @@ public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind,
+     [InlineData("FavoriteItem")]
+     [InlineData("FriendBonus")]
+     [InlineData("FriendCheck")]
++    [InlineData("FriendRegist")]
++    [InlineData("FriendSeasonRanking")]
++    [InlineData("Ghost")]
++    [InlineData("Item")]
++    [InlineData("KaleidxScope")]
+     public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(HttpStatusCode.InternalServerError));
+@@ -305,6 +387,71 @@ public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+         Assert.Empty(results);
+     }
+ 
++    [Theory]
++    [InlineData("FriendRegist")]
++    [InlineData("FriendSeasonRanking")]
++    [InlineData("Ghost")]
++    [InlineData("Item")]
++    [InlineData("KaleidxScope")]
++    public async Task UserDownload_WaitsForResponseBeforeInvokingCallbacks(string kind)
++    {
++        await using var server = await LoopbackServer.StartAsync();
++        var results = new List<object>();
++        var errors = new List<PacketStatus>();
++        using var lease = CreateDownloadPacket(server, kind, results.Add, errors.Add);
++        await server.ReceiveAsync();
++
++        Assert.Equal(PacketState.Process, lease.Packet.Proc());
++        Assert.Empty(results);
++        Assert.Empty(errors);
++
++        server.Respond(JsonResponse(DownloadResponse(kind)));
++        await lease.WaitForRequestAsync();
++        Assert.Equal(PacketState.Done, lease.Packet.Proc());
++        Assert.Single(results);
++        Assert.Empty(errors);
++    }
++
++    [Fact]
++    public async Task UserDownload_GhostAllowsEmptyResultBitList()
++    {
++        var response = JsonNode.Parse(DownloadResponse("Ghost"))!;
++        response["userGhostList"]![0]!["resultBitList"] = new JsonArray();
++        await using var server = await LoopbackServer.StartAsync(JsonResponse(response.ToJsonString()));
++        var results = new List<object>();
++        using var lease = CreateDownloadPacket(server, "Ghost", results.Add);
++
++        await lease.WaitForRequestAsync();
++        Assert.Equal(PacketState.Done, lease.Packet.Proc());
++        Assert.Empty(Assert.Single(Assert.IsType<UserGhost[]>(Assert.Single(results))).ResultBitList);
++    }
++
++    [Theory]
++    [InlineData("FriendSeasonRanking")]
++    [InlineData("Item")]
++    public async Task UserDownload_InvalidLaterPageReportsErrorWithoutDeliveringPartialResults(string kind)
++    {
++        var first = JsonNode.Parse(DownloadResponse(kind))!;
++        first["nextIndex"] = 9007199254740993L;
++        var last = JsonNode.Parse(DownloadResponse(kind))!;
++        last[$"user{kind}List"] = null;
++        await using var server = await LoopbackServer.StartAsync(
++            JsonResponse(first.ToJsonString()), JsonResponse(last.ToJsonString()));
++        var results = new List<object>();
++        var errors = new List<PacketStatus>();
++        using var lease = CreateDownloadPacket(server, kind, results.Add, errors.Add);
++
++        await lease.WaitForRequestAsync();
++        Assert.Equal(PacketState.Process, lease.Packet.Proc());
++        Assert.Empty(results);
++        Assert.Empty(errors);
++
++        await lease.WaitForRequestAsync();
++        Assert.Equal(PacketState.Error, lease.Packet.Proc());
++        Assert.Equal(PacketStatus.ErrorDecodeResponse, Assert.Single(errors));
++        Assert.Empty(results);
++    }
++
+     private DownloadPacketLease CreateDownloadPacket(
+         LoopbackServer server, string kind, Action<object> onDone, Action<PacketStatus>? onError = null)
+     {
+@@ -323,6 +470,13 @@ private DownloadPacketLease CreateDownloadPacket(
+             "FriendBonus" => new PacketGetUserFriendBonus(DownloadUserId, data => onDone(data), onError),
+             "FriendCheck" => new PacketGetUserFriendCheck(DownloadUserId, DownloadUserId + 1,
+                 data => onDone(data), onError),
++            "FriendRegist" => new PacketGetUserFriendRegist(DownloadUserId, DownloadUserId + 1,
++                data => onDone(data), onError),
++            "FriendSeasonRanking" => new PacketGetUserFriendSeasonRanking(DownloadUserId,
++                data => onDone(data), onError),
++            "Ghost" => new PacketGetUserGhost(DownloadUserId, data => onDone(data), onError),
++            "Item" => new PacketGetUserItem(DownloadUserId, 3, data => onDone(data), onError),
++            "KaleidxScope" => new PacketGetUserKaleidxScope(DownloadUserId, data => onDone(data), onError),
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+         return new DownloadPacketLease(packet);
+@@ -372,6 +526,31 @@ private static TestResponse JsonResponse(string json) =>
+         "FriendCheck" => """
+             {"returnCode":2}
+             """,
++        "FriendRegist" => """
++            {"returnCode1":2,"returnCode2":1}
++            """,
++        "FriendSeasonRanking" => """
++            {"userId":9007199254740993,"nextIndex":0,"userFriendSeasonRankingList":[
++              {"seasonId":11,"point":2,"rank":3,"rewardGet":true,"userName":"Test Player","recordDate":"2026-01-01"}]}
++            """,
++        "Ghost" => """
++            {"userId":9007199254740993,"userGhostList":[
++              {"name":"Test Player","iconId":1,"plateId":2,"titleId":3,"rate":4,"udemaeRate":5,
++               "courseRank":6,"classRank":7,"classValue":8,"playDatetime":"2026-01-01","shopId":9,
++               "regionCode":10,"typeId":0,"musicId":11,"difficulty":2,"version":3,
++               "resultBitList":[0,128,255],"resultNum":3,"achievement":1000000}]}
++            """,
++        "Item" => """
++            {"userId":9007199254740993,"nextIndex":0,"itemKind":3,"userItemList":[
++              {"itemKind":3,"itemId":11,"stock":2,"isValid":true}]}
++            """,
++        "KaleidxScope" => """
++            {"userId":9007199254740993,"userKaleidxScopeList":[
++              {"gateId":11,"isGateFound":true,"isKeyFound":false,"isClear":true,"totalRestLife":1,
++               "totalAchievement":2,"totalDeluxscore":3,"bestAchievement":4,"bestDeluxscore":5,
++               "bestAchievementDate":"2026-01-01","bestDeluxscoreDate":"2026-01-02","playCount":6,
++               "clearDate":"2026-01-03","lastPlayDate":"2026-01-04","isInfoWatched":false}]}
++            """,
+         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+     };
+ 
+diff --git a/tests/NetHttpClient.Tests/UserEconomyMapperTests.cs b/tests/SinmaiLib.Tests/UserEconomyMapperTests.cs
+similarity index 99%
+rename from tests/NetHttpClient.Tests/UserEconomyMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserEconomyMapperTests.cs
+index fa317da..3496fc4 100644
+--- a/tests/NetHttpClient.Tests/UserEconomyMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserEconomyMapperTests.cs
+@@ -5,7 +5,7 @@
+ using Net.VO.Mapper;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserEconomyMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserExtendMapperTests.cs b/tests/SinmaiLib.Tests/UserExtendMapperTests.cs
+similarity index 99%
+rename from tests/NetHttpClient.Tests/UserExtendMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserExtendMapperTests.cs
+index 96ab10e..6394c7a 100644
+--- a/tests/NetHttpClient.Tests/UserExtendMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserExtendMapperTests.cs
+@@ -6,7 +6,7 @@
+ using Xunit;
+ using Model = Manager.UserDatas.UserExtend;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserExtendMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserItemMapperTests.cs b/tests/SinmaiLib.Tests/UserItemMapperTests.cs
+similarity index 98%
+rename from tests/NetHttpClient.Tests/UserItemMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserItemMapperTests.cs
+index 5037ad5..9b8698e 100644
+--- a/tests/NetHttpClient.Tests/UserItemMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserItemMapperTests.cs
+@@ -5,7 +5,7 @@
+ using Net.VO.Mapper;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserItemMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserRivalMapperTests.cs b/tests/SinmaiLib.Tests/UserRivalMapperTests.cs
+similarity index 98%
+rename from tests/NetHttpClient.Tests/UserRivalMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserRivalMapperTests.cs
+index 97a56eb..49493a1 100644
+--- a/tests/NetHttpClient.Tests/UserRivalMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserRivalMapperTests.cs
+@@ -4,7 +4,7 @@
+ using Net.VO.Mapper;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserRivalMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserShopStockMapperTests.cs b/tests/SinmaiLib.Tests/UserShopStockMapperTests.cs
+similarity index 98%
+rename from tests/NetHttpClient.Tests/UserShopStockMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserShopStockMapperTests.cs
+index 6724973..ae3e417 100644
+--- a/tests/NetHttpClient.Tests/UserShopStockMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserShopStockMapperTests.cs
+@@ -4,7 +4,7 @@
+ using Net.VO.Mapper;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserShopStockMapperTests
+ {
+diff --git a/tests/NetHttpClient.Tests/UserUdemaeMapperTests.cs b/tests/SinmaiLib.Tests/UserUdemaeMapperTests.cs
+similarity index 99%
+rename from tests/NetHttpClient.Tests/UserUdemaeMapperTests.cs
+rename to tests/SinmaiLib.Tests/UserUdemaeMapperTests.cs
+index 55b8009..9e0c706 100644
+--- a/tests/NetHttpClient.Tests/UserUdemaeMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserUdemaeMapperTests.cs
+@@ -5,7 +5,7 @@
+ using Net.VO.Mapper;
+ using Xunit;
+ 
+-namespace NetHttpClient.Tests;
++namespace SinmaiLib.Tests;
+ 
+ public sealed class UserUdemaeMapperTests
+ {

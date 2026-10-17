@@ -1,0 +1,1812 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Sat, 17 Oct 2026 15:52:37 +0800
+Subject: [PATCH] refactor(net): migrate user data conversions to Mapperly
+
+Normalize user and rival ID names and update mapping call sites. Add regression coverage for rival mappings and shop stock lists.
+
+diff --git a/src/SinmaiLib/Datas/DebugData/DebugUserData.cs b/src/SinmaiLib/Datas/DebugData/DebugUserData.cs
+index edfb698..ce777b2 100644
+--- a/src/SinmaiLib/Datas/DebugData/DebugUserData.cs
++++ b/src/SinmaiLib/Datas/DebugData/DebugUserData.cs
+@@ -151,7 +151,7 @@ public UserData GetUserData()
+         userData.SetEntry(IsEntry);
+         userData.SetActiveUser(IsEntry);
+         userData.UserType = UserIDType;
+-        userData.Detail.UserID = UserID;
++        userData.Detail.UserId = UserID;
+         userData.Detail.UserName = UserName;
+         userData.Detail.AccessCode = AccessCode;
+         userData.Detail.Rating = Rating;
+@@ -162,7 +162,7 @@ public UserData GetUserData()
+         userData.Detail.EquipPlateID = EquipPlateID;
+         userData.Detail.EquipPartnerID = EquipPartnerID;
+         userData.Detail.EquipFrameID = EquipFrameID;
+-        userData.Detail.SelectMapID = SelectMapID;
++        userData.Detail.SelectMapId = SelectMapID;
+         userData.Detail.ClassRank = (uint)UserUdemae.GetRateToUdemaeID(ClassValue);
+         userData.Detail.IsNetMember = (int)IsNetMember;
+         userData.Detail.PlayCount = PlayCount;
+diff --git a/src/SinmaiLib/Main/GameMain.cs b/src/SinmaiLib/Main/GameMain.cs
+index 6645335..ee06257 100644
+--- a/src/SinmaiLib/Main/GameMain.cs
++++ b/src/SinmaiLib/Main/GameMain.cs
+@@ -275,7 +275,7 @@ public void ExceptionHandler(Exception e)
+         for (int j = 0; j < 2; j++)
+         {
+             UserData userData = Singleton<UserDataManager>.Instance.GetUserData(j);
+-            stringBuilder.AppendLine($"UserID:{userData.Detail.UserID}");
++            stringBuilder.AppendLine($"UserID:{userData.Detail.UserId}");
+             if (userData.IsAimeUser())
+             {
+                 stringBuilder.Append("  CharaSlot");
+@@ -399,7 +399,7 @@ public void DebugSetData(int index)
+         userData.CheckUserData();
+         NetUserData netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(index);
+         userData.Extend = netUserData.Extend.ToModel();
+-        userData.Detail = netUserData.Detail.Export(netUserData.UserId);
++        userData.Detail = netUserData.Detail.ToModel(netUserData.UserId);
+         userData.Option = netUserData.Option.Export();
+         userData.CardList = netUserData.CardList.Export();
+         userData.Option.CheckOverParam();
+diff --git a/src/SinmaiLib/Manager/GameScoreList.cs b/src/SinmaiLib/Manager/GameScoreList.cs
+index 48fd8bb..da029f2 100644
+--- a/src/SinmaiLib/Manager/GameScoreList.cs
++++ b/src/SinmaiLib/Manager/GameScoreList.cs
+@@ -1125,7 +1125,7 @@ public void Initialize(int monitorIndex, bool isParty)
+         NotesManager notesManager = NotesManager.Instance(monitorIndex);
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monitorIndex);
+         IsEnable = true;
+-        UserID = userData.Detail.UserID;
++        UserID = userData.Detail.UserId;
+         UserName = userData.Detail.UserName;
+         UserType = userData.UserType;
+         Achivement = 0m;
+diff --git a/src/SinmaiLib/Manager/NotesListManager.cs b/src/SinmaiLib/Manager/NotesListManager.cs
+index 5b6f0e1..11cf19e 100644
+--- a/src/SinmaiLib/Manager/NotesListManager.cs
++++ b/src/SinmaiLib/Manager/NotesListManager.cs
+@@ -728,7 +728,7 @@ private bool IsMapBonus(int musicId, int index)
+         if (IsEntry(index) && !GameManager.IsEventMode && !IsGuest(index))
+         {
+             MapData mapData = Singleton<DataManager>.Instance.GetMapData(
+-                Singleton<UserDataManager>.Instance.GetUserData(index).Detail.SelectMapID
++                Singleton<UserDataManager>.Instance.GetUserData(index).Detail.SelectMapId
+             );
+             if (mapData != null)
+             {
+@@ -794,11 +794,11 @@ private int GetChallengeId(int index)
+     private int GetNowDistTreasureId(int index)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(index);
+-        MapData mapData = Singleton<DataManager>.Instance.GetMapData(userData.Detail.SelectMapID);
++        MapData mapData = Singleton<DataManager>.Instance.GetMapData(userData.Detail.SelectMapId);
+         if (mapData != null)
+         {
+             UserMapData userMapData = userData.MapList.Find(
+-                (UserMapData m) => m.ID == userData.Detail.SelectMapID
++                (UserMapData m) => m.ID == userData.Detail.SelectMapId
+             );
+             if (userMapData != null)
+             {
+diff --git a/src/SinmaiLib/Manager/Party/Party/MechaInfo.cs b/src/SinmaiLib/Manager/Party/Party/MechaInfo.cs
+index 4d0f89d..9755c9c 100644
+--- a/src/SinmaiLib/Manager/Party/Party/MechaInfo.cs
++++ b/src/SinmaiLib/Manager/Party/Party/MechaInfo.cs
+@@ -61,7 +61,7 @@ int mockID
+             for (int i = 0; i < 2; i++)
+             {
+                 Entrys[i] = userDatas[i].IsEntry;
+-                UserIDs[i] = (long)userDatas[i].Detail.UserID;
++                UserIDs[i] = (long)userDatas[i].Detail.UserId;
+                 UserNames[i] = userDatas[i].Detail.UserName;
+                 IconIDs[i] = userDatas[i].Detail.ViewIconID;
+                 FumenDifs[i] = (int)fumenDifs[i];
+diff --git a/src/SinmaiLib/Manager/TicketManager.cs b/src/SinmaiLib/Manager/TicketManager.cs
+index c825c1e..5f0a630 100644
+--- a/src/SinmaiLib/Manager/TicketManager.cs
++++ b/src/SinmaiLib/Manager/TicketManager.cs
+@@ -259,7 +259,7 @@ private void SetBuyPaidTicketData(int playerId, int ticketId)
+     private void RequestUserCharge(int playerId)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(playerId);
+-        ulong userID = userData.Detail.UserID;
++        ulong userID = userData.Detail.UserId;
+         int connectTicketId = _connectTicketData[playerId].connectTicketId;
+         PacketHelper.StartPacket(
+             new PacketUploadUserChargelog(
+diff --git a/src/SinmaiLib/Manager/UserData.cs b/src/SinmaiLib/Manager/UserData.cs
+index 029678e..95a32eb 100644
+--- a/src/SinmaiLib/Manager/UserData.cs
++++ b/src/SinmaiLib/Manager/UserData.cs
+@@ -88,7 +88,7 @@ public AimeId AimeId
+             {
+                 return AimeId.Invalid;
+             }
+-            return new AimeId((uint)(Detail.UserID & 0xFFFFFFFFu));
++            return new AimeId((uint)(Detail.UserId & 0xFFFFFFFFu));
+         }
+     }
+ 
+@@ -497,7 +497,7 @@ public void Initialize()
+     public void CreateGhost(int index)
+     {
+         MyGhost.CreateGhost(
+-            Detail.UserID,
++            Detail.UserId,
+             Manager.UserDatas.UserGhost.GhostType.Player,
+             index,
+             Detail.UserName,
+@@ -514,7 +514,7 @@ public void GhostEntry(Manager.UserDatas.UserGhost ghost)
+     {
+         Initialize();
+         IsEntry = true;
+-        Detail.UserID = ghost.Id;
++        Detail.UserId = ghost.Id;
+         Detail.UserName = ghost.Name;
+         Detail.EquipIconID = ghost.IconId;
+         Detail.EquipPlateID = ghost.PlateId;
+@@ -561,7 +561,7 @@ int userType
+     {
+         Initialize();
+         IsEntry = true;
+-        Detail.UserID = userId;
++        Detail.UserId = userId;
+         Detail.UserName = name;
+         Detail.EquipIconID = icon;
+         UserType = (UserIDType)userType;
+@@ -924,7 +924,7 @@ public bool IsActiveRivalUser(ulong rivalID)
+     {
+         for (int i = 0; i < UserRivalList.Count; i++)
+         {
+-            if (UserRivalList[i].RivalID == rivalID)
++            if (UserRivalList[i].RivalId == rivalID)
+             {
+                 return true;
+             }
+@@ -1020,7 +1020,7 @@ int dxScore
+         UserRivalScoreData item = new UserRivalScoreData
+         {
+             Rank = 0,
+-            UserID = Detail.UserID,
++            UserID = Detail.UserId,
+             UserName = Detail.UserName,
+             Achievement = achivement,
+             Deluxscore = dxScore,
+@@ -1037,7 +1037,7 @@ int dxScore
+                 userRivalScoreDataList.Add(UserRivalScoreData.GetDummyUserRivalScoreData());
+                 continue;
+             }
+-            ulong rivalID = UserRivalList[i].RivalID;
++            ulong rivalID = UserRivalList[i].RivalId;
+             difficulty = ((musicID >= 100000) ? 10 : difficulty);
+             Manager.UserDatas.UserRivalMusic userRivalMusic = GetUserRivalMusic(
+                 rivalID,
+@@ -1053,7 +1053,7 @@ int dxScore
+             UserRivalScoreData item2 = new UserRivalScoreData
+             {
+                 Rank = 0,
+-                UserID = UserRivalList[i].RivalID,
++                UserID = UserRivalList[i].RivalId,
+                 UserName = UserRivalList[i].RivalName,
+                 Achievement = userRivalMusic.Achievement,
+                 Deluxscore = userRivalMusic.DeluxscoreMax,
+@@ -1704,10 +1704,10 @@ public string Dump()
+         StringBuilder stringBuilder = new StringBuilder();
+         stringBuilder.AppendLine("IsEntry:\t" + IsEntry);
+         stringBuilder.AppendLine("IsGuest:\t" + IsGuest());
+-        stringBuilder.AppendLine("UserID:\t" + Detail.UserID);
++        stringBuilder.AppendLine("UserID:\t" + Detail.UserId);
+         stringBuilder.AppendLine("UserName:\t" + Detail.UserName);
+         stringBuilder.AppendLine("Rating:\t" + Detail.Rating);
+-        stringBuilder.AppendLine("SelectMapID:\t" + Detail.SelectMapID);
++        stringBuilder.AppendLine("SelectMapID:\t" + Detail.SelectMapId);
+         stringBuilder.AppendLine("LastLoginDate:\t" + Detail.LastLoginDate);
+         stringBuilder.AppendLine($"CardList\t{CardList.Count}");
+         stringBuilder.AppendLine($"MapList\t{MapList.Count}");
+diff --git a/src/SinmaiLib/Manager/UserDataManager.cs b/src/SinmaiLib/Manager/UserDataManager.cs
+index 773ba43..8984c2c 100644
+--- a/src/SinmaiLib/Manager/UserDataManager.cs
++++ b/src/SinmaiLib/Manager/UserDataManager.cs
+@@ -26,7 +26,7 @@ public UserData GetUserDataByID(ulong userId)
+     {
+         for (int i = 0; i < _userData.Length; i++)
+         {
+-            if (userId == _userData[i].Detail.UserID)
++            if (userId == _userData[i].Detail.UserId)
+             {
+                 return _userData[i];
+             }
+@@ -39,7 +39,7 @@ public void SetPartyUserData(int index, long userId, string userName)
+         index = 2 + index;
+         if (index < _userData.Length)
+         {
+-            _userData[index].Detail.UserID = (ulong)userId;
++            _userData[index].Detail.UserId = (ulong)userId;
+             _userData[index].Detail.UserName = userName;
+         }
+     }
+@@ -72,7 +72,7 @@ public void SetDefault(long index)
+         detail.ViewTitleID = 1;
+         detail.ViewPlateID = 1;
+         detail.ViewFrameID = 1;
+-        detail.SelectMapID = 1;
++        detail.SelectMapId = 1;
+         UserExtend extend = GetUserData(index).Extend;
+         extend.ExtendContendBit.SetFlag(ExtendContentBitID.PhotoAgree, flag: true);
+         extend.ExtendContendBit.SetFlag(ExtendContentBitID.GotoCodeRead, flag: false);
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserDetail.cs b/src/SinmaiLib/Manager/UserDatas/UserDetail.cs
+index ca63d34..7b0a180 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserDetail.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserDetail.cs
+@@ -5,20 +5,12 @@
+ using MAI2.Util;
+ using Manager.MaiStudio;
+ using Net;
+-using UnityEngine;
++using Riok.Mapperly.Abstractions;
+ 
+ namespace Manager.UserDatas;
+ 
+ public class UserDetail
+ {
+-    private int _equipIconID;
+-
+-    private int _equipTitleID;
+-
+-    private int _equipPlateID;
+-
+-    private int _equipFrameID;
+-
+     public string LastGameId;
+ 
+     public string LastRomVersion;
+@@ -89,67 +81,72 @@ public class UserDetail
+ 
+     public long TotalAchievement;
+ 
+-    public ulong UserID { get; set; }
++    public ulong UserId { get; set; }
+ 
+     public string UserName { get; set; }
+ 
+     public string AccessCode { get; set; }
+ 
+-    public string AuthKey { get; set; }
++    [Obsolete]
++    public string AuthKey => "";
+ 
+     public int EquipIconID
+     {
+-        get { return _equipIconID; }
++        get;
+         set
+         {
+-            _equipIconID = value;
++            field = value;
+             ViewIconID = value;
+         }
+     }
+ 
++    [MapperIgnore]
+     public int ViewIconID { get; set; }
+ 
+     public int EquipTitleID
+     {
+-        get { return _equipTitleID; }
++        get;
+         set
+         {
+-            _equipTitleID = value;
++            field = value;
+             ViewTitleID = value;
+         }
+     }
+ 
++    [MapperIgnore]
+     public int ViewTitleID { get; set; }
+ 
+     public int EquipPlateID
+     {
+-        get { return _equipPlateID; }
++        get;
+         set
+         {
+-            _equipPlateID = value;
++            field = value;
+             ViewPlateID = value;
+         }
+     }
+ 
++    [MapperIgnore]
+     public int ViewPlateID { get; set; }
+ 
+     public int EquipPartnerID { get; set; }
+ 
+     public int EquipFrameID
+     {
+-        get { return _equipFrameID; }
++        get;
+         set
+         {
+-            _equipFrameID = value;
++            field = value;
+             ViewFrameID = value;
+         }
+     }
+ 
++    [MapperIgnore]
+     public int ViewFrameID { get; set; }
+ 
+-    public int SelectMapID { get; set; }
++    public int SelectMapId { get; set; }
+ 
+-    public UserContentBit ContentBit { get; set; } = new UserContentBit();
++    public UserContentBit ContentBit { get; set; } = new();
+ 
+     public int PlayCount { get; set; }
+ 
+@@ -191,9 +188,11 @@ public int EquipFrameID
+ 
+     public uint CourseRank { get; set; }
+ 
+-    public uint ContinueLoginCount { get; set; }
++    [Obsolete]
++    public uint ContinueLoginCount => 0;
+ 
+-    public uint TotalLoginCount { get; set; }
++    [Obsolete]
++    public uint TotalLoginCount => 0;
+ 
+     public long[] TotalDeluxScores { get; set; } = new long[6];
+ 
+@@ -201,14 +200,19 @@ public int EquipFrameID
+ 
+     public long[] TotalAchieves { get; set; } = new long[6];
+ 
++    [MapperIgnore]
+     public int CardType { get; set; }
+ 
++    [MapperIgnore]
+     public string PreLastLoginDate { get; set; }
+ 
++    [MapperIgnore]
+     public string PreLastPairLoginDate { get; set; }
+ 
++    [MapperIgnore]
+     public bool FirstPlayOnDay { get; set; }
+ 
++    [MapperIgnore]
+     public bool FirstPairPlayOnDay { get; set; }
+ 
+     public int FriendRegistSkip { get; set; }
+@@ -222,10 +226,9 @@ public UserDetail()
+ 
+     public void Initialize()
+     {
+-        UserID = Net.UserID.GuestID();
++        UserId = Net.UserID.GuestID();
+         UserName = CommonMessageID.GuestUserName.GetName();
+         AccessCode = "";
+-        AuthKey = "";
+         PlayCount = 0;
+         CurrentPlayCount = 0;
+         TotalAwake = 0;
+@@ -241,15 +244,13 @@ public void Initialize()
+         ViewTitleID = 1;
+         ViewPlateID = 1;
+         ViewFrameID = 1;
+-        SelectMapID = 0;
++        SelectMapId = 0;
+         MusicRating = 0u;
+         GradeRating = 0u;
+         OldRating = 0u;
+         NewRating = 0u;
+         Rating = 0u;
+         HighestRating = 0u;
+-        ContinueLoginCount = 0u;
+-        TotalLoginCount = 0u;
+         CardType = 0;
+         PreLastLoginDate = "";
+         FirstPlayOnDay = false;
+@@ -259,7 +260,7 @@ public void Initialize()
+         ClassRank = 0u;
+         CourseRank = 0u;
+         IsNetMember = 0;
+-        for (int i = 0; i < CharaSlot.Length; i++)
++        for (var i = 0; i < CharaSlot.Length; i++)
+         {
+             CharaSlot[i] = 0;
+             CharaLockSlot[i] = 0;
+@@ -302,17 +303,17 @@ public void Initialize()
+         TotalDeluxscore = 0L;
+         TotalSync = 0;
+         TotalAchievement = 0L;
+-        for (int j = 0; j < TotalDeluxScores.Length; j++)
++        for (var i = 0; i < TotalDeluxScores.Length; i++)
+         {
+-            TotalDeluxScores[j] = 0L;
++            TotalDeluxScores[i] = 0L;
+         }
+-        for (int k = 0; k < TotalSyncs.Length; k++)
++        for (var i = 0; i < TotalSyncs.Length; i++)
+         {
+-            TotalSyncs[k] = 0;
++            TotalSyncs[i] = 0;
+         }
+-        for (int l = 0; l < TotalAchieves.Length; l++)
++        for (var i = 0; i < TotalAchieves.Length; i++)
+         {
+-            TotalAchieves[l] = 0L;
++            TotalAchieves[i] = 0L;
+         }
+     }
+ 
+@@ -361,16 +362,16 @@ public UserChara[] AutoComposeCharacterSlot(
+             }
+         }
+         list2.Sort(
+-            delegate(UserChara a, UserChara b)
++            (a, b) =>
+             {
+-                bool isInfinity = Singleton<DataManager>
++                var isInfinity = Singleton<DataManager>
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(playerIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+-                int num7 = (int)(
++                var num7 = (int)(
+                     b.GetMovementParam(
+                         IsMatchColor(playerIndex, b.ID),
+                         leader: false,
+@@ -386,7 +387,7 @@ public UserChara[] AutoComposeCharacterSlot(
+                 );
+                 if (num7 == 0)
+                 {
+-                    num7 = (int)((!ascending) ? (b.Level - a.Level) : (a.Level - b.Level));
++                    num7 = (int)(!ascending ? b.Level - a.Level : a.Level - b.Level);
+                     if (num7 == 0)
+                     {
+                         return b.ID - a.ID;
+@@ -458,7 +459,7 @@ public bool IsMatchColor(int playerIndex, int ID)
+     {
+         StringID colorId = Singleton<DataManager>
+             .Instance.GetMapData(
+-                Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapID
++                Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapId
+             )
+             .ColorId;
+         StringID color = Singleton<DataManager>.Instance.GetChara(ID).color;
+@@ -701,13 +702,13 @@ public void AddMile(int num)
+             {
+                 num = 99999 - Point;
+             }
+-            Point = Mathf.Min(Point + num, 99999);
++            Point = Math.Min(Point + num, 99999);
+             TotalPoint += num;
+         }
+     }
+ 
+     public void SubMile(int num)
+     {
+-        Point = Mathf.Max(0, Point - num);
++        Point = Math.Max(0, Point - num);
+     }
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserRival.cs b/src/SinmaiLib/Manager/UserDatas/UserRival.cs
+index b226380..f4ad1a8 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserRival.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserRival.cs
+@@ -5,7 +5,7 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class UserRival
+ {
+-    public ulong RivalID;
++    public required ulong RivalId { get; init; }
+ 
+-    public string RivalName;
++    public required string RivalName { get; set; }
+ }
+diff --git a/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs b/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs
+index ac72e89..7c18e4a 100644
+--- a/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs
++++ b/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs
+@@ -70,7 +70,7 @@ public override void SetScrollCard(bool isVisible)
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(_playerIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+                 bool reincarnated = userCharaData.UserChara.Reincarnation != 0;
+@@ -166,7 +166,7 @@ public override void Deploy()
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(_playerIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+                 bool reincarnated = userCharaData.UserChara.Reincarnation != 0;
+@@ -243,7 +243,7 @@ public void NewcomerDeploy()
+             }
+             bool isInfinity = Singleton<DataManager>
+                 .Instance.GetMapData(
+-                    Singleton<UserDataManager>.Instance.GetUserData(_playerIndex).Detail.SelectMapID
++                    Singleton<UserDataManager>.Instance.GetUserData(_playerIndex).Detail.SelectMapId
+                 )
+                 .IsInfinity;
+             bool reincarnated = newcomerData.UserChara.Reincarnation != 0;
+@@ -315,7 +315,7 @@ public void FavoriteDeploy()
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(_playerIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+                 bool reincarnated = userCharaData.UserChara.Reincarnation != 0;
+@@ -425,7 +425,7 @@ protected override void Next(int targetIndex, Direction direction)
+             }
+             bool isInfinity = Singleton<DataManager>
+                 .Instance.GetMapData(
+-                    Singleton<UserDataManager>.Instance.GetUserData(_playerIndex).Detail.SelectMapID
++                    Singleton<UserDataManager>.Instance.GetUserData(_playerIndex).Detail.SelectMapId
+                 )
+                 .IsInfinity;
+             bool reincarnated = userCharaData.UserChara.Reincarnation != 0;
+diff --git a/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs b/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs
+index 888583e..e4dda15 100644
+--- a/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs
++++ b/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs
+@@ -873,7 +873,7 @@ public void ToCharacterSelect(int slotIndex = -1)
+             bool flag = _characterSelect.IsMatchColor(monitorIndex, userCharaData.UserChara.ID);
+             bool isInfinity = Singleton<DataManager>
+                 .Instance.GetMapData(
+-                    Singleton<UserDataManager>.Instance.GetUserData(monitorIndex).Detail.SelectMapID
++                    Singleton<UserDataManager>.Instance.GetUserData(monitorIndex).Detail.SelectMapId
+                 )
+                 .IsInfinity;
+             UserChara userChara = userCharaData.UserChara;
+@@ -1143,7 +1143,7 @@ public void SetCharacterSlotData(int index, CharacterData userChara)
+             _slotList[index].PlayJoinParty();
+             bool isInfinity = Singleton<DataManager>
+                 .Instance.GetMapData(
+-                    Singleton<UserDataManager>.Instance.GetUserData(monitorIndex).Detail.SelectMapID
++                    Singleton<UserDataManager>.Instance.GetUserData(monitorIndex).Detail.SelectMapId
+                 )
+                 .IsInfinity;
+             bool reincarnated = userChara.UserChara.Reincarnation != 0;
+diff --git a/src/SinmaiLib/Monitor/MapResultMonitor.cs b/src/SinmaiLib/Monitor/MapResultMonitor.cs
+index 491beba..1219dae 100644
+--- a/src/SinmaiLib/Monitor/MapResultMonitor.cs
++++ b/src/SinmaiLib/Monitor/MapResultMonitor.cs
+@@ -740,7 +740,7 @@ public override void Initialize(int monIndex, bool active)
+             int siblingIndex = _buttonController.gameObject.transform.GetSiblingIndex();
+             _buttonController.gameObject.transform.SetSiblingIndex(siblingIndex + 1);
+         }
+-        _mapID = userData.Detail.SelectMapID;
++        _mapID = userData.Detail.SelectMapId;
+         _isSpecialMap = GameManager.IsSpecialMap(_mapID);
+         SetEarthImage();
+         _musicID = 0;
+@@ -793,7 +793,7 @@ KeyValuePair<int, MapData> mapData3 in Singleton<DataManager>.Instance.GetMapDat
+                 .Instance.GetMapDatas()
+                 .First();
+             _mapID = keyValuePair.Key;
+-            userData.Detail.SelectMapID = keyValuePair.Key;
++            userData.Detail.SelectMapId = keyValuePair.Key;
+             MapData mapData = Singleton<DataManager>.Instance.GetMapData(_mapID);
+             List<int> list = new List<int>();
+             for (int num4 = 0; num4 < mapData.ReleaseConditionIds.list.Count; num4++)
+@@ -1055,7 +1055,7 @@ var item5 in list2.Select(
+             UserData userData2 = Singleton<UserDataManager>.Instance.GetUserData(num19);
+             if (userData2.IsEntry && !userData2.IsGuest() && !userData2.IsTrial())
+             {
+-                int selectMapID = userData2.Detail.SelectMapID;
++                int selectMapID = userData2.Detail.SelectMapId;
+                 MapData mapData2 = Singleton<DataManager>.Instance.GetMapData(selectMapID);
+                 MapBonusMusicData mapBonusMusicData2 =
+                     Singleton<DataManager>.Instance.GetMapBonusMusicData(mapData2.BonusMusicId.id);
+@@ -1110,7 +1110,7 @@ var item5 in list2.Select(
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(monitorIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+                 bool reincarnated = userChara.Reincarnation != 0;
+@@ -6583,7 +6583,7 @@ var item in list2.Select(
+                     break;
+                 }
+                 ResetSkipStart();
+-                _mapID = _userData.Detail.SelectMapID;
++                _mapID = _userData.Detail.SelectMapId;
+                 int num = _userData.MapList.FindIndex((UserMapData m) => m.ID == _mapID);
+                 if (num < 0)
+                 {
+diff --git a/src/SinmaiLib/Net/NetPacketUtil.cs b/src/SinmaiLib/Net/NetPacketUtil.cs
+index 90bc8b9..384a142 100644
+--- a/src/SinmaiLib/Net/NetPacketUtil.cs
++++ b/src/SinmaiLib/Net/NetPacketUtil.cs
+@@ -1,8 +1,5 @@
+-using System.Linq;
+-using System.Reflection;
+ using MAI2.Util;
+ using Manager;
+-using Net.Packet;
+ using Net.Packet.Mai2;
+ using Net.VO.Mai2;
+ 
+@@ -16,17 +13,17 @@ public static void ForcedUserLogout(LogoutType logoutType)
+         {
+             return;
+         }
+-        for (int i = 0; i < 2; i++)
++        for (var i = 0; i < 2; i++)
+         {
+-            UserData userData = Singleton<UserDataManager>.Instance.GetUserData(i);
+-            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserID))
++            var userData = Singleton<UserDataManager>.Instance.GetUserData(i);
++            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserId))
+             {
+                 new PacketUserLogout(
+                     i,
+-                    userData.Detail.UserID,
++                    userData.Detail.UserId,
+                     logoutType,
+                     userData.Detail.AccessCode,
+-                    delegate { }
++                    () => { }
+                 ).Proc();
+             }
+         }
+@@ -35,22 +32,21 @@ public static void ForcedUserLogout(LogoutType logoutType)
+     public static void ForcedUserLogout(int id)
+     {
+         if (
+-            Singleton<OperationManager>.Instance.NetIconStatus == OperationManager.NetStatus.Online
+-            && id >= 0
+-            && id < 2
++            Singleton<OperationManager>.Instance.NetIconStatus != OperationManager.NetStatus.Online
++            || id is < 0 or >= 2
+         )
++            return;
++
++        var userData = Singleton<UserDataManager>.Instance.GetUserData(id);
++        if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserId))
+         {
+-            UserData userData = Singleton<UserDataManager>.Instance.GetUserData(id);
+-            if (userData.IsEntry && !UserID.IsGuest(userData.Detail.UserID))
+-            {
+-                new PacketUserLogout(
+-                    id,
+-                    userData.Detail.UserID,
+-                    LogoutType.Cancel,
+-                    userData.Detail.AccessCode,
+-                    delegate { }
+-                ).Proc();
+-            }
++            new PacketUserLogout(
++                id,
++                userData.Detail.UserId,
++                LogoutType.Cancel,
++                userData.Detail.AccessCode,
++                () => { }
++            ).Proc();
+         }
+     }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+index c040f09..c0b3b7c 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+@@ -144,23 +144,24 @@ internal static void Export(out ClientUpload dst, string fileName)
+         };
+     }
+ 
+-    public static void ExportPhotoData(
+-        ref UserPhoto dst,
+-        ulong userId,
+-        ulong playlogId,
+-        int trackNo
+-    )
++    extension(UserPhoto)
+     {
+-        dst.orderId = 0;
+-        dst.userId = userId;
+-        dst.divNumber = 0;
+-        dst.divLength = 0;
+-        dst.divData = null;
+-        dst.placeId = (int)Auth.LocationId;
+-        dst.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        dst.uploadDate = TimeManager.GetNowDateString();
+-        dst.playlogId = playlogId;
+-        dst.trackNo = trackNo;
++        public static UserPhoto ExportPhotoData(ulong userId, ulong playlogId, int trackNo)
++        {
++            return new UserPhoto
++            {
++                OrderId = 0,
++                UserId = userId,
++                DivNumber = 0,
++                DivLength = 0,
++                DivData = "",
++                PlaceId = (int)Auth.LocationId,
++                ClientId = AMDaemon.System.KeychipId.ShortValue,
++                UploadDate = TimeManager.GetNowDateString(),
++                PlaylogId = playlogId,
++                TrackNo = trackNo,
++            };
++        }
+     }
+ 
+     internal static void Create(this User2pPlaylog requestVO)
+@@ -171,9 +172,9 @@ internal static void Create(this User2pPlaylog requestVO)
+         List<User2pPlaylogDetail> list = [];
+         if (userData.IsEntry && !userData.IsGuest() && userData2.IsEntry && !userData2.IsGuest())
+         {
+-            requestVO.userId1 = userData.Detail.UserID;
++            requestVO.userId1 = userData.Detail.UserId;
+             requestVO.userName1 = userData.Detail.UserName;
+-            requestVO.userId2 = userData2.Detail.UserID;
++            requestVO.userId2 = userData2.Detail.UserId;
+             requestVO.userName2 = userData2.Detail.UserName;
+             requestVO.regionId = Auth.RegionCode;
+             requestVO.placeId = (int)Auth.LocationId;
+@@ -228,26 +229,22 @@ internal static void Create(this User2pPlaylog requestVO)
+         requestVO.user2pPlaylogDetailList = list;
+     }
+ 
+-    internal static Manager.UserDatas.UserActivity Export(this UserActivity src) => src.ToModel();
+-
+-    internal static UserActivity Export(this Manager.UserDatas.UserActivity src) => src.ToVO();
+-
+     internal static UserActivity Clone(this UserActivity src) => src with { };
+ 
+     internal static void ExportUserAll(this UserData src, int index, out UserAll dst)
+     {
+-        if (!UserID.IsGuest(src.Detail.UserID))
++        if (!UserID.IsGuest(src.Detail.UserId))
+         {
+             if (
+-                src.Detail.UserID
+-                == Singleton<UserDataManager>.Instance.GetUserData(0L).Detail.UserID
++                src.Detail.UserId
++                == Singleton<UserDataManager>.Instance.GetUserData(0L).Detail.UserId
+             )
+             {
+                 index = 0;
+             }
+             else if (
+-                src.Detail.UserID
+-                == Singleton<UserDataManager>.Instance.GetUserData(1L).Detail.UserID
++                src.Detail.UserId
++                == Singleton<UserDataManager>.Instance.GetUserData(1L).Detail.UserId
+             )
+             {
+                 index = 1;
+@@ -262,13 +259,13 @@ internal static void ExportUserAll(this UserData src, int index, out UserAll dst
+             return;
+         }
+         var netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(index);
+-        dst.userData = new UserDetail[1] { src.Detail.Export() };
++        dst.userData = new UserDetail[1] { src.Detail.ToVO() };
+         dst.userExtend = new UserExtend[1] { src.Extend.ToVO() };
+         dst.userOption = new UserOption[1] { src.Option.Export() };
+         dst.userGhost = (
+             (!src.MyGhost.NeedSave) ? null : new UserGhost[1] { src.MyGhost.Export() }
+         );
+-        dst.userRatingList = new UserRating[1] { src.RatingList.Export() };
++        dst = dst with { UserRatingList = [src.RatingList.ToVO()] };
+         dst.userChargeList = src.ExportUserChargeList();
+         UserCharacter[] characterList = netUserData.CharacterList;
+         UserCharacter[] nsrc = src.CharaList.Export();
+@@ -349,7 +346,7 @@ internal static void ExportUserAll(this UserData src, int index, out UserAll dst
+         }
+         dst.userMissionDataList = src.MissionList.Export();
+         dst.userWeeklyData = src.WeeklyData.Export();
+-        dst.userActivityList = new UserActivity[1] { src.Activity.Export() };
++        dst.userActivityList = new UserActivity[1] { src.Activity.ToVO() };
+         if (index == 0)
+         {
+             dst.user2pPlaylog = new User2pPlaylog();
+@@ -532,251 +529,6 @@ internal static UserCharge[] ExportUserChargeList(this UserData src)
+         };
+     }
+ 
+-    internal static Manager.UserDatas.UserDetail Export(this UserDetail src, ulong userId)
+-    {
+-        return new Manager.UserDatas.UserDetail
+-        {
+-            UserID = userId,
+-            AccessCode = src.accessCode,
+-            UserName = src.userName,
+-            IsNetMember = src.isNetMember,
+-            Point = src.point,
+-            TotalPoint = src.totalPoint,
+-            EquipIconID = src.iconId,
+-            EquipPlateID = src.plateId,
+-            EquipTitleID = src.titleId,
+-            EquipPartnerID = src.partnerId,
+-            EquipFrameID = src.frameId,
+-            SelectMapID = src.selectMapId,
+-            TotalAwake = src.totalAwake,
+-            GradeRating = (uint)src.gradeRating,
+-            MusicRating = (uint)src.musicRating,
+-            Rating = (uint)src.playerRating,
+-            HighestRating = (uint)src.highestRating,
+-            GradeRank = (uint)src.gradeRank,
+-            ClassRank = (uint)src.classRank,
+-            CourseRank = (uint)src.courseRank,
+-            CharaSlot = (int[])src.charaSlot.Clone(),
+-            CharaLockSlot = (int[])src.charaLockSlot.Clone(),
+-            ContentBit = ToContentBit(src.contentBit),
+-            PlayCount = src.playCount,
+-            CurrentPlayCount = src.currentPlayCount,
+-            RenameCredit = src.renameCredit,
+-            MapStock = src.mapStock,
+-            EventWatchedDate = src.eventWatchedDate,
+-            FirstGameId = src.firstGameId,
+-            FirstRomVersion = src.firstRomVersion,
+-            FirstDataVersion = src.firstDataVersion,
+-            FirstPlayDate = src.firstPlayDate,
+-            LastGameId = src.lastGameId,
+-            LastRomVersion = src.lastRomVersion,
+-            LastDataVersion = src.lastDataVersion,
+-            LastLoginDate = src.lastLoginDate,
+-            LastPlayDate = src.lastPlayDate,
+-            LastPlayCredit = 0,
+-            LastPlayMode = 0,
+-            LastPlaceId = src.lastPlaceId,
+-            LastPlaceName = src.lastPlaceName,
+-            LastAllNetId = src.lastAllNetId,
+-            LastRegionId = src.lastRegionId,
+-            LastRegionName = src.lastRegionName,
+-            LastClientId = src.lastClientId,
+-            LastCountryCode = src.lastCountryCode,
+-            LastSelectEMoney = src.lastSelectEMoney,
+-            LastSelectTicket = src.lastSelectTicket,
+-            LastSelectCourse = src.lastSelectCourse,
+-            LastCountCourse = src.lastCountCourse,
+-            DailyBonusDate = src.dailyBonusDate,
+-            DailyCourseBonusDate = src.dailyCourseBonusDate,
+-            LastPairLoginDate = src.lastPairLoginDate,
+-            LastTrialPlayDate = src.lastTrialPlayDate,
+-            CompatibleCmVersion = src.compatibleCmVersion,
+-            PlayVsCount = src.playVsCount,
+-            PlaySyncCount = src.playSyncCount,
+-            WinCount = src.winCount,
+-            HelpCount = src.helpCount,
+-            ComboCount = src.comboCount,
+-            OldRating = (uint)src.playerOldRating,
+-            NewRating = (uint)src.playerNewRating,
+-            FriendRegistSkip = src.friendRegistSkip,
+-            BanState = src.banState,
+-        };
+-    }
+-
+-    public static UserDetail Export(this Manager.UserDatas.UserDetail src)
+-    {
+-        return new UserDetail
+-        {
+-            accessCode = src.AccessCode,
+-            userName = src.UserName,
+-            isNetMember = src.IsNetMember,
+-            point = src.Point,
+-            totalPoint = src.TotalPoint,
+-            iconId = src.EquipIconID,
+-            plateId = src.EquipPlateID,
+-            titleId = src.EquipTitleID,
+-            partnerId = src.EquipPartnerID,
+-            frameId = src.EquipFrameID,
+-            selectMapId = src.SelectMapID,
+-            totalAwake = src.TotalAwake,
+-            gradeRating = (int)src.GradeRating,
+-            musicRating = (int)src.MusicRating,
+-            playerRating = (int)src.Rating,
+-            highestRating = (int)src.HighestRating,
+-            gradeRank = (int)src.GradeRank,
+-            classRank = (int)src.ClassRank,
+-            courseRank = (int)src.CourseRank,
+-            charaSlot = (int[])src.CharaSlot.Clone(),
+-            charaLockSlot = (int[])src.CharaLockSlot.Clone(),
+-            contentBit = FromContentBit(src.ContentBit),
+-            playCount = src.PlayCount,
+-            currentPlayCount = src.CurrentPlayCount,
+-            renameCredit = src.RenameCredit,
+-            mapStock = src.MapStock,
+-            eventWatchedDate = src.EventWatchedDate,
+-            lastGameId = AMDaemon.System.GameId,
+-            lastRomVersion = Singleton<SystemConfig>
+-                .Instance
+-                .config
+-                .romVersionInfo
+-                .versionNo
+-                .versionString,
+-            lastDataVersion = Singleton<SystemConfig>
+-                .Instance
+-                .config
+-                .dataVersionInfo
+-                .versionNo
+-                .versionString,
+-            lastLoginDate = src.LastLoginDate,
+-            lastPlayDate = TimeManager.GetNowDateString(),
+-            lastPlayCredit = src.LastPlayCredit,
+-            lastPlayMode = src.LastPlayMode,
+-            lastPlaceId = (int)Auth.LocationId,
+-            lastPlaceName = Auth.LocationName,
+-            lastRegionId = Auth.RegionCode,
+-            lastRegionName = Auth.RegionNames[0],
+-            lastClientId = AMDaemon.System.KeychipId.ShortValue,
+-            lastCountryCode = Auth.CountryCode,
+-            lastSelectEMoney = src.LastSelectEMoney,
+-            lastSelectTicket = src.LastSelectTicket,
+-            lastSelectCourse = src.LastSelectCourse,
+-            lastCountCourse = src.LastCountCourse,
+-            lastAllNetId = 0,
+-            firstPlayDate = (
+-                string.IsNullOrEmpty(src.FirstPlayDate)
+-                    ? TimeManager.GetDateString(TimeManager.PlayBaseTime)
+-                    : src.FirstPlayDate
+-            ),
+-            firstGameId = (
+-                string.IsNullOrEmpty(src.FirstGameId) ? AMDaemon.System.GameId : src.FirstGameId
+-            ),
+-            firstRomVersion = (
+-                string.IsNullOrEmpty(src.FirstRomVersion)
+-                    ? Singleton<SystemConfig>.Instance.config.romVersionInfo.versionNo.versionString
+-                    : src.FirstRomVersion
+-            ),
+-            firstDataVersion = (
+-                string.IsNullOrEmpty(src.FirstDataVersion)
+-                    ? Singleton<SystemConfig>
+-                        .Instance
+-                        .config
+-                        .dataVersionInfo
+-                        .versionNo
+-                        .versionString
+-                    : src.FirstDataVersion
+-            ),
+-            compatibleCmVersion = Singleton<SystemConfig>
+-                .Instance
+-                .config
+-                .cardMakerVersionInfo
+-                .versionNo
+-                .versionString,
+-            dailyBonusDate = (
+-                string.IsNullOrEmpty(src.DailyBonusDate)
+-                    ? TimeManager.GetDateString(0L)
+-                    : src.DailyBonusDate
+-            ),
+-            dailyCourseBonusDate = (
+-                string.IsNullOrEmpty(src.DailyCourseBonusDate)
+-                    ? TimeManager.GetDateString(0L)
+-                    : src.DailyCourseBonusDate
+-            ),
+-            lastPairLoginDate = (
+-                string.IsNullOrEmpty(src.LastPairLoginDate)
+-                    ? TimeManager.GetDateString(0L)
+-                    : src.LastPairLoginDate
+-            ),
+-            lastTrialPlayDate = (
+-                string.IsNullOrEmpty(src.LastTrialPlayDate)
+-                    ? TimeManager.GetDateString(0L)
+-                    : src.LastTrialPlayDate
+-            ),
+-            playVsCount = src.PlayVsCount,
+-            playSyncCount = src.PlaySyncCount,
+-            winCount = src.WinCount,
+-            helpCount = src.HelpCount,
+-            comboCount = src.ComboCount,
+-            totalDeluxscore = src.TotalDeluxscore,
+-            totalBasicDeluxscore = src.TotalDeluxScores[0],
+-            totalAdvancedDeluxscore = src.TotalDeluxScores[1],
+-            totalExpertDeluxscore = src.TotalDeluxScores[2],
+-            totalMasterDeluxscore = src.TotalDeluxScores[3],
+-            totalReMasterDeluxscore = src.TotalDeluxScores[4],
+-            totalSync = src.TotalSync,
+-            totalBasicSync = src.TotalSyncs[0],
+-            totalAdvancedSync = src.TotalSyncs[1],
+-            totalExpertSync = src.TotalSyncs[2],
+-            totalMasterSync = src.TotalSyncs[3],
+-            totalReMasterSync = src.TotalSyncs[4],
+-            totalAchievement = src.TotalAchievement,
+-            totalBasicAchievement = src.TotalAchieves[0],
+-            totalAdvancedAchievement = src.TotalAchieves[1],
+-            totalExpertAchievement = src.TotalAchieves[2],
+-            totalMasterAchievement = src.TotalAchieves[3],
+-            totalReMasterAchievement = src.TotalAchieves[4],
+-            playerOldRating = (int)src.OldRating,
+-            playerNewRating = (int)src.NewRating,
+-            friendRegistSkip = src.FriendRegistSkip,
+-            banState = src.BanState,
+-            dateTime = new DateTimeOffset(Auth.AuthTime).ToUnixTimeSeconds(),
+-        };
+-    }
+-
+-    private static UserContentBit ToContentBit(ulong src)
+-    {
+-        var userContentBit = new UserContentBit();
+-        for (
+-            var contentBitID = ContentBitID.FirstPlay;
+-            contentBitID < ContentBitID.End;
+-            contentBitID++
+-        )
+-        {
+-            var num = 1UL << (int)contentBitID;
+-            if ((src & num) != 0L)
+-            {
+-                userContentBit.SetFlag(contentBitID, true);
+-            }
+-        }
+-        return userContentBit;
+-    }
+-
+-    private static ulong FromContentBit(UserContentBit src)
+-    {
+-        var num = 0uL;
+-        for (
+-            var contentBitID = ContentBitID.FirstPlay;
+-            contentBitID < ContentBitID.End;
+-            contentBitID++
+-        )
+-        {
+-            if (src.IsFlagOn(contentBitID))
+-            {
+-                num |= 1UL << (int)contentBitID;
+-            }
+-        }
+-        return num;
+-    }
+-
+     internal static List<int> ExportFavouriteMusic(this UserFavoriteItem[] src)
+     {
+         return [.. src.Select(userFavoriteItem => (int)userFavoriteItem.Id)];
+@@ -871,7 +623,7 @@ public static UserGamePlaylog ExportUserGamePlaylog(this UserData src, int playe
+         }
+         int num4 = ((playerId == 0) ? 1 : 0);
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(num4);
+-        ulong playOtherUserId = (userData.IsEntry ? userData.Detail.UserID : 0);
++        ulong playOtherUserId = (userData.IsEntry ? userData.Detail.UserId : 0);
+         result.version = Singleton<SystemConfig>
+             .Instance
+             .config
+@@ -1517,65 +1269,7 @@ public static void ExportIconData(ref UserPortrait dst, ulong userId, string fna
+         dst.fileName = fname;
+     }
+ 
+-    public static Manager.UserDatas.UserRating Export(this UserRating src)
+-    {
+-        return new Manager.UserDatas.UserRating
+-        {
+-            Rating = src.Rating,
+-            RatingList = [.. src.RatingList.Select((UserRate r) => r.Convert())],
+-            NewRatingList = [.. src.NewRatingList.Select((UserRate r) => r.Convert())],
+-            NextRatingList = [.. src.NextRatingList.Select((UserRate r) => r.Convert())],
+-            NextNewRatingList = [.. src.NextNewRatingList.Select((UserRate r) => r.Convert())],
+-            Udemae = src.Udemae.ToModel(),
+-        };
+-    }
+-
+-    public static UserRating Export(this Manager.UserDatas.UserRating src)
+-    {
+-        return new UserRating
+-        {
+-            Rating = src.Rating,
+-            RatingList = src
+-                .RatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+-                .ToArray(),
+-            NewRatingList = src
+-                .NewRatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+-                .ToArray(),
+-            NextRatingList = src
+-                .NextRatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+-                .ToArray(),
+-            NextNewRatingList = src
+-                .NextNewRatingList.Select((Manager.UserDatas.UserRate r) => r.Convert())
+-                .ToArray(),
+-            Udemae = src.Udemae.ToVO(),
+-        };
+-    }
+-
+-    private static Manager.UserDatas.UserRate Convert(this UserRate src)
+-    {
+-        return new Manager.UserDatas.UserRate(
+-            src.musicId,
+-            src.level,
+-            src.achievement,
+-            src.romVersion
+-        );
+-    }
+-
+-    private static UserRate Convert(this Manager.UserDatas.UserRate src)
+-    {
+-        UserRate dst = default(UserRate);
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        return dst;
+-    }
+-
+-    public static UserRating Clone(this UserRating src)
+-    {
+-        using MemoryStream memoryStream = new MemoryStream();
+-        BinaryFormatter binaryFormatter = new BinaryFormatter();
+-        binaryFormatter.Serialize(memoryStream, src);
+-        memoryStream.Seek(0L, SeekOrigin.Begin);
+-        return (UserRating)binaryFormatter.Deserialize(memoryStream);
+-    }
++    public static UserRating Clone(this UserRating src) => src with { };
+ 
+     public static List<Manager.UserDatas.UserRegion> Export(this UserRegion[] src)
+     {
+@@ -1634,16 +1328,6 @@ long musicID
+         };
+     }
+ 
+-    public static List<UserRival> Export(this UserRivalData[] src)
+-    {
+-        return src.Select((UserRivalData r) => r.Convert()).ToList();
+-    }
+-
+-    private static UserRival Convert(this UserRivalData src)
+-    {
+-        return new UserRival { RivalID = src.rivalId, RivalName = src.rivalName };
+-    }
+-
+     private static Manager.UserDatas.UserScoreRanking Convert(this UserScoreRanking src)
+     {
+         return new Manager.UserDatas.UserScoreRanking
+@@ -1654,18 +1338,4 @@ private static Manager.UserDatas.UserScoreRanking Convert(this UserScoreRanking
+             rankingDate = src.rankingDate,
+         };
+     }
+-
+-    public static List<Manager.UserDatas.UserShopStock> Export(this UserShopStock[] src)
+-    {
+-        return src.Select((UserShopStock r) => r.Convert()).ToList();
+-    }
+-
+-    private static Manager.UserDatas.UserShopStock Convert(this UserShopStock src)
+-    {
+-        return new Manager.UserDatas.UserShopStock
+-        {
+-            ShopItemId = src.shopItemId,
+-            TradeCount = src.tradeCount,
+-        };
+-    }
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs b/src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs
+index 957e7d2..5504b5f 100644
+--- a/src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs
++++ b/src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs
+@@ -1,3 +1,4 @@
++using System.Collections.Generic;
+ using Net.VO.Mai2;
+ using Riok.Mapperly.Abstractions;
+ 
+@@ -9,4 +10,8 @@ internal static partial class UserShopStockMapper
+     public static partial UserShopStock ToVO(this Manager.UserDatas.UserShopStock source);
+ 
+     public static partial Manager.UserDatas.UserShopStock ToModel(this UserShopStock source);
++
++    public static partial List<Manager.UserDatas.UserShopStock> ToModelList(
++        this UserShopStock[] source
++    );
+ }
+diff --git a/src/SinmaiLib/Process/AddFriendProcess.cs b/src/SinmaiLib/Process/AddFriendProcess.cs
+index 4718552..ffbfecd 100644
+--- a/src/SinmaiLib/Process/AddFriendProcess.cs
++++ b/src/SinmaiLib/Process/AddFriendProcess.cs
+@@ -278,8 +278,8 @@ private void UserFriendRegist()
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(0L);
+         PacketHelper.StartPacket(
+             new PacketGetUserFriendRegist(
+-                userId2: Singleton<UserDataManager>.Instance.GetUserData(1L).Detail.UserID,
+-                userId1: userData.Detail.UserID,
++                userId2: Singleton<UserDataManager>.Instance.GetUserData(1L).Detail.UserId,
++                userId1: userData.Detail.UserId,
+                 onDone: delegate(UserFriendRegistResponseVO data)
+                 {
+                     _returnCode[0] = data.returnCode1;
+diff --git a/src/SinmaiLib/Process/CharacterSelectProces.cs b/src/SinmaiLib/Process/CharacterSelectProces.cs
+index 97ab9eb..f27090b 100644
+--- a/src/SinmaiLib/Process/CharacterSelectProces.cs
++++ b/src/SinmaiLib/Process/CharacterSelectProces.cs
+@@ -217,7 +217,7 @@ public override void OnStart()
+             {
+                 _isNewcomerMode[i] = false;
+             }
+-            int num = userData.Detail.SelectMapID;
++            int num = userData.Detail.SelectMapId;
+             if (GameManager.IsSpecialMap(num))
+             {
+                 num = (Singleton<MapMaster>.Instance.IsCollaboMap(num) ? 990001 : 999999);
+@@ -464,7 +464,7 @@ public void Reset(int playerIndex)
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(playerIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+                 bool reincarnated = userChara.Reincarnation != 0;
+@@ -967,7 +967,7 @@ private void UpdateNewcomerCheck(int playerIndex)
+                         .Instance.GetMapData(
+                             Singleton<UserDataManager>
+                                 .Instance.GetUserData(playerIndex)
+-                                .Detail.SelectMapID
++                                .Detail.SelectMapId
+                         )
+                         .IsInfinity;
+                     bool reincarnated = _slotArray[playerIndex][i].UserChara.Reincarnation != 0;
+@@ -1053,7 +1053,7 @@ private void UpdateCharactorSelect(int playerIndex)
+                             .Instance.GetMapData(
+                                 Singleton<UserDataManager>
+                                     .Instance.GetUserData(playerIndex)
+-                                    .Detail.SelectMapID
++                                    .Detail.SelectMapId
+                             )
+                             .IsInfinity;
+                         bool reincarnated = _slotArray[playerIndex][i].UserChara.Reincarnation != 0;
+@@ -1350,7 +1350,7 @@ private void UpdateFavoriteList(int playerIndex)
+                         .Instance.GetMapData(
+                             Singleton<UserDataManager>
+                                 .Instance.GetUserData(playerIndex)
+-                                .Detail.SelectMapID
++                                .Detail.SelectMapId
+                         )
+                         .IsInfinity;
+                     bool reincarnated = _slotArray[playerIndex][num2].UserChara.Reincarnation != 0;
+@@ -1729,7 +1729,7 @@ private IEnumerator AutoSetExecuteCoroutine(int playerIndex)
+                     .Instance.GetMapData(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(playerIndex)
+-                            .Detail.SelectMapID
++                            .Detail.SelectMapId
+                     )
+                     .IsInfinity;
+                 bool reincarnated = _slotArray[playerIndex][i].UserChara.Reincarnation != 0;
+@@ -1877,7 +1877,7 @@ public int GetSelectCharacotrDistance(int playerIndex, out ArrowDirection direct
+         {
+             bool isInfinity = Singleton<DataManager>
+                 .Instance.GetMapData(
+-                    Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapID
++                    Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapId
+                 )
+                 .IsInfinity;
+             bool reincarnated =
+@@ -1912,7 +1912,7 @@ public int GetSelectCharacotrDistance(int playerIndex, out ArrowDirection direct
+             bool matchColor = IsMatchColor(playerIndex, userChara.ID);
+             bool isInfinity2 = Singleton<DataManager>
+                 .Instance.GetMapData(
+-                    Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapID
++                    Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapId
+                 )
+                 .IsInfinity;
+             bool reincarnated2 = userChara.Reincarnation != 0;
+@@ -2031,7 +2031,7 @@ private void SelectSlot(int playerIndex, int slotIndex)
+                         .Instance.GetMapData(
+                             Singleton<UserDataManager>
+                                 .Instance.GetUserData(playerIndex)
+-                                .Detail.SelectMapID
++                                .Detail.SelectMapId
+                         )
+                         .IsInfinity;
+                     bool reincarnated =
+@@ -2077,7 +2077,7 @@ private void SelectSlot(int playerIndex, int slotIndex)
+                             .Instance.GetMapData(
+                                 Singleton<UserDataManager>
+                                     .Instance.GetUserData(playerIndex)
+-                                    .Detail.SelectMapID
++                                    .Detail.SelectMapId
+                             )
+                             .IsInfinity;
+                         bool reincarnated2 = characterData.UserChara.Reincarnation != 0;
+diff --git a/src/SinmaiLib/Process/ContinueProcess.cs b/src/SinmaiLib/Process/ContinueProcess.cs
+index 2736dfc..dae52bf 100644
+--- a/src/SinmaiLib/Process/ContinueProcess.cs
++++ b/src/SinmaiLib/Process/ContinueProcess.cs
+@@ -177,7 +177,7 @@ public override void OnUpdate()
+                                 UserID.IsGuest(
+                                     Singleton<UserDataManager>
+                                         .Instance.GetUserData(num)
+-                                        .Detail.UserID
++                                        .Detail.UserId
+                                 )
+                                     ? BackupBookkeep.LoginType.Guest
+                                     : BackupBookkeep.LoginType.Aime
+@@ -446,7 +446,7 @@ private void ResetEntry()
+     private void ReLogin(int id)
+     {
+         UserData userData = Singleton<UserDataManager>.Instance.GetUserData(id);
+-        ulong userID = userData.Detail.UserID;
++        ulong userID = userData.Detail.UserId;
+         string userName = userData.Detail.UserName;
+         string accessCode = userData.Detail.AccessCode;
+         string offlineID = userData.OfflineId;
+@@ -477,7 +477,7 @@ private void ReLogin(int id)
+                         userData2.SetActiveUser(isActiveUser: true);
+                         if (!UserID.IsGuest(userID))
+                         {
+-                            userData2.Detail.UserID = userID;
++                            userData2.Detail.UserId = userID;
+                             userData2.Detail.UserName = userName;
+                             userData2.Detail.AccessCode = accessCode;
+                             userData2.Detail.DailyBonusDate = dailyBonusDate;
+diff --git a/src/SinmaiLib/Process/Entry/State/ConfirmContinue.cs b/src/SinmaiLib/Process/Entry/State/ConfirmContinue.cs
+index 9633bea..5a7fe43 100644
+--- a/src/SinmaiLib/Process/Entry/State/ConfirmContinue.cs
++++ b/src/SinmaiLib/Process/Entry/State/ConfirmContinue.cs
+@@ -120,7 +120,7 @@ private void SetEntrySkin(EntryMonitor monitor)
+             ScreenType.ConfirmExistingAimeContinue,
+             new UserPreviewResponseVO
+             {
+-                userId = userData.Detail.UserID,
++                userId = userData.Detail.UserId,
+                 userName = userData.Detail.UserName,
+                 playerRating = (int)userData.Detail.Rating,
+                 dispRate = (int)userData.Option.DispRate,
+diff --git a/src/SinmaiLib/Process/Entry/State/ConfirmContinueOne.cs b/src/SinmaiLib/Process/Entry/State/ConfirmContinueOne.cs
+index 1d1f001..96b56a3 100644
+--- a/src/SinmaiLib/Process/Entry/State/ConfirmContinueOne.cs
++++ b/src/SinmaiLib/Process/Entry/State/ConfirmContinueOne.cs
+@@ -138,7 +138,7 @@ private void SetEntrySkin(EntryMonitor monitor)
+             ScreenType.ConfirmExistingAime,
+             new UserPreviewResponseVO
+             {
+-                userId = userData.Detail.UserID,
++                userId = userData.Detail.UserId,
+                 userName = userData.Detail.UserName,
+                 playerRating = (int)userData.Detail.Rating,
+                 dispRate = (int)userData.Option.DispRate,
+diff --git a/src/SinmaiLib/Process/Entry/TryEntry.cs b/src/SinmaiLib/Process/Entry/TryEntry.cs
+index 3f8cc0f..5c3b102 100644
+--- a/src/SinmaiLib/Process/Entry/TryEntry.cs
++++ b/src/SinmaiLib/Process/Entry/TryEntry.cs
+@@ -215,7 +215,7 @@ int headPhoneVol
+         userData.SetActiveUser(isActiveUser: true);
+         if (!UserID.IsGuest(userId))
+         {
+-            userData.Detail.UserID = userId;
++            userData.Detail.UserId = userId;
+             userData.Detail.UserName = userName;
+             userData.Detail.AccessCode = accessCode;
+             userData.OfflineId = offlineId;
+diff --git a/src/SinmaiLib/Process/EntryProcess.cs b/src/SinmaiLib/Process/EntryProcess.cs
+index 74afe8c..0d00b36 100644
+--- a/src/SinmaiLib/Process/EntryProcess.cs
++++ b/src/SinmaiLib/Process/EntryProcess.cs
+@@ -140,7 +140,7 @@ public override void OnStart()
+                     !UserID.IsGuest(
+                         Singleton<UserDataManager>
+                             .Instance.GetUserData(entryMonitor.MonitorIndex)
+-                            .Detail.UserID
++                            .Detail.UserId
+                     )
+             )
+             .ToArray();
+diff --git a/src/SinmaiLib/Process/GameOverProcess.cs b/src/SinmaiLib/Process/GameOverProcess.cs
+index 509772a..6c87e97 100644
+--- a/src/SinmaiLib/Process/GameOverProcess.cs
++++ b/src/SinmaiLib/Process/GameOverProcess.cs
+@@ -125,7 +125,7 @@ public override void OnUpdate()
+                     {
+                         array[i].entry = true;
+                         array[i].type = (
+-                            UserID.IsGuest(userData.Detail.UserID)
++                            UserID.IsGuest(userData.Detail.UserId)
+                                 ? BackupBookkeep.LoginType.Guest
+                                 : BackupBookkeep.LoginType.Aime
+                         );
+diff --git a/src/SinmaiLib/Process/ModeSelect/ModeSelectProcess.cs b/src/SinmaiLib/Process/ModeSelect/ModeSelectProcess.cs
+index b062f59..187e961 100644
+--- a/src/SinmaiLib/Process/ModeSelect/ModeSelectProcess.cs
++++ b/src/SinmaiLib/Process/ModeSelect/ModeSelectProcess.cs
+@@ -2703,7 +2703,7 @@ protected override void UpdateInput(int monitorId)
+                                         >.Instance.Accounting.PutGeneralId(
+                                             monitorId,
+                                             Accounting.KindCoe.Common,
+-                                            userData.Detail.UserID.ToString()
++                                            userData.Detail.UserId.ToString()
+                                         );
+                                     }
+                                 }
+@@ -2723,7 +2723,7 @@ protected override void UpdateInput(int monitorId)
+                                     >.Instance.Accounting.PutGeneralId(
+                                         monitorId,
+                                         Accounting.KindCoe.Common,
+-                                        userData.Detail.UserID.ToString()
++                                        userData.Detail.UserId.ToString()
+                                     );
+                                 }
+                                 if (!userData.IsGuest())
+@@ -2772,7 +2772,7 @@ protected override void UpdateInput(int monitorId)
+                                 >.Instance.Accounting.PutGeneralId(
+                                     monitorId,
+                                     Accounting.KindCoe.Common,
+-                                    userData.Detail.UserID.ToString()
++                                    userData.Detail.UserId.ToString()
+                                 );
+                                 SingletonStateMachine<
+                                     AmManager,
+@@ -2789,7 +2789,7 @@ protected override void UpdateInput(int monitorId)
+                             {
+                                 entry = true,
+                             };
+-                            if (UserID.IsGuest(userData.Detail.UserID))
++                            if (UserID.IsGuest(userData.Detail.UserId))
+                             {
+                                 entry.type = BackupBookkeep.LoginType.Guest;
+                             }
+diff --git a/src/SinmaiLib/Process/MusicSelectProcess.cs b/src/SinmaiLib/Process/MusicSelectProcess.cs
+index 5a600da..f3d28ca 100644
+--- a/src/SinmaiLib/Process/MusicSelectProcess.cs
++++ b/src/SinmaiLib/Process/MusicSelectProcess.cs
+@@ -991,7 +991,7 @@ private void UpdateRivalName()
+             string userName = userData2.Detail.UserName;
+             foreach (UserRival userRival in userData.UserRivalList)
+             {
+-                if (userRival.RivalID == userData2.Detail.UserID && userName != userRival.RivalName)
++                if (userRival.RivalId == userData2.Detail.UserId && userName != userRival.RivalName)
+                 {
+                     userRival.RivalName = userName;
+                 }
+@@ -1480,7 +1480,7 @@ ref combineRecommendRateList
+                 else
+                 {
+                     container.processManager.SendMessage(
+-                        new Message(ProcessType.CommonProcess, 50003, num13, detail.SelectMapID)
++                        new Message(ProcessType.CommonProcess, 50003, num13, detail.SelectMapId)
+                     );
+                 }
+             }
+@@ -1704,7 +1704,7 @@ ref combineRecommendRateList
+             int cardType = Singleton<UserDataManager>.Instance.GetUserData(num30).Detail.CardType;
+             int selectMap = Singleton<UserDataManager>
+                 .Instance.GetUserData(num30)
+-                .Detail.SelectMapID;
++                .Detail.SelectMapId;
+             bool isInfinity =
+                 Singleton<DataManager>.Instance.GetMapData(selectMap) != null
+                 && Singleton<DataManager>.Instance.GetMapData(selectMap).IsInfinity;
+@@ -3353,7 +3353,7 @@ private void TimerCountUp()
+             {
+                 UserData userData = Singleton<UserDataManager>.Instance.GetUserData(m);
+                 array[m].SetEntry(userData.IsEntry);
+-                array[m].Detail.UserID = userData.Detail.UserID;
++                array[m].Detail.UserId = userData.Detail.UserId;
+                 array[m].Detail.UserName = userData.Detail.UserName;
+                 array[m].Detail.ViewIconID = userData.Detail.ViewIconID;
+                 UserData.UserIDType userType = (
+@@ -8507,7 +8507,7 @@ private void PartyExec()
+                 {
+                     UserData userData = Singleton<UserDataManager>.Instance.GetUserData(i);
+                     array[i].SetEntry(userData.IsEntry);
+-                    array[i].Detail.UserID = userData.Detail.UserID;
++                    array[i].Detail.UserId = userData.Detail.UserId;
+                     array[i].Detail.UserName = userData.Detail.UserName;
+                     array[i].Detail.ViewIconID = userData.Detail.ViewIconID;
+                     UserData.UserIDType userType = (
+@@ -8538,7 +8538,7 @@ private void PartyExec()
+                 {
+                     UserData userData2 = Singleton<UserDataManager>.Instance.GetUserData(j);
+                     array2[j].SetEntry(userData2.IsEntry);
+-                    array2[j].Detail.UserID = userData2.Detail.UserID;
++                    array2[j].Detail.UserId = userData2.Detail.UserId;
+                     array2[j].Detail.UserName = userData2.Detail.UserName;
+                     array2[j].Detail.ViewIconID = userData2.Detail.ViewIconID;
+                     UserData.UserIDType userType2 = (
+@@ -8787,7 +8787,7 @@ public void ChangeUserInfo()
+         {
+             UserData userData = Singleton<UserDataManager>.Instance.GetUserData(i);
+             array[i].SetEntry(userData.IsEntry);
+-            array[i].Detail.UserID = userData.Detail.UserID;
++            array[i].Detail.UserId = userData.Detail.UserId;
+             array[i].Detail.UserName = userData.Detail.UserName;
+             array[i].Detail.ViewIconID = userData.Detail.ViewIconID;
+             UserData.UserIDType userType = (
+diff --git a/src/SinmaiLib/Process/PlInformationProcess.cs b/src/SinmaiLib/Process/PlInformationProcess.cs
+index 5b1f098..7c8daaa 100644
+--- a/src/SinmaiLib/Process/PlInformationProcess.cs
++++ b/src/SinmaiLib/Process/PlInformationProcess.cs
+@@ -1491,7 +1491,7 @@ private void ChangeDefaultSelectMapID(int monitorID, int mapID)
+     {
+         if (Singleton<DataManager>.Instance.GetMapData(mapID) != null)
+         {
+-            Singleton<UserDataManager>.Instance.GetUserData(monitorID).Detail.SelectMapID = mapID;
++            Singleton<UserDataManager>.Instance.GetUserData(monitorID).Detail.SelectMapId = mapID;
+         }
+     }
+ 
+diff --git a/src/SinmaiLib/Process/RegionalSelectProcess.cs b/src/SinmaiLib/Process/RegionalSelectProcess.cs
+index e9cc8d2..23c2ff9 100644
+--- a/src/SinmaiLib/Process/RegionalSelectProcess.cs
++++ b/src/SinmaiLib/Process/RegionalSelectProcess.cs
+@@ -1047,10 +1047,10 @@ out int eventIndex
+         }
+         if (0 < discoverList.Count)
+         {
+-            if (userData.Detail.SelectMapID > 0)
++            if (userData.Detail.SelectMapId > 0)
+             {
+                 int num5 = userMapList.FindIndex(
+-                    (UserMapData n) => n.ID == userData.Detail.SelectMapID
++                    (UserMapData n) => n.ID == userData.Detail.SelectMapId
+                 );
+                 if (num5 >= 0 && !userMapList[num5].IsLock && !userMapList[num5].IsComplete)
+                 {
+@@ -1066,7 +1066,7 @@ out int eventIndex
+                 }
+             }
+         }
+-        int num7 = userMapList.FindIndex((UserMapData n) => n.ID == userData.Detail.SelectMapID);
++        int num7 = userMapList.FindIndex((UserMapData n) => n.ID == userData.Detail.SelectMapId);
+         if (num7 >= 0 && !userMapList[num7].IsLock && !userMapList[num7].IsComplete)
+         {
+             return num7;
+@@ -1393,7 +1393,7 @@ private int GetDefaultRegionIndex(int id)
+ 
+     private void Decide(int id)
+     {
+-        _userDatas[id].Detail.SelectMapID = _userMapDataList[id][_selectCursolIndex[id]].ID;
++        _userDatas[id].Detail.SelectMapId = _userMapDataList[id][_selectCursolIndex[id]].ID;
+         SoundManager.PlayVoice(Mai2.Voice_000001.Cue.VO_000065, id);
+         int num = ((id == 0) ? 1 : 0);
+         if (_subStates[num] <= RegionSelectIndividualState.RewardWait)
+diff --git a/src/SinmaiLib/Process/ResultProcess.cs b/src/SinmaiLib/Process/ResultProcess.cs
+index 9f628d6..b695735 100644
+--- a/src/SinmaiLib/Process/ResultProcess.cs
++++ b/src/SinmaiLib/Process/ResultProcess.cs
+@@ -675,7 +675,7 @@ public override void OnStart()
+                 );
+                 _userData[num16]
+                     .UpdateUserRivalMusic(
+-                        _userData[num17].Detail.UserID,
++                        _userData[num17].Detail.UserId,
+                         _musicID,
+                         difficulty3,
+                         (int)_userScores[num17].achivement,
+diff --git a/src/SinmaiLib/Process/TicketSelect/TicketSelectProcess.cs b/src/SinmaiLib/Process/TicketSelect/TicketSelectProcess.cs
+index 3bb18cb..0b0b92f 100644
+--- a/src/SinmaiLib/Process/TicketSelect/TicketSelectProcess.cs
++++ b/src/SinmaiLib/Process/TicketSelect/TicketSelectProcess.cs
+@@ -1007,7 +1007,7 @@ protected override void UpdateInput(int monitorId)
+                     >.Instance.Accounting.PutGeneralId(
+                         monitorId,
+                         Accounting.KindCoe.Common,
+-                        userData.Detail.UserID.ToString()
++                        userData.Detail.UserId.ToString()
+                     );
+                     SingletonStateMachine<AmManager, AmManager.EState>.Instance.Accounting.EndPlay(
+                         monitorId,
+@@ -1029,7 +1029,7 @@ protected override void UpdateInput(int monitorId)
+                     >.Instance.Accounting.PutGeneralId(
+                         monitorId,
+                         Accounting.KindCoe.Common,
+-                        userData.Detail.UserID.ToString()
++                        userData.Detail.UserId.ToString()
+                     );
+                 }
+                 _monitors[monitorId]._isSetAccounting = true;
+diff --git a/src/SinmaiLib/Process/UserDataDLProcess.cs b/src/SinmaiLib/Process/UserDataDLProcess.cs
+index c772cab..9b259f4 100644
+--- a/src/SinmaiLib/Process/UserDataDLProcess.cs
++++ b/src/SinmaiLib/Process/UserDataDLProcess.cs
+@@ -127,8 +127,8 @@ private void GetUserFriendCheck()
+         }
+         PacketHelper.StartPacket(
+             new PacketGetUserFriendCheck(
+-                userData.Detail.UserID,
+-                userData2.Detail.UserID,
++                userData.Detail.UserId,
++                userData2.Detail.UserId,
+                 delegate(UserFriendCheckResponseVO data)
+                 {
+                     GameManager.FriendRegistReturnCode = data.returnCode;
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs
+index eefbdc0..223f504 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserDownload.cs
+@@ -35,7 +35,7 @@ public class StateUserDownload : ProcessState<UserDataDLProcess>
+     public override void Init(params object[] args)
+     {
+         _index = (int)args[0];
+-        _userId = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.UserID;
++        _userId = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.UserId;
+         _dst = Singleton<NetDataManager>.Instance.GetNetUserData(_index);
+         _accessCode = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.AccessCode;
+         sw.Reset();
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs
+index a2a83fc..c1dfd9d 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Exist/StateUserStore.cs
+@@ -27,11 +27,11 @@ public override void Init(params object[] args)
+ 
+     private void Init(NetUserData src, UserData dst)
+     {
+-        dst.Detail = src.Detail.Export(src.UserId);
++        dst.Detail = src.Detail.ToModel(src.UserId);
+         dst.CardList = src.CardList.Export();
+         dst.Option = src.Option.Export();
+         dst.Extend = src.Extend.ToModel();
+-        dst.RatingList = src.Rating.Export();
++        dst.RatingList = src.Rating.ToModel();
+         dst.PlayRegionList = src.RegionList.Export();
+         dst.PlateList = src.ItemLists[ItemKind.Plate].ToModelList();
+         dst.TitleList = src.ItemLists[ItemKind.Title].ToModelList();
+@@ -79,11 +79,11 @@ private void Init(NetUserData src, UserData dst)
+         }
+         dst.ScoreDic = src.MusicDetailList.ExportScoreDictionary();
+         dst.PlayRegionList = src.RegionList.Export();
+-        dst.UserRivalList = src.UserRivalDataList.Export();
++        dst.UserRivalList = src.UserRivalDataList.ToModelList();
+         for (int j = 0; j < dst.UserRivalList.Count; j++)
+         {
+             UserRival userRival = dst.UserRivalList[j];
+-            dst.UserRivalMusicList[userRival.RivalID] = src.UserRivalMusicLists[userRival.RivalID]
++            dst.UserRivalMusicList[userRival.RivalId] = src.UserRivalMusicLists[userRival.RivalId]
+                 .ExportScoreList();
+         }
+         dst.FavoriteItemMusicList = src.FavoriteItemLists[FavoriteItemKind.FavoriteMusic]
+@@ -98,7 +98,7 @@ private void Init(NetUserData src, UserData dst)
+         dst.UpdateMissionActive();
+         dst.PartnerClosenesses = src.UserPartnerClosenessDataList.Export();
+         dst.IntimateItemList = src.ItemLists[ItemKind.IntimateItem].ToModelList();
+-        dst.ShopStockList = src.UserShopStockDataList.Export();
++        dst.ShopStockList = src.UserShopStockDataList.ToModelList();
+         dst.CheckDisableCollection(CollectionGenreID.Icon);
+         dst.CheckDisableCollection(CollectionGenreID.Plate);
+         dst.CheckDisableCollection(CollectionGenreID.Frame);
+@@ -118,11 +118,11 @@ private void Init(NetUserData src, UserData dst)
+ 
+     private void InitFriendRegist(NetUserData src, UserData dst)
+     {
+-        dst.UserRivalList = src.UserRivalDataList.Export();
++        dst.UserRivalList = src.UserRivalDataList.ToModelList();
+         for (int i = 0; i < dst.UserRivalList.Count; i++)
+         {
+             UserRival userRival = dst.UserRivalList[i];
+-            dst.UserRivalMusicList[userRival.RivalID] = src.UserRivalMusicLists[userRival.RivalID]
++            dst.UserRivalMusicList[userRival.RivalId] = src.UserRivalMusicLists[userRival.RivalId]
+                 .ExportScoreList();
+         }
+     }
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateInheritDownload.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateInheritDownload.cs
+index 4a611a8..acade04 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateInheritDownload.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataDLState/Inherit/StateInheritDownload.cs
+@@ -11,7 +11,7 @@ public class StateInheritDownload : StateUserDownload
+     public override void Init(params object[] args)
+     {
+         _index = (int)args[0];
+-        _userId = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.UserID;
++        _userId = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.UserId;
+         _dst = Singleton<NetDataManager>.Instance.GetNetUserData(_index);
+         sw.Reset();
+         sw.Start();
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserAime.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserAime.cs
+index 15f24de..2ffa8f1 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserAime.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserAime.cs
+@@ -66,7 +66,7 @@ private void RequestUploadUserPortraitData()
+     {
+         if (GameManager.IsTakeFaceIcon[_index] && GameManager.FaceIconTexture[_index] != null)
+         {
+-            ulong userID = _userData.Detail.UserID;
++            ulong userID = _userData.Detail.UserId;
+             string fname = $"{userID}.jpg";
+             byte[] source = GameManager.FaceIconTexture[_index].EncodeToJPG(50);
+             PacketHelper.StartPacket(
+@@ -99,7 +99,7 @@ private void RequestUploadUserPhotoData()
+             && GameManager.PhotoTexture[_index] != null
+         )
+         {
+-            ulong userID = _userData.Detail.UserID;
++            ulong userID = _userData.Detail.UserId;
+             byte[] source = GameManager.PhotoTexture[_index].EncodeToJPG(100);
+             PacketHelper.StartPacket(
+                 new PacketUploadUserPhoto(
+diff --git a/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserLogout.cs b/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserLogout.cs
+index a357da7..72d4707 100644
+--- a/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserLogout.cs
++++ b/src/SinmaiLib/Process/UserDataNet/State/UserDataULState/StateULUserLogout.cs
+@@ -15,7 +15,7 @@ public class StateULUserLogout : ProcessState<UserDataULProcess>
+     public override void Init(params object[] args)
+     {
+         _index = (int)args[0];
+-        _userId = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.UserID;
++        _userId = Singleton<UserDataManager>.Instance.GetUserData(_index).Detail.UserId;
+         RequestUserLogout();
+     }
+ 
+diff --git a/src/SinmaiLib/Process/UserDataULProcess.cs b/src/SinmaiLib/Process/UserDataULProcess.cs
+index baa5499..f9a9694 100644
+--- a/src/SinmaiLib/Process/UserDataULProcess.cs
++++ b/src/SinmaiLib/Process/UserDataULProcess.cs
+@@ -52,7 +52,7 @@ private void StateUserDataCheck()
+         {
+             NextUserIndex();
+         }
+-        else if (UserID.IsGuest(userData.Detail.UserID))
++        else if (UserID.IsGuest(userData.Detail.UserId))
+         {
+             SetStateTerminate();
+             _context.SetState(0, _userIndex);
+diff --git a/src/SinmaiLib/Util/MapMaster.cs b/src/SinmaiLib/Util/MapMaster.cs
+index bd7f8ae..f6603fc 100644
+--- a/src/SinmaiLib/Util/MapMaster.cs
++++ b/src/SinmaiLib/Util/MapMaster.cs
+@@ -600,8 +600,8 @@ public void CreateUserDataMapList(int monitorId)
+             {
+                 continue;
+             }
+-            mapID = userData.Detail.SelectMapID;
+-            if (item.value.ID != userData.Detail.SelectMapID)
++            mapID = userData.Detail.SelectMapId;
++            if (item.value.ID != userData.Detail.SelectMapId)
+             {
+                 continue;
+             }
+@@ -651,7 +651,7 @@ public void CreateUserDataMapList(int monitorId)
+             }
+             IsConvertMapDistance[monitorId] = false;
+         }
+-        int mapID3 = userData.Detail.SelectMapID;
++        int mapID3 = userData.Detail.SelectMapId;
+         int num4 = userData.MapList.FindIndex((UserMapData user_map) => user_map.ID == mapID3);
+         mapData = Singleton<DataManager>.Instance.GetMapData(mapID3);
+         mapTreasureExData = null;
+diff --git a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+index ca17e8a..9e1eaac 100644
+--- a/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
++++ b/tests/NetHttpClient.Tests/NetHttpClient.Tests.csproj
+@@ -42,6 +42,7 @@
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserExtendMapper.cs" Link="Source/VO/Mapper/UserExtendMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs" Link="Source/VO/Mapper/UserItemMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserShopStockMapper.cs" Link="Source/VO/Mapper/UserShopStockMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserRivalMapper.cs" Link="Source/VO/Mapper/UserRivalMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserGetPointMapper.cs" Link="Source/VO/Mapper/UserGetPointMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserTradeItemMapper.cs" Link="Source/VO/Mapper/UserTradeItemMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserUdemaeMapper.cs" Link="Source/VO/Mapper/UserUdemaeMapper.cs" />
+@@ -51,6 +52,7 @@
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtend.cs" Link="Source/UserDatas/UserExtend.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserItem.cs" Link="Source/UserDatas/UserItem.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserShopStock.cs" Link="Source/UserDatas/UserShopStock.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserRival.cs" Link="Source/UserDatas/UserRival.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserGetPoint.cs" Link="Source/UserDatas/UserGetPoint.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserTradeItem.cs" Link="Source/UserDatas/UserTradeItem.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserUdemae.cs" Link="Source/UserDatas/UserUdemae.cs" />
+diff --git a/tests/NetHttpClient.Tests/UserShopStockMapperTests.cs b/tests/NetHttpClient.Tests/UserShopStockMapperTests.cs
+index e243056..6724973 100644
+--- a/tests/NetHttpClient.Tests/UserShopStockMapperTests.cs
++++ b/tests/NetHttpClient.Tests/UserShopStockMapperTests.cs
+@@ -36,4 +36,22 @@ public void ModelToWire_ExportsPurchaseWithoutChangingDownloadedSnapshot()
+         Assert.Equal(8, uploaded.TradeCount);
+         Assert.Equal(7, downloaded.TradeCount);
+     }
++
++    [Fact]
++    public void ListToModel_PreservesOrderDuplicatesAndIndependentStock()
++    {
++        var downloaded = new Net.VO.Mai2.UserShopStock { ShopItemId = 42, TradeCount = 7 };
++        var models = new[]
++        {
++            downloaded,
++            new Net.VO.Mai2.UserShopStock { ShopItemId = 11, TradeCount = 0 },
++            downloaded,
++        }.ToModelList();
++
++        Assert.Equal(new[] { 42, 11, 42 }, models.Select(x => x.ShopItemId));
++        models[0].TradeCount++;
++        Assert.Equal(7, downloaded.TradeCount);
++        Assert.Equal(7, models[2].TradeCount);
++        Assert.Empty(Array.Empty<Net.VO.Mai2.UserShopStock>().ToModelList());
++    }
+ }
