@@ -1,0 +1,886 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Thu, 22 Oct 2026 11:41:32 +0800
+Subject: [PATCH] refactor(net): migrate client and user session packets
+
+Construct immutable request VOs and preserve original upload path and order ID handling. Add client upload regression coverage.
+
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientSetting.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientSetting.cs
+index b9a8bcd..57c420e 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientSetting.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientSetting.cs
+@@ -1,24 +1,25 @@
+ using System;
++using AMDaemon.Allnet;
+ using Net.VO;
+ using Net.VO.Mai2;
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketUpsertClientSetting : Packet
++internal class PacketUpsertClientSetting : Packet
+ {
+     private readonly Action<int> _onDone;
++    private readonly Action<PacketStatus>? _onError;
+ 
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketUpsertClientSetting(Action<int> onDone, Action<PacketStatus> onError = null)
++    public PacketUpsertClientSetting(Action<int> onDone, Action<PacketStatus>? onError = null)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<ClientSettingRequestVO, UpsertResponseVO> netQuery = new NetQuery<
+-            ClientSettingRequestVO,
+-            UpsertResponseVO
+-        >("UpsertClientSettingApi", 0uL);
+-        VOExtensions.ExportClientSetting(ref netQuery.Request.clientSetting);
++        var netQuery = new NetQuery<ClientSettingRequestVO, UpsertResponseVO>(
++            "UpsertClientSettingApi"
++        )
++        {
++            Request = new ClientSettingRequestVO { ClientSetting = ExportClientSetting() },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -28,15 +29,35 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<ClientSettingRequestVO, UpsertResponseVO> netQuery =
+-                    base.Query as NetQuery<ClientSettingRequestVO, UpsertResponseVO>;
+-                _onDone(netQuery.Response.returnCode);
++                var netQuery = (NetQuery<ClientSettingRequestVO, UpsertResponseVO>)Query;
++                _onDone(netQuery.Response!.ReturnCode);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
++
++    private static ClientSetting ExportClientSetting() =>
++        new()
++        {
++            BordId = AMDaemon.System.BoardId.ShortValue,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++            PlaceId = (int)Auth.LocationId,
++            PlaceName = Auth.LocationName,
++            RegionId = Auth.RegionCode,
++            RegionName = Auth.RegionNames[0],
++            RomVersion = 25500,
++            IsAou = false,
++            IsDevelop = false,
++        };
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientTestmode.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientTestmode.cs
+index b431e8c..89105af 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientTestmode.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientTestmode.cs
+@@ -1,24 +1,27 @@
+ using System;
++using AMDaemon.Allnet;
++using MAI2.Util;
++using Manager;
+ using Net.VO;
+ using Net.VO.Mai2;
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketUpsertClientTestmode : Packet
++internal class PacketUpsertClientTestmode : Packet
+ {
+     private readonly Action<int> _onDone;
++    private readonly Action<PacketStatus>? _onError;
+ 
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketUpsertClientTestmode(Action<int> onDone, Action<PacketStatus> onError = null)
++    public PacketUpsertClientTestmode(Action<int> onDone, Action<PacketStatus>? onError = null)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<ClientTestmodeRequestVO, UpsertResponseVO> netQuery = new NetQuery<
+-            ClientTestmodeRequestVO,
+-            UpsertResponseVO
+-        >("UpsertClientTestmodeApi", 0uL);
+-        VOExtensions.ExportClientTestmode(ref netQuery.Request.clientTestmode);
++        var netQuery = new NetQuery<ClientTestmodeRequestVO, UpsertResponseVO>(
++            "UpsertClientTestmodeApi"
++        )
++        {
++            Request = new ClientTestmodeRequestVO { ClientTestmode = ExportClientTestmode() },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -28,15 +31,44 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<ClientTestmodeRequestVO, UpsertResponseVO> netQuery =
+-                    base.Query as NetQuery<ClientTestmodeRequestVO, UpsertResponseVO>;
+-                _onDone(netQuery.Response.returnCode);
++                var netQuery = (NetQuery<ClientTestmodeRequestVO, UpsertResponseVO>)Query;
++                _onDone(netQuery.Response!.ReturnCode);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
++    }
++
++    private static ClientTestmode ExportClientTestmode()
++    {
++        var result = ClientTestmode.Default with
++        {
++            PlaceId = (int)Auth.LocationId,
++            ClientId = AMDaemon.System.KeychipId.ShortValue,
++        };
++        var backup = SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup;
++        if (backup == null)
++            return result;
++
++        result = result with
++        {
++            TrackSingle = (backup.gameSetting.IsStandardSettingMachine ? 1 : 0),
++            TrackMulti = (int)backup.gameSetting.MachineGroupID,
++            TrackEvent = (int)backup.gameSetting.AdvVol,
++            TotalMachine = backup.systemSetting.touchSens1P,
++            SatelliteId = backup.systemSetting.touchSens2P,
++            CameraPosition = (backup.gameSetting.IsContinue ? 1 : 0),
++        };
++        return result;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientUpload.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientUpload.cs
+dissimilarity index 67%
+index 0948e3d..c711427 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientUpload.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientUpload.cs
+@@ -1,92 +1,106 @@
+-using System;
+-using System.IO;
+-using Net.VO;
+-using Net.VO.Mai2;
+-using UnityEngine;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketUpsertClientUpload : Packet
+-{
+-    protected internal const int ChunkSize = 10240;
+-
+-    private readonly Action<int> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly byte[] _source;
+-
+-    private readonly int _chunkLength;
+-
+-    private int _chunkNum;
+-
+-    private string _filePath;
+-
+-    public PacketUpsertClientUpload(
+-        string errorLog,
+-        byte[] source,
+-        Action<int> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        _source = source;
+-        _filePath = errorLog;
+-        NetQuery<ClientUploadRequestVO, UpsertResponseVO> netQuery = new NetQuery<
+-            ClientUploadRequestVO,
+-            UpsertResponseVO
+-        >("UpsertClientUploadApi", 0uL);
+-        VOExtensions.Export(ref netQuery.Request.clientUpload, Path.GetFileName(_filePath));
+-        _chunkLength = _source.Length / 10240;
+-        if (_source.Length % 10240 != 0)
+-        {
+-            _chunkLength++;
+-        }
+-        netQuery.Request.clientUpload.divLength = _chunkLength;
+-        netQuery.Request.clientUpload.divData = GetBase64String(_chunkNum++);
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<ClientUploadRequestVO, UpsertResponseVO> netQuery =
+-                    base.Query as NetQuery<ClientUploadRequestVO, UpsertResponseVO>;
+-                if (_chunkNum < _chunkLength)
+-                {
+-                    netQuery.Request.clientUpload.orderId = netQuery.Response.returnCode;
+-                    netQuery.Request.clientUpload.divNumber = _chunkNum;
+-                    netQuery.Request.clientUpload.divData = GetBase64String(_chunkNum++);
+-                    Create(netQuery);
+-                }
+-                else
+-                {
+-                    try
+-                    {
+-                        File.Delete(_filePath);
+-                    }
+-                    catch { }
+-                    _onDone(netQuery.Response.returnCode);
+-                }
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private string GetBase64String(int index)
+-    {
+-        int num = index * 10240;
+-        int num2 = Mathf.Clamp(_source.Length - num, 0, 10240);
+-        byte[] array = new byte[num2];
+-        Buffer.BlockCopy(_source, num, array, 0, num2);
+-        return Convert.ToBase64String(array);
+-    }
+-}
++using System;
++using System.IO;
++using AMDaemon.Allnet;
++using Manager;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketUpsertClientUpload : Packet
++{
++    private const int ChunkSize = 10240;
++    private const string ApiName = "UpsertClientUploadApi";
++
++    private readonly Action<int> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly byte[] _source;
++    private readonly int _chunkCount;
++    private readonly string _filePath;
++    private readonly string _uploadTime = TimeManager.GetNowDateString();
++    private int _currentChunkIndex;
++
++    public PacketUpsertClientUpload(
++        string errorLog,
++        byte[] source,
++        Action<int> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        _source = source;
++        _filePath = errorLog;
++        _chunkCount = _source.Length / ChunkSize + (_source.Length % ChunkSize != 0 ? 1 : 0);
++        Create(GetNetQuery());
++        _currentChunkIndex++;
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<ClientUploadRequestVO, UpsertResponseVO>)Query;
++                if (_currentChunkIndex < _chunkCount)
++                {
++                    Create(GetNetQuery(netQuery.Response!.ReturnCode));
++                    _currentChunkIndex++;
++                }
++                else
++                {
++                    try
++                    {
++                        File.Delete(_filePath);
++                    }
++                    catch
++                    {
++                        // ignored
++                    }
++
++                    _onDone(netQuery.Response!.ReturnCode);
++                }
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private NetQuery<ClientUploadRequestVO, UpsertResponseVO> GetNetQuery(int orderId = 0) =>
++        new(ApiName)
++        {
++            Request = new ClientUploadRequestVO
++            {
++                ClientUpload = new ClientUpload
++                {
++                    OrderId = orderId,
++                    DivNumber = _currentChunkIndex,
++                    DivLength = _chunkCount,
++                    DivData = GetChunkDataBase64(_currentChunkIndex),
++                    PlaceId = (int)Auth.LocationId,
++                    ClientId = AMDaemon.System.KeychipId.ShortValue,
++                    UploadDate = _uploadTime,
++                    FileName = Path.GetFileName(_filePath),
++                },
++            },
++        };
++
++    private string GetChunkDataBase64(int chunkIndex) =>
++        Convert.ToBase64String(
++            _source.AsSpan(
++                chunkIndex * ChunkSize,
++                Math.Min(ChunkSize, _source.Length - chunkIndex * ChunkSize)
++            )
++        );
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs
+index 8f7ceb4..a69022d 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs
+@@ -1,5 +1,6 @@
+ using System;
+ using System.Collections.Generic;
++using System.Linq;
+ using AMDaemon.Allnet;
+ using MAI2.Util;
+ using Manager;
+@@ -8,22 +9,21 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketUpsertUserAll : Packet
++internal class PacketUpsertUserAll : Packet
+ {
+     private readonly Action<int> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketUpsertUserAll(
+         int index,
+         UserData src,
+         int maxTrackNo,
+         Action<int> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+         : this(
+             index,
+-            UserID.IsGuest(src.Detail.UserID) ? UserID.GuestID(Auth.LocationId) : src.Detail.UserID,
++            UserID.IsGuest(src.Detail.UserId) ? UserID.GuestID(Auth.LocationId) : src.Detail.UserId,
+             ToUserAll(index, src),
+             Convert(index, src, maxTrackNo),
+             onDone,
+@@ -36,30 +36,33 @@ public PacketUpsertUserAll(
+         UserAll src,
+         List<UserPlaylog> userPlaylogList,
+         Action<int> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
++        : base(NetConfig.TimeOutInMSecLong)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserAllRequestVO, UpsertResponseVO> netQuery = new NetQuery<
+-            UserAllRequestVO,
+-            UpsertResponseVO
+-        >("UpsertUserAllApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.playlogId =
+-            Singleton<NetDataManager>.Instance.GetLoginVO(index)?.loginId
+-            ?? Singleton<NetDataManager>.Instance.GetGuestLogId(index);
+-        netQuery.Request.isEventMode = GameManager.IsEventMode;
+-        netQuery.Request.isFreePlay = SingletonStateMachine<
+-            AmManager,
+-            AmManager.EState
+-        >.Instance.Credit.IsFreePlay();
+-        netQuery.Request.loginDateTime =
+-            Singleton<NetDataManager>.Instance.GetLoginVO(index)?.loginDateTime
+-            ?? userPlaylogList[0].loginDate;
+-        netQuery.Request.userPlaylogList = userPlaylogList.ToArray();
+-        netQuery.Request.upsertUserAll = src;
+-        Create(netQuery, NetConfig.TimeOutInMSecLong);
++        var netQuery = new NetQuery<UserAllRequestVO, UpsertResponseVO>("UpsertUserAllApi", userId)
++        {
++            Request = new UserAllRequestVO
++            {
++                UserId = userId,
++                PlaylogId =
++                    NetDataManager.Instance.GetLoginVO(index)?.LoginId
++                    ?? NetDataManager.Instance.GetGuestLogId(index),
++                IsEventMode = GameManager.IsEventMode,
++                IsFreePlay = SingletonStateMachine<
++                    AmManager,
++                    AmManager.EState
++                >.Instance.Credit.IsFreePlay(),
++                LoginDateTime =
++                    Singleton<NetDataManager>.Instance.GetLoginVO(index)?.LoginDateTime
++                    ?? userPlaylogList[0].LoginDate,
++                UserPlaylogList = [.. userPlaylogList],
++                UpsertUserAll = src,
++            },
++        };
++        Create(netQuery);
+     }
+ 
+     public override PacketState Proc()
+@@ -68,9 +71,8 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserAllRequestVO, UpsertResponseVO> netQuery =
+-                    base.Query as NetQuery<UserAllRequestVO, UpsertResponseVO>;
+-                _onDone(netQuery.Response.returnCode);
++                var netQuery = (NetQuery<UserAllRequestVO, UpsertResponseVO>)Query;
++                _onDone(netQuery.Response!.ReturnCode);
+                 break;
+             }
+             case PacketState.Error:
+@@ -80,26 +82,27 @@ public override PacketState Proc()
+                 >.Instance.Backup.networkInformation.AddErrorNum(
+                     BackupNetworkInformationRecord.ErrorKind.PacketUpsertUserAll
+                 );
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
+                 break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ 
+     private static UserAll ToUserAll(int index, UserData src)
+     {
+-        UserAll dst = new UserAll();
+-        src.ExportUserAll(index, ref dst);
++        src.ExportUserAll(index, out var dst);
+         return dst;
+     }
+ 
+-    private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo)
+-    {
+-        List<UserPlaylog> list = new List<UserPlaylog>();
+-        for (int i = 0; i < maxTrackNo; i++)
+-        {
+-            list.Add(src.ExportUserPlaylog(index, i));
+-        }
+-        return list;
+-    }
++    private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo) =>
++        maxTrackNo < 0
++            ? []
++            : [.. Enumerable.Range(0, maxTrackNo).Select(i => src.ExportUserPlaylog(index, i))];
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogin.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogin.cs
+index cbfcbd1..43ae18f 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogin.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogin.cs
+@@ -1,7 +1,5 @@
+ using System;
+-using AMDaemon;
+ using AMDaemon.Allnet;
+-using MAI2;
+ using MAI2.Util;
+ using Manager;
+ using Net.VO;
+@@ -9,11 +7,10 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketUserLogin : Packet
++internal class PacketUserLogin : Packet
+ {
+     private readonly Action<UserLoginResponseVO> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketUserLogin(
+         ulong userId,
+@@ -21,26 +18,29 @@ public PacketUserLogin(
+         bool isContinue,
+         int genericFlag,
+         Action<UserLoginResponseVO> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
++        : base(NetConfig.TimeOutInMSecLong)
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserLoginRequestVO, UserLoginResponseVO> netQuery = new NetQuery<
+-            UserLoginRequestVO,
+-            UserLoginResponseVO
+-        >("UserLoginApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.accessCode = acsessCode;
+-        netQuery.Request.regionId = Auth.RegionCode;
+-        netQuery.Request.placeId = (int)Auth.LocationId;
+-        netQuery.Request.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        netQuery.Request.dateTime = new DateTimeOffset(Auth.AuthTime).ToUnixTimeSeconds();
+-        netQuery.Request.loginDateTime = new DateTimeOffset(MAI2.DateTime.Now).ToUnixTimeSeconds();
+-        netQuery.Request.isContinue = isContinue;
+-        netQuery.Request.genericFlag = genericFlag;
+-        netQuery.Request.token = Singleton<OperationManager>.Instance.GetToken(userId);
+-        Create(netQuery, NetConfig.TimeOutInMSecLong);
++        var netQuery = new NetQuery<UserLoginRequestVO, UserLoginResponseVO>("UserLoginApi", userId)
++        {
++            Request = new UserLoginRequestVO
++            {
++                UserId = userId,
++                AccessCode = acsessCode,
++                RegionId = Auth.RegionCode,
++                PlaceId = (int)Auth.LocationId,
++                ClientId = AMDaemon.System.KeychipId.ShortValue,
++                DateTime = new DateTimeOffset(Auth.AuthTime).ToUnixTimeSeconds(),
++                LoginDateTime = new DateTimeOffset(MAI2.DateTime.Now).ToUnixTimeSeconds(),
++                IsContinue = isContinue,
++                GenericFlag = genericFlag,
++                Token = OperationManager.Instance.GetToken(userId),
++            },
++        };
++        Create(netQuery);
+     }
+ 
+     public override PacketState Proc()
+@@ -49,14 +49,16 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserLoginRequestVO, UserLoginResponseVO> netQuery =
+-                    base.Query as NetQuery<UserLoginRequestVO, UserLoginResponseVO>;
+-                netQuery.Response.loginDateTime = netQuery.Request.loginDateTime;
+-                _onDone(netQuery.Response);
++                var netQuery = (NetQuery<UserLoginRequestVO, UserLoginResponseVO>)Query;
++                var response = netQuery.Response! with
++                {
++                    LoginDateTime = netQuery.Request.LoginDateTime,
++                };
++                _onDone(response);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
+                 SingletonStateMachine<
+                     AmManager,
+                     AmManager.EState
+@@ -64,7 +66,14 @@ public override PacketState Proc()
+                     BackupNetworkInformationRecord.ErrorKind.PacketUserLogin
+                 );
+                 break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogout.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogout.cs
+dissimilarity index 75%
+index 11bd62c..1bb8e0d 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogout.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUserLogout.cs
+@@ -1,102 +1,113 @@
+-using System;
+-using AMDaemon;
+-using AMDaemon.Allnet;
+-using MAI2.Util;
+-using Manager;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketUserLogout : Packet
+-{
+-    private readonly Action _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketUserLogout(
+-        int index,
+-        ulong userId,
+-        LogoutType logoutType,
+-        string acsessCode,
+-        Action onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        if (
+-            !Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable()
+-            && logoutType == LogoutType.Logout
+-        )
+-        {
+-            NetQuery<UserLogoutRequest2VO, UserLogoutResponseVO> netQuery = new NetQuery<
+-                UserLogoutRequest2VO,
+-                UserLogoutResponseVO
+-            >("UserLogoutApi", userId);
+-            netQuery.Request.userId = userId;
+-            netQuery.Request.accessCode = acsessCode;
+-            netQuery.Request.regionId = Auth.RegionCode;
+-            netQuery.Request.placeId = (int)Auth.LocationId;
+-            netQuery.Request.clientId = AMDaemon.System.KeychipId.ShortValue;
+-            netQuery.Request.loginDateTime = Singleton<NetDataManager>
+-                .Instance.GetLoginVO(index)
+-                .loginDateTime;
+-            netQuery.Request.type = (int)logoutType;
+-            UserData userDataByID = Singleton<UserDataManager>.Instance.GetUserDataByID(userId);
+-            if (userDataByID != null)
+-            {
+-                DelayLog netDelayLog = userDataByID.NetDelayLog;
+-                int num = 23;
+-                for (int i = 0; i <= num; i++)
+-                {
+-                    netDelayLog.loginMsec += netDelayLog.request[i].msec;
+-                    netDelayLog.dlSize += netDelayLog.request[i].size;
+-                }
+-                RequestAPI requestAPI = netDelayLog.request[13];
+-                if (requestAPI.count > 2)
+-                {
+-                    netDelayLog.reductionMusic =
+-                        requestAPI.msec * (requestAPI.count - 1) / requestAPI.count;
+-                }
+-                RequestAPI requestAPI2 = netDelayLog.request[2];
+-                if (requestAPI2.count > 12)
+-                {
+-                    netDelayLog.reductionItem =
+-                        requestAPI2.msec * (requestAPI2.count - 12) / requestAPI2.count;
+-                }
+-                netQuery.Request.delayLog = userDataByID.NetDelayLog;
+-                Create(netQuery);
+-                return;
+-            }
+-        }
+-        NetQuery<UserLogoutRequestVO, UserLogoutResponseVO> netQuery2 = new NetQuery<
+-            UserLogoutRequestVO,
+-            UserLogoutResponseVO
+-        >("UserLogoutApi", userId);
+-        netQuery2.Request.userId = userId;
+-        netQuery2.Request.accessCode = acsessCode;
+-        netQuery2.Request.regionId = Auth.RegionCode;
+-        netQuery2.Request.placeId = (int)Auth.LocationId;
+-        netQuery2.Request.clientId = AMDaemon.System.KeychipId.ShortValue;
+-        netQuery2.Request.loginDateTime = Singleton<NetDataManager>
+-            .Instance.GetLoginVO(index)
+-            .loginDateTime;
+-        netQuery2.Request.type = (int)logoutType;
+-        Create(netQuery2);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-                _onDone();
+-                break;
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-}
++using System;
++using AMDaemon.Allnet;
++using MAI2.Util;
++using Manager;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketUserLogout : Packet
++{
++    private readonly Action _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketUserLogout(
++        int index,
++        ulong userId,
++        LogoutType logoutType,
++        string acsessCode,
++        Action onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var userDataById = Singleton<UserDataManager>.Instance.GetUserDataByID(userId);
++        if (
++            !Singleton<OperationManager>.Instance.IsCollectDelayInfoDisable()
++            && logoutType == LogoutType.Logout
++            && userDataById is not null
++        )
++        {
++            var netDelayLog = userDataById.NetDelayLog;
++            const int num = 23;
++            for (var i = 0; i <= num; i++)
++            {
++                netDelayLog.LoginMsec += netDelayLog.Request[i].Msec;
++                netDelayLog.DlSize += netDelayLog.Request[i].Size;
++            }
++            var requestApi = netDelayLog.Request[13];
++            if (requestApi.Count > 2)
++            {
++                netDelayLog.ReductionMusic =
++                    requestApi.Msec * (requestApi.Count - 1) / requestApi.Count;
++            }
++            RequestAPI requestApi2 = netDelayLog.Request[2];
++            if (requestApi2.Count > 12)
++            {
++                netDelayLog.ReductionItem =
++                    requestApi2.Msec * (requestApi2.Count - 12) / requestApi2.Count;
++            }
++            var netQuery = new NetQuery<UserLogoutRequest2VO, UserLogoutResponseVO>(
++                "UserLogoutApi",
++                userId
++            )
++            {
++                Request = new UserLogoutRequest2VO
++                {
++                    UserId = userId,
++                    AccessCode = acsessCode,
++                    ClientId = AMDaemon.System.KeychipId.ShortValue,
++                    RegionId = Auth.RegionCode,
++                    PlaceId = (int)Auth.LocationId,
++                    LoginDateTime = NetDataManager.Instance.GetLoginVO(index).LoginDateTime,
++                    Type = logoutType,
++                    DelayLog = netDelayLog,
++                },
++            };
++            Create(netQuery);
++        }
++        else
++        {
++            var netQuery2 = new NetQuery<UserLogoutRequestVO, UserLogoutResponseVO>(
++                "UserLogoutApi",
++                userId
++            )
++            {
++                Request = new UserLogoutRequestVO
++                {
++                    UserId = userId,
++                    AccessCode = acsessCode,
++                    ClientId = AMDaemon.System.KeychipId.ShortValue,
++                    RegionId = Auth.RegionCode,
++                    PlaceId = (int)Auth.LocationId,
++                    LoginDateTime = NetDataManager.Instance.GetLoginVO(index).LoginDateTime,
++                    Type = logoutType,
++                },
++            };
++            Create(netQuery2);
++        }
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++                _onDone();
++                break;
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/tests/SinmaiLib.Tests/README.md b/tests/SinmaiLib.Tests/README.md
+index 6c29a54..b5fe774 100644
+--- a/tests/SinmaiLib.Tests/README.md
++++ b/tests/SinmaiLib.Tests/README.md
+@@ -45,6 +45,10 @@ # SinmaiLib 测试
+ 新增测试通过公开状态和测试子类驱动 Packet，不使用反射。
+ `UploadDependencies` 仅替代游戏时间、登录信息、照片元数据导出与诊断路径，
+ 不验证生产 `VOExtensions.cs` 的映射、原生认证访问或游戏调用方整合。
++`ClientUploadPacketTests` 直接编译 ClientUpload Packet，覆盖空数据、10240 字节边界、
++完整分片重组、最终返回码、无效响应时保留源文件，以及 `decomp/1.56` 的两项约束：
++后续分片以此前响应的 returnCode 为 orderId，成功后在回调前删除传入的原始日志路径。
++这两项回归测试用于验证原始路径删除和分片 orderId 传递；测试不使用反射。
+ TLS 证书校验和原生认证交互不在
+ 这组测试的范围内。
+ 
+diff --git a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+index 2212f0f..ff37a6c 100644
+--- a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
++++ b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+@@ -59,6 +59,7 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserScoreRanking.cs" Link="Source/PacketGetUserScoreRanking.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketUploadUserPhoto.cs" Link="Source/PacketUploadUserPhoto.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketUploadUserPortrait.cs" Link="Source/PacketUploadUserPortrait.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketUpsertClientUpload.cs" Link="Source/PacketUpsertClientUpload.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/UserID.cs" Link="Source/UserID.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs" Link="Source/VO/Mapper/UserMissionDataMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />

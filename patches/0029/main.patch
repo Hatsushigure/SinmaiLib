@@ -1,0 +1,750 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Tue, 20 Oct 2026 16:46:50 +0800
+Subject: [PATCH] refactor(net): migrate rating and rival packets and add tests
+
+
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRating.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRating.cs
+dissimilarity index 64%
+index 093a226..bcd9c06 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRating.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRating.cs
+@@ -1,59 +1,53 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserRating : Packet
+-{
+-    private readonly Action<UserRating> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserRating(
+-        ulong userId,
+-        Action<UserRating> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserRatingRequestVO, UserRatingResponseVO> netQuery = new NetQuery<
+-            UserRatingRequestVO,
+-            UserRatingResponseVO
+-        >("GetUserRatingApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserRatingRequestVO, UserRatingResponseVO> netQuery =
+-                    base.Query as NetQuery<UserRatingRequestVO, UserRatingResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userRating);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserRatingResponseVO src)
+-    {
+-        if (src.userRating.ratingList == null)
+-        {
+-            src.userRating.ratingList = Array.Empty<UserRate>();
+-        }
+-        if (src.userRating.newRatingList == null)
+-        {
+-            src.userRating.newRatingList = Array.Empty<UserRate>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserRating : Packet
++{
++    private readonly Action<UserRating> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserRating(
++        ulong userId,
++        Action<UserRating> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserRatingRequestVO, UserRatingResponseVO>(
++            "GetUserRatingApi",
++            userId
++        )
++        {
++            Request = new UserRatingRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserRatingRequestVO, UserRatingResponseVO>)Query;
++                _onDone(netQuery.Response!.UserRating);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendRateMusic.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendRateMusic.cs
+dissimilarity index 62%
+index 750a643..8d88dd2 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendRateMusic.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendRateMusic.cs
+@@ -1,54 +1,55 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserRecommendRateMusic : Packet
+-{
+-    private readonly Action<UserRecommendRateMusic[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserRecommendRateMusic(
+-        ulong userId,
+-        Action<UserRecommendRateMusic[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserRecommendRateMusicRequestVO, UserRecommendRateMusicResponseVO> netQuery =
+-            new NetQuery<UserRecommendRateMusicRequestVO, UserRecommendRateMusicResponseVO>(
+-                "GetUserRecommendRateMusicApi",
+-                userId
+-            );
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<
+-                    UserRecommendRateMusicRequestVO,
+-                    UserRecommendRateMusicResponseVO
+-                > netQuery =
+-                    base.Query
+-                    as NetQuery<UserRecommendRateMusicRequestVO, UserRecommendRateMusicResponseVO>;
+-                _onDone(
+-                    netQuery.Response.userRecommendRateMusicIdList
+-                        ?? Array.Empty<UserRecommendRateMusic>()
+-                );
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserRecommendRateMusic : Packet
++{
++    private readonly Action<UserRecommendRateMusic[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserRecommendRateMusic(
++        ulong userId,
++        Action<UserRecommendRateMusic[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<
++            UserRecommendRateMusicRequestVO,
++            UserRecommendRateMusicResponseVO
++        >("GetUserRecommendRateMusicApi", userId)
++        {
++            Request = new UserRecommendRateMusicRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery =
++                    (NetQuery<UserRecommendRateMusicRequestVO, UserRecommendRateMusicResponseVO>)
++                        Query;
++                _onDone(netQuery.Response!.UserRecommendRateMusicIdList);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendSelectionMusic.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendSelectionMusic.cs
+index a25d67e..619b8e9 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendSelectionMusic.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendSelectionMusic.cs
+@@ -4,28 +4,26 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserRecommendSelectionMusic : Packet
++internal class PacketGetUserRecommendSelectionMusic : Packet
+ {
+     private readonly Action<int[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserRecommendSelectionMusic(
+         ulong userId,
+         Action<int[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<
+-            UserRecommendSelectionMusicRequestVO,
+-            UserRecommendSelectionMusicResponseVO
+-        > netQuery = new NetQuery<
++        var netQuery = new NetQuery<
+             UserRecommendSelectionMusicRequestVO,
+             UserRecommendSelectionMusicResponseVO
+-        >("GetUserRecommendSelectMusicApi", userId);
+-        netQuery.Request.userId = userId;
++        >("GetUserRecommendSelectMusicApi", userId)
++        {
++            Request = new UserRecommendSelectionMusicRequestVO { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -35,22 +33,26 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<
+-                    UserRecommendSelectionMusicRequestVO,
+-                    UserRecommendSelectionMusicResponseVO
+-                > netQuery =
+-                    base.Query
+-                    as NetQuery<
++                var netQuery =
++                    (NetQuery<
+                         UserRecommendSelectionMusicRequestVO,
+                         UserRecommendSelectionMusicResponseVO
+-                    >;
+-                _onDone(netQuery.Response.userRecommendSelectionMusicIdList ?? Array.Empty<int>());
++                    >)
++                        Query;
++                _onDone(netQuery.Response!.UserRecommendSelectionMusicIdList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRegion.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRegion.cs
+dissimilarity index 61%
+index 1c624b1..55fe708 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRegion.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRegion.cs
+@@ -1,55 +1,53 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserRegion : Packet
+-{
+-    private readonly Action<UserRegion[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    public PacketGetUserRegion(
+-        ulong userId,
+-        Action<UserRegion[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserRegionRequestVO, UserRegionResponseVO> netQuery = new NetQuery<
+-            UserRegionRequestVO,
+-            UserRegionResponseVO
+-        >("GetUserRegionApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserRegionRequestVO, UserRegionResponseVO> netQuery =
+-                    base.Query as NetQuery<UserRegionRequestVO, UserRegionResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _onDone(netQuery.Response.userRegionList);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private static void SafeNullMember(UserRegionResponseVO src)
+-    {
+-        if (src.userRegionList == null)
+-        {
+-            src.userRegionList = Array.Empty<UserRegion>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserRegion : Packet
++{
++    private readonly Action<UserRegion[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserRegion(
++        ulong userId,
++        Action<UserRegion[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserRegionRequestVO, UserRegionResponseVO>(
++            "GetUserRegionApi",
++            userId
++        )
++        {
++            Request = new UserRegionRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserRegionRequestVO, UserRegionResponseVO>)Query;
++                _onDone(netQuery.Response!.UserRegionList);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRivalData.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRivalData.cs
+index 0c88eb8..55e81d2 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRivalData.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRivalData.cs
+@@ -5,14 +5,11 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserRivalData : Packet
++internal class PacketGetUserRivalData : Packet
+ {
+     private readonly Action<UserRivalData[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserRivalData> _userRivalDatas;
+-
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserRivalData> _userRivalDatas = [];
+     private readonly UserFavoriteItem[] _rivalIds;
+ 
+     private int _rivalIdIndex;
+@@ -21,21 +18,21 @@ public PacketGetUserRivalData(
+         ulong userId,
+         UserFavoriteItem[] rivalIds,
+         Action<UserRivalData[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+         _rivalIds = rivalIds;
+         _rivalIdIndex = 0;
+-        _userRivalDatas = new List<UserRivalData>();
++        _userRivalDatas.Capacity = rivalIds.Length;
+         if (_rivalIds.Length == 0)
+         {
+-            _onDone(_userRivalDatas.ToArray());
++            _onDone([]);
+             return;
+         }
+         ResetRetryCountAtStart();
+-        Create(GetNetQuery(userId, rivalIds[0].id));
++        Create(GetNetQuery(userId, rivalIds[0].Id));
+     }
+ 
+     public override PacketState Proc()
+@@ -50,38 +47,39 @@ public override PacketState Proc()
+                     _onError?.Invoke(PacketStatus.ErrorTimeout);
+                     break;
+                 }
+-                NetQuery<UserRivalRequestVO, UserRivalResponseVO> netQuery =
+-                    base.Query as NetQuery<UserRivalRequestVO, UserRivalResponseVO>;
+-                _userRivalDatas.Add(netQuery.Response.userRivalData);
++                var netQuery = (NetQuery<UserRivalRequestVO, UserRivalResponseVO>)Query;
++                _userRivalDatas.Add(netQuery.Response!.UserRivalData);
+                 _rivalIdIndex++;
+                 if (_rivalIdIndex < _rivalIds.Length)
+                 {
+-                    Create(GetNetQuery(netQuery.Response.userId, _rivalIds[_rivalIdIndex].id));
++                    Create(GetNetQuery(netQuery.Response.UserId, _rivalIds[_rivalIdIndex].Id));
+                 }
+                 else
+                 {
+-                    _onDone(_userRivalDatas.ToArray());
++                    _onDone([.. _userRivalDatas]);
+                 }
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ 
+     private NetQuery<UserRivalRequestVO, UserRivalResponseVO> GetNetQuery(
+         ulong userId,
+         ulong rivalId
+-    )
+-    {
+-        NetQuery<UserRivalRequestVO, UserRivalResponseVO> netQuery = new NetQuery<
+-            UserRivalRequestVO,
+-            UserRivalResponseVO
+-        >("GetUserRivalDataApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.rivalId = rivalId;
+-        return netQuery;
+-    }
++    ) =>
++        new("GetUserRivalDataApi", userId)
++        {
++            Request = new UserRivalRequestVO { UserId = userId, RivalId = rivalId },
++        };
+ }
+diff --git a/tests/SinmaiLib.Tests/README.md b/tests/SinmaiLib.Tests/README.md
+index defd22e..7ea67d4 100644
+--- a/tests/SinmaiLib.Tests/README.md
++++ b/tests/SinmaiLib.Tests/README.md
+@@ -18,12 +18,16 @@ # SinmaiLib 测试
+ Cookie、Ping 特殊处理、延迟统计和完成通知。用户下载测试直接编译 Card、Character、
+ Charge、Course、Data、Extend、Favorite、FavoriteItem、FriendBonus、FriendCheck、FriendRegist、
+ FriendSeasonRanking、Ghost、Item、KaleidxScope、LoginBonus、Map、MissionData、Music、
+-NewItem、NewItemList、Option、PartnerCloseness、Portrait、Preview Packet，
++NewItem、NewItemList、Option、PartnerCloseness、Portrait、Preview、Rating、RecommendRateMusic、
++RecommendSelectionMusic、Region、RivalData Packet，
+ 以及生产环境的 NetQuery、JSON 上下文、VO、FriendBonus Mapper 和相关枚举，
+ 覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
+ FavoriteItem 分页是特例：测试固定其后续请求游标始终为 0、重复获取首页且无法完成
+ 分页的现有行为，通过有限次请求断言该失败情形。
+ `Fixtures/UserDetailResponse.json` 提供包含全部必填字段的模拟用户响应。
++Rating、推荐曲目和 Region 测试覆盖空列表与缺失/显式 null 字段的拒绝；RivalData
++测试覆盖连续请求、64 位 ID、顺序与重复 ID、后续响应无效时不回传部分结果，
++以及重试预算耗尽和空 Rival 列表的即时回调。
+ NewItemList 测试通过桩提供已映射的用户详情快照，使用接受 playlog 列表的构造函数；
+ 不验证游戏侧 UserDetail Mapper、playlog 导出或原生 keychip 访问。新增覆盖物品授予
+ 归一化、头像分片按响应顺序解码拼接，以及预览认证字段与回调用户 ID。
+diff --git a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+index 65e80cd..bec1faa 100644
+--- a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
++++ b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+@@ -51,6 +51,11 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPartnerCloseness.cs" Link="Source/PacketGetUserPartnerCloseness.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPortrait.cs" Link="Source/PacketGetUserPortrait.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPreview.cs" Link="Source/PacketGetUserPreview.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRating.cs" Link="Source/PacketGetUserRating.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendRateMusic.cs" Link="Source/PacketGetUserRecommendRateMusic.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRecommendSelectionMusic.cs" Link="Source/PacketGetUserRecommendSelectionMusic.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRegion.cs" Link="Source/PacketGetUserRegion.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserRivalData.cs" Link="Source/PacketGetUserRivalData.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/UserID.cs" Link="Source/UserID.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs" Link="Source/VO/Mapper/UserMissionDataMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+diff --git a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+index cd34954..a189355 100644
+--- a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
++++ b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+@@ -42,6 +42,11 @@ public sealed partial class PacketTests
+     [InlineData("Intimate")]
+     [InlineData("Portrait")]
+     [InlineData("Preview")]
++    [InlineData("Rating")]
++    [InlineData("RecommendRateMusic")]
++    [InlineData("RecommendSelectionMusic")]
++    [InlineData("Region")]
++    [InlineData("RivalData")]
+     public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(JsonResponse(DownloadResponse(kind)));
+@@ -52,7 +57,13 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+         var request = await server.ReceiveAsync();
+         using var json = JsonDocument.Parse(WirePayload.Decode(request.Body));
+ 
+-        Assert.Equal(kind == "FriendRegist" ? "UserFriendRegistApiMaimaiChn" : $"GetUser{kind}ApiMaimaiChn",
++        var api = kind switch
++        {
++            "FriendRegist" => "UserFriendRegistApiMaimaiChn",
++            "RecommendSelectionMusic" => "GetUserRecommendSelectMusicApiMaimaiChn",
++            _ => $"GetUser{kind}ApiMaimaiChn",
++        };
++        Assert.Equal(api,
+             packet.Query.Api);
+         Assert.Equal(DownloadUserId, packet.Query.UserId);
+         Assert.Equal(DownloadUserId,
+@@ -60,7 +71,7 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+         var fieldCount = kind switch
+         {
+             "Card" or "FriendSeasonRanking" or "Item" => 3,
+-            "Course" or "Favorite" or "FriendCheck" or "FriendRegist" => 2,
++            "Course" or "Favorite" or "FriendCheck" or "FriendRegist" or "RivalData" => 2,
+             "LoginBonus" or "Map" or "Music" or "NewItem" => 3,
+             "FavoriteItem" => 5,
+             "NewItemList" or "Preview" => 4,
+@@ -108,12 +119,46 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+         }
+         if (kind is "FriendCheck" or "FriendRegist")
+             Assert.Equal(DownloadUserId + 1, json.RootElement.GetProperty("userId2").GetUInt64());
++        if (kind == "RivalData")
++            Assert.Equal(DownloadUserId + 1, json.RootElement.GetProperty("rivalId").GetUInt64());
+ 
+         await lease.WaitForRequestAsync();
+         Assert.Equal(PacketState.Done, packet.Proc());
+         var result = Assert.Single(results);
+         switch (kind)
+         {
++            case "Rating":
++                var rating = Assert.IsType<UserRating>(result);
++                Assert.Equal(12345, rating.Rating);
++                Assert.Equal(11, Assert.Single(rating.RatingList).MusicId);
++                Assert.Equal(22, Assert.Single(rating.NewRatingList).MusicId);
++                Assert.Equal(33, Assert.Single(rating.NextRatingList).MusicId);
++                Assert.Equal(44, Assert.Single(rating.NextNewRatingList).MusicId);
++                Assert.Equal(1000000U, rating.RatingList[0].Achievement);
++                Assert.Equal(15600U, rating.RatingList[0].RomVersion);
++                Assert.Equal(2, rating.RatingList[0].Level);
++                Assert.Equal(5, rating.Udemae.ClassValue);
++                break;
++            case "RecommendRateMusic":
++                var recommended = Assert.Single(Assert.IsType<UserRecommendRateMusic[]>(result));
++                Assert.Equal(11, recommended.MusicId);
++                Assert.Equal(2, recommended.Level);
++                Assert.Equal(1000000, recommended.AverageAchievement);
++                break;
++            case "RecommendSelectionMusic":
++                Assert.Equal(new[] { 11, 22, 11 }, Assert.IsType<int[]>(result));
++                break;
++            case "Region":
++                var region = Assert.Single(Assert.IsType<UserRegion[]>(result));
++                Assert.Equal(11, region.RegionId);
++                Assert.Equal(2, region.PlayCount);
++                Assert.Equal("2026-01-01", region.Created);
++                break;
++            case "RivalData":
++                var rival = Assert.Single(Assert.IsType<UserRivalData[]>(result));
++                Assert.Equal(DownloadUserId + 1, rival.RivalId);
++                Assert.Equal("Test Rival", rival.RivalName);
++                break;
+             case "Card":
+                 Assert.Equal(11, Assert.Single(Assert.IsType<UserCard[]>(result)).CardId);
+                 break;
+@@ -492,6 +537,19 @@ public async Task UserDownload_FavoriteItemPaginationRemainsIncompleteWithCursor
+     [InlineData("Preview", "userId")]
+     [InlineData("Preview", "userName")]
+     [InlineData("Preview", "errorId")]
++    [InlineData("Rating", "userRating")]
++    [InlineData("Rating", "userRating.ratingList")]
++    [InlineData("Rating", "userRating.newRatingList")]
++    [InlineData("Rating", "userRating.nextRatingList")]
++    [InlineData("Rating", "userRating.nextNewRatingList")]
++    [InlineData("Rating", "userRating.udemae")]
++    [InlineData("RecommendRateMusic", "userRecommendRateMusicIdList")]
++    [InlineData("RecommendSelectionMusic", "userRecommendSelectionMusicIdList")]
++    [InlineData("Region", "userRegionList")]
++    [InlineData("Region", "userRegionList.0.created")]
++    [InlineData("RivalData", "userRivalData")]
++    [InlineData("RivalData", "userRivalData.rivalId")]
++    [InlineData("RivalData", "userRivalData.rivalName")]
+     public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind, string member)
+     {
+         foreach (var omit in new[] { false, true })
+@@ -544,6 +602,11 @@ public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind,
+     [InlineData("Intimate")]
+     [InlineData("Portrait")]
+     [InlineData("Preview")]
++    [InlineData("Rating")]
++    [InlineData("RecommendRateMusic")]
++    [InlineData("RecommendSelectionMusic")]
++    [InlineData("Region")]
++    [InlineData("RivalData")]
+     public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(HttpStatusCode.InternalServerError));
+@@ -573,6 +636,11 @@ public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     [InlineData("Intimate")]
+     [InlineData("Portrait")]
+     [InlineData("Preview")]
++    [InlineData("Rating")]
++    [InlineData("RecommendRateMusic")]
++    [InlineData("RecommendSelectionMusic")]
++    [InlineData("Region")]
++    [InlineData("RivalData")]
+     public async Task UserDownload_WaitsForResponseBeforeInvokingCallbacks(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync();
+@@ -656,6 +724,12 @@ private DownloadPacketLease CreateDownloadPacket(
+         _manager.BaseUri = new Uri(server.Url).GetLeftPart(UriPartial.Authority) + "/";
+         Packet packet = kind switch
+         {
++            "Rating" => new PacketGetUserRating(DownloadUserId, data => onDone(data), onError),
++            "RecommendRateMusic" => new PacketGetUserRecommendRateMusic(DownloadUserId, data => onDone(data), onError),
++            "RecommendSelectionMusic" => new PacketGetUserRecommendSelectionMusic(DownloadUserId, data => onDone(data), onError),
++            "Region" => new PacketGetUserRegion(DownloadUserId, data => onDone(data), onError),
++            "RivalData" => new PacketGetUserRivalData(DownloadUserId,
++                [new UserFavoriteItem { OrderId = 0, Id = DownloadUserId + 1 }], data => onDone(data), onError),
+             "Card" => new PacketGetUserCard(DownloadUserId, data => onDone(data), onError),
+             "Character" => new PacketGetUserCharacter(DownloadUserId, data => onDone(data), onError),
+             "Charge" => new PacketGetUserCharge(DownloadUserId, data => onDone(data), onError),
+@@ -706,6 +780,30 @@ private static Manager.UserData CreateNewItemUserData()
+ 
+     private static string DownloadResponse(string kind) => kind switch
+     {
++        "Rating" => """
++            {"userId":9007199254740993,"userRating":{"rating":12345,
++             "ratingList":[{"musicId":11,"level":2,"romVersion":15600,"achievement":1000000}],
++             "newRatingList":[{"musicId":22,"level":3,"romVersion":15600,"achievement":1000001}],
++             "nextRatingList":[{"musicId":33,"level":4,"romVersion":15600,"achievement":1000002}],
++             "nextNewRatingList":[{"musicId":44,"level":5,"romVersion":15600,"achievement":1000003}],
++             "udemae":{"classValue":5,"maxClassValue":6,"totalWinNum":1,"totalLoseNum":2,
++              "maxWinNum":3,"maxLoseNum":4,"winNum":5,"loseNum":6,"npcTotalWinNum":7,
++              "npcTotalLoseNum":8,"npcMaxWinNum":9,"npcMaxLoseNum":10,"npcWinNum":11,"npcLoseNum":12}}}
++            """,
++        "RecommendRateMusic" => """
++            {"userId":9007199254740993,"userRecommendRateMusicIdList":[
++              {"musicId":11,"level":2,"averageAchievement":1000000}]}
++            """,
++        "RecommendSelectionMusic" => """
++            {"userId":9007199254740993,"userRecommendSelectionMusicIdList":[11,22,11]}
++            """,
++        "Region" => """
++            {"userId":9007199254740993,"length":1,"userRegionList":[
++              {"regionId":11,"playCount":2,"created":"2026-01-01"}]}
++            """,
++        "RivalData" => """
++            {"userId":9007199254740993,"userRivalData":{"rivalId":9007199254740994,"rivalName":"Test Rival"}}
++            """,
+         "Card" => """
+             {"userId":9007199254740993,"nextIndex":0,"userCardList":[
+               {"cardId":11,"cardTypeId":2,"charaId":3,"mapId":4,"startDate":"2026-01-01","endDate":"2026-12-31"}]}

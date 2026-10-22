@@ -1,0 +1,6 @@
+- All behavior changes should refer to branch `decomp/1.56`.
+- Keep the original behavior even when it has bugs.
+- Use modern C# features when possible.
+- NO reflections are allowed unless user require to do so.
+- The whole project cannot build currently. Create temporary projects to verify code.
+- Branch `dev/*` and `decomp/*` SHOULD NOT be pushed in any circumstances.

@@ -1,0 +1,2 @@
+tests/SinmaiLib.Tests/ScoreRankingPacketTests.cs
+tests/SinmaiLib.Tests/Support/ScoreRankingDependencies.cs

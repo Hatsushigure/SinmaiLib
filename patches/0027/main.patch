@@ -1,0 +1,1035 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Mon, 19 Oct 2026 18:07:19 +0800
+Subject: [PATCH] refactor(net): migrate user download packets and add coverage
+
+
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserLoginBonus.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserLoginBonus.cs
+dissimilarity index 60%
+index 1e6d47a..e373ffa 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserLoginBonus.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserLoginBonus.cs
+@@ -1,86 +1,71 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserLoginBonus : Packet
+-{
+-    private readonly Action<Net.VO.Mai2.UserLoginBonus[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserLoginBonusResponseVO> _responseVOs;
+-
+-    public PacketGetUserLoginBonus(
+-        ulong userId,
+-        Action<Net.VO.Mai2.UserLoginBonus[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        _responseVOs = new List<UserLoginBonusResponseVO>();
+-        ResetRetryCountAtStart();
+-        Create(GetNetQuery(userId, 0L));
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                if (IsRetryCountOverAtDownload())
+-                {
+-                    AddUserDataDownloadError();
+-                    _onError?.Invoke(PacketStatus.ErrorTimeout);
+-                    break;
+-                }
+-                NetQuery<UserLoginBonusRequestVO, UserLoginBonusResponseVO> netQuery =
+-                    base.Query as NetQuery<UserLoginBonusRequestVO, UserLoginBonusResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0L)
+-                {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
+-                    break;
+-                }
+-                _onDone(
+-                    _responseVOs
+-                        .SelectMany((UserLoginBonusResponseVO i) => i.userLoginBonusList)
+-                        .ToArray()
+-                );
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<UserLoginBonusRequestVO, UserLoginBonusResponseVO> GetNetQuery(
+-        ulong userId,
+-        long nextIndex
+-    )
+-    {
+-        NetQuery<UserLoginBonusRequestVO, UserLoginBonusResponseVO> netQuery = new NetQuery<
+-            UserLoginBonusRequestVO,
+-            UserLoginBonusResponseVO
+-        >("GetUserLoginBonusApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserLoginBonusResponseVO src)
+-    {
+-        if (src.userLoginBonusList == null)
+-        {
+-            src.userLoginBonusList = Array.Empty<Net.VO.Mai2.UserLoginBonus>();
+-        }
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserLoginBonus : Packet
++{
++    private readonly Action<Net.VO.Mai2.UserLoginBonus[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserLoginBonusResponseVO> _responseVOList = [];
++
++    public PacketGetUserLoginBonus(
++        ulong userId,
++        Action<Net.VO.Mai2.UserLoginBonus[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        ResetRetryCountAtStart();
++        Create(GetNetQuery(userId, 0L));
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                if (IsRetryCountOverAtDownload())
++                {
++                    AddUserDataDownloadError();
++                    _onError?.Invoke(PacketStatus.ErrorTimeout);
++                    break;
++                }
++                var netQuery = (NetQuery<UserLoginBonusRequestVO, UserLoginBonusResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0L)
++                {
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
++                    break;
++                }
++                _onDone([.. _responseVOList.SelectMany(i => i.UserLoginBonusList)]);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private static NetQuery<UserLoginBonusRequestVO, UserLoginBonusResponseVO> GetNetQuery(
++        ulong userId,
++        long nextIndex
++    ) =>
++        new("GetUserLoginBonusApi", userId)
++        {
++            Request = new UserLoginBonusRequestVO { UserId = userId, NextIndex = nextIndex },
++        };
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMap.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMap.cs
+index 6e5d667..cfb4a8d 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMap.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMap.cs
+@@ -6,23 +6,21 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserMap : Packet
++internal class PacketGetUserMap : Packet
+ {
+     private readonly Action<UserMap[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserMapResponseVO> _responseVOs;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserMapResponseVO> _responseVOList;
+ 
+     public PacketGetUserMap(
+         ulong userId,
+         Action<UserMap[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        _responseVOs = new List<UserMapResponseVO>();
++        _responseVOList = new List<UserMapResponseVO>();
+         ResetRetryCountAtStart();
+         Create(GetNetQuery(userId, 0L));
+     }
+@@ -39,41 +37,36 @@ public override PacketState Proc()
+                     _onError?.Invoke(PacketStatus.ErrorTimeout);
+                     break;
+                 }
+-                NetQuery<UserMapRequestVO, UserMapResponseVO> netQuery =
+-                    base.Query as NetQuery<UserMapRequestVO, UserMapResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0L)
++                var netQuery = (NetQuery<UserMapRequestVO, UserMapResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0L)
+                 {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
+                     break;
+                 }
+-                _onDone(_responseVOs.SelectMany((UserMapResponseVO i) => i.userMapList).ToArray());
++                _onDone([.. _responseVOList.SelectMany(i => i.UserMapList)]);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
+-    }
+-
+-    private NetQuery<UserMapRequestVO, UserMapResponseVO> GetNetQuery(ulong userId, long nextIndex)
+-    {
+-        NetQuery<UserMapRequestVO, UserMapResponseVO> netQuery = new NetQuery<
+-            UserMapRequestVO,
+-            UserMapResponseVO
+-        >("GetUserMapApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
++        return State;
+     }
+ 
+-    private static void SafeNullMember(UserMapResponseVO src)
+-    {
+-        if (src.userMapList == null)
++    private static NetQuery<UserMapRequestVO, UserMapResponseVO> GetNetQuery(
++        ulong userId,
++        long nextIndex
++    ) =>
++        new("GetUserMapApi", userId)
+         {
+-            src.userMapList = Array.Empty<UserMap>();
+-        }
+-    }
++            Request = new UserMapRequestVO { UserId = userId, NextIndex = nextIndex },
++        };
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMissionData.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMissionData.cs
+dissimilarity index 64%
+index 00e6939..a6c9d2c 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMissionData.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMissionData.cs
+@@ -1,59 +1,54 @@
+-using System;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserMissionData : Packet
+-{
+-    private readonly Action<UserMissionResponseData> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private UserMissionResponseData responseData;
+-
+-    public PacketGetUserMissionData(
+-        ulong userId,
+-        Action<UserMissionResponseData> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        NetQuery<UserMissionRequestVO, UserMissionResponseVO> netQuery = new NetQuery<
+-            UserMissionRequestVO,
+-            UserMissionResponseVO
+-        >("GetUserMissionDataApi", userId);
+-        netQuery.Request.userId = userId;
+-        Create(netQuery);
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                NetQuery<UserMissionRequestVO, UserMissionResponseVO> netQuery =
+-                    base.Query as NetQuery<UserMissionRequestVO, UserMissionResponseVO>;
+-                SetResponseData(netQuery.Response);
+-                _onDone(responseData);
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private void SetResponseData(UserMissionResponseVO src)
+-    {
+-        responseData.userWeeklyData = src.userWeeklyData;
+-        responseData.userMissionDataList = src.userMissionDataList;
+-        if (responseData.userMissionDataList == null)
+-        {
+-            responseData.userMissionDataList = Array.Empty<UserMissionData>();
+-        }
+-    }
+-}
++using System;
++using Net.VO;
++using Net.VO.Mai2;
++using Net.VO.Mapper;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserMissionData : Packet
++{
++    private readonly Action<UserMissionResponseData> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++
++    public PacketGetUserMissionData(
++        ulong userId,
++        Action<UserMissionResponseData> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        var netQuery = new NetQuery<UserMissionRequestVO, UserMissionResponseVO>(
++            "GetUserMissionDataApi",
++            userId
++        )
++        {
++            Request = new UserMissionRequestVO { UserId = userId },
++        };
++        Create(netQuery);
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                var netQuery = (NetQuery<UserMissionRequestVO, UserMissionResponseVO>)Query;
++                _onDone(netQuery.Response!.ToResponseDataVO());
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMusic.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMusic.cs
+dissimilarity index 65%
+index a5d4b82..1069645 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMusic.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMusic.cs
+@@ -1,96 +1,75 @@
+-using System;
+-using System.Collections.Generic;
+-using System.Linq;
+-using Net.VO;
+-using Net.VO.Mai2;
+-
+-namespace Net.Packet.Mai2;
+-
+-public class PacketGetUserMusic : Packet
+-{
+-    private readonly Action<UserMusicDetail[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
+-    private readonly List<UserMusicResponseVO> _responseVOs;
+-
+-    public PacketGetUserMusic(
+-        ulong userId,
+-        Action<UserMusicDetail[]> onDone,
+-        Action<PacketStatus> onError = null
+-    )
+-    {
+-        _onDone = onDone;
+-        _onError = onError;
+-        _responseVOs = new List<UserMusicResponseVO>();
+-        ResetRetryCountAtStart();
+-        Create(GetNetQuery(userId, 0));
+-    }
+-
+-    public override PacketState Proc()
+-    {
+-        switch (ProcImpl())
+-        {
+-            case PacketState.Done:
+-            {
+-                if (IsRetryCountOverAtDownload())
+-                {
+-                    AddUserDataDownloadError();
+-                    _onError?.Invoke(PacketStatus.ErrorTimeout);
+-                    break;
+-                }
+-                NetQuery<UserMusicRequestVO, UserMusicResponseVO> netQuery =
+-                    base.Query as NetQuery<UserMusicRequestVO, UserMusicResponseVO>;
+-                SafeNullMember(netQuery.Response);
+-                _responseVOs.Add(netQuery.Response);
+-                if (netQuery.Response.nextIndex != 0)
+-                {
+-                    Create(GetNetQuery(netQuery.Response.userId, netQuery.Response.nextIndex));
+-                    break;
+-                }
+-                _onDone(
+-                    _responseVOs
+-                        .SelectMany(
+-                            (UserMusicResponseVO i) =>
+-                                i.userMusicList.SelectMany((UserMusic j) => j.userMusicDetailList)
+-                        )
+-                        .ToArray()
+-                );
+-                break;
+-            }
+-            case PacketState.Error:
+-                _onError?.Invoke(base.Status);
+-                break;
+-        }
+-        return base.State;
+-    }
+-
+-    private NetQuery<UserMusicRequestVO, UserMusicResponseVO> GetNetQuery(
+-        ulong userId,
+-        int nextIndex
+-    )
+-    {
+-        NetQuery<UserMusicRequestVO, UserMusicResponseVO> netQuery = new NetQuery<
+-            UserMusicRequestVO,
+-            UserMusicResponseVO
+-        >("GetUserMusicApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.nextIndex = nextIndex;
+-        return netQuery;
+-    }
+-
+-    private static void SafeNullMember(UserMusicResponseVO src)
+-    {
+-        if (src.userMusicList == null)
+-        {
+-            src.userMusicList = Array.Empty<UserMusic>();
+-        }
+-        for (int i = 0; i < src.userMusicList.Length; i++)
+-        {
+-            if (src.userMusicList[i].userMusicDetailList == null)
+-            {
+-                src.userMusicList[i].userMusicDetailList = Array.Empty<UserMusicDetail>();
+-            }
+-        }
+-    }
+-}
++using System;
++using System.Collections.Generic;
++using System.Linq;
++using Net.VO;
++using Net.VO.Mai2;
++
++namespace Net.Packet.Mai2;
++
++internal class PacketGetUserMusic : Packet
++{
++    private readonly Action<UserMusicDetail[]> _onDone;
++    private readonly Action<PacketStatus>? _onError;
++    private readonly List<UserMusicResponseVO> _responseVOList = [];
++
++    public PacketGetUserMusic(
++        ulong userId,
++        Action<UserMusicDetail[]> onDone,
++        Action<PacketStatus>? onError = null
++    )
++    {
++        _onDone = onDone;
++        _onError = onError;
++        ResetRetryCountAtStart();
++        Create(GetNetQuery(userId, 0));
++    }
++
++    public override PacketState Proc()
++    {
++        switch (ProcImpl())
++        {
++            case PacketState.Done:
++            {
++                if (IsRetryCountOverAtDownload())
++                {
++                    AddUserDataDownloadError();
++                    _onError?.Invoke(PacketStatus.ErrorTimeout);
++                    break;
++                }
++                var netQuery = (NetQuery<UserMusicRequestVO, UserMusicResponseVO>)Query;
++                _responseVOList.Add(netQuery.Response!);
++                if (netQuery.Response!.NextIndex != 0)
++                {
++                    Create(GetNetQuery(netQuery.Response.UserId, netQuery.Response.NextIndex));
++                    break;
++                }
++                _onDone([
++                    .. _responseVOList.SelectMany(i =>
++                        i.UserMusicList.SelectMany(j => j.UserMusicDetailList)
++                    ),
++                ]);
++                break;
++            }
++            case PacketState.Error:
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
++                break;
++            default:
++                throw new ArgumentOutOfRangeException();
++        }
++        return State;
++    }
++
++    private static NetQuery<UserMusicRequestVO, UserMusicResponseVO> GetNetQuery(
++        ulong userId,
++        int nextIndex
++    ) =>
++        new("GetUserMusicApi", userId)
++        {
++            Request = new UserMusicRequestVO { UserId = userId, NextIndex = nextIndex },
++        };
++}
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItem.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItem.cs
+index 6ba0280..98d40f5 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItem.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItem.cs
+@@ -1,29 +1,30 @@
+ using System;
+ using System.Collections.Generic;
++using System.Linq;
+ using AMDaemon.Allnet;
+ using MAI2.Util;
+ using MAI2System;
+ using Manager;
+ using Net.VO;
+ using Net.VO.Mai2;
++using Net.VO.Mapper;
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserNewItem : Packet
++internal class PacketGetUserNewItem : Packet
+ {
+     private readonly Action<UserItem> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserNewItem(
+         int index,
+         UserData src,
+         int maxTrackNo,
+         Action<UserItem> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+         : this(
+-            UserID.IsGuest(src.Detail.UserID) ? UserID.GuestID(Auth.LocationId) : src.Detail.UserID,
++            UserID.IsGuest(src.Detail.UserId) ? UserID.GuestID(Auth.LocationId) : src.Detail.UserId,
+             Convert(index, src, maxTrackNo),
+             onDone,
+             onError
+@@ -33,7 +34,7 @@ public PacketGetUserNewItem(
+         ulong userId,
+         List<UserPlaylog> userPlaylogList,
+         Action<UserItem> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+@@ -53,53 +54,41 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                UserItem obj = SafeNullMember(
+-                    (base.Query as NetQuery<UserNewItemRequestVO, UserNewItemResponseVO>).Response
+-                );
++                var obj = (
++                    (NetQuery<UserNewItemRequestVO, UserNewItemResponseVO>)Query
++                ).Response!.ToUserItemVO();
+                 _onDone(obj);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ 
+-    private NetQuery<UserNewItemRequestVO, UserNewItemResponseVO> GetNetQuery(
++    private static NetQuery<UserNewItemRequestVO, UserNewItemResponseVO> GetNetQuery(
+         ulong userId,
+         int romVersion,
+         List<UserPlaylog> userPlaylogList
+-    )
+-    {
+-        NetQuery<UserNewItemRequestVO, UserNewItemResponseVO> netQuery = new NetQuery<
+-            UserNewItemRequestVO,
+-            UserNewItemResponseVO
+-        >("GetUserNewItemApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.version = romVersion;
+-        netQuery.Request.userPlaylogList = userPlaylogList.ToArray();
+-        return netQuery;
+-    }
+-
+-    private static UserItem SafeNullMember(UserNewItemResponseVO src)
+-    {
+-        return new UserItem
++    ) =>
++        new("GetUserNewItemApi", userId)
+         {
+-            itemKind = src.itemKind,
+-            itemId = src.itemId,
+-            stock = 1,
+-            isValid = true,
++            Request = new UserNewItemRequestVO
++            {
++                UserId = userId,
++                Version = romVersion,
++                UserPlaylogList = [.. userPlaylogList],
++            },
+         };
+-    }
+ 
+-    private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo)
+-    {
+-        List<UserPlaylog> list = new List<UserPlaylog>();
+-        for (int i = 0; i < maxTrackNo; i++)
+-        {
+-            list.Add(src.ExportUserPlaylog(index, i));
+-        }
+-        return list;
+-    }
++    private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo) =>
++        [.. Enumerable.Range(0, maxTrackNo).Select(i => src.ExportUserPlaylog(index, i))];
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs b/src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs
+index bc7940e..e230199 100644
+--- a/src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs
++++ b/src/SinmaiLib/Net/VO/Mapper/UserItemMapper.cs
+@@ -16,4 +16,12 @@ internal static partial class UserItemMapper
+     public static partial List<Manager.UserDatas.UserItem> ToModelList(this UserItem[] source);
+ 
+     public static List<int> ToIdList(this UserItem[] source) => [.. source.Select(x => x.ItemId)];
++
++    [MapValue(nameof(UserItem.Stock), 1)]
++    [MapValue(nameof(UserItem.IsValid), true)]
++    [MapperIgnoreSource(nameof(UserNewItemResponseVO.UserId))]
++    public static partial UserItem ToUserItemVO(this UserNewItemResponseVO source);
++
++    public static UserItem[] ToUserItemVOArray(this UserNewItemListResponseVO source) =>
++        [.. source.UserItemList.Select(x => x with { Stock = 1, IsValid = true })];
+ }
+diff --git a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+index c853ace..e17a649 100644
+--- a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
++++ b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+@@ -41,6 +41,13 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserGhost.cs" Link="Source/PacketGetUserGhost.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserItem.cs" Link="Source/PacketGetUserItem.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserKaleidxScope.cs" Link="Source/PacketGetUserKaleidxScope.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserLoginBonus.cs" Link="Source/PacketGetUserLoginBonus.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMap.cs" Link="Source/PacketGetUserMap.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMissionData.cs" Link="Source/PacketGetUserMissionData.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMusic.cs" Link="Source/PacketGetUserMusic.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItem.cs" Link="Source/PacketGetUserNewItem.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/UserID.cs" Link="Source/UserID.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs" Link="Source/VO/Mapper/UserMissionDataMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserActMapper.cs" Link="Source/VO/Mapper/UserActMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs" Link="Source/VO/Mapper/UserCourseMapper.cs" />
+diff --git a/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs b/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
+index d85fddb..361926d 100644
+--- a/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
++++ b/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
+@@ -8,6 +8,7 @@ namespace AMDaemon.Allnet
+     internal static class Auth
+     {
+         public static string GameServerHost => "localhost";
++        public static uint LocationId => 1234;
+     }
+ }
+ 
+diff --git a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+index 1919a1c..5748161 100644
+--- a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
++++ b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+@@ -32,6 +32,11 @@ public sealed partial class PacketTests
+     [InlineData("Ghost")]
+     [InlineData("Item")]
+     [InlineData("KaleidxScope")]
++    [InlineData("LoginBonus")]
++    [InlineData("Map")]
++    [InlineData("MissionData")]
++    [InlineData("Music")]
++    [InlineData("NewItem")]
+     public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(JsonResponse(DownloadResponse(kind)));
+@@ -51,14 +56,23 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+         {
+             "Card" or "FriendSeasonRanking" or "Item" => 3,
+             "Course" or "Favorite" or "FriendCheck" or "FriendRegist" => 2,
++            "LoginBonus" or "Map" or "Music" or "NewItem" => 3,
+             "FavoriteItem" => 5,
+             _ => 1,
+         };
+         Assert.Equal(fieldCount, json.RootElement.EnumerateObject().Count());
+-        if (kind is "Card" or "Course" or "FriendSeasonRanking")
++        if (kind is "Card" or "Course" or "FriendSeasonRanking" or "LoginBonus" or "Map" or "Music")
+             Assert.Equal(0, json.RootElement.GetProperty("nextIndex").GetInt64());
+         if (kind is "Card" or "FriendSeasonRanking")
+             Assert.Equal(20, json.RootElement.GetProperty("maxCount").GetInt32());
++        if (kind is "LoginBonus" or "Map" or "Music")
++            Assert.Equal(kind == "Map" ? 1000 : kind == "Music" ? 50 : 20,
++                json.RootElement.GetProperty("maxCount").GetInt32());
++        if (kind == "NewItem")
++        {
++            Assert.Equal(15600, json.RootElement.GetProperty("version").GetInt32());
++            Assert.Equal(0, json.RootElement.GetProperty("userPlaylogList").GetArrayLength());
++        }
+         if (kind == "Item")
+         {
+             Assert.Equal(30000000000L, json.RootElement.GetProperty("nextIndex").GetInt64());
+@@ -150,6 +164,55 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+                 Assert.Equal(2, userItem.Stock);
+                 Assert.True(userItem.IsValid);
+                 break;
++            case "LoginBonus":
++                var loginBonus = Assert.Single(Assert.IsType<UserLoginBonus[]>(result));
++                Assert.Equal(11, loginBonus.BonusId);
++                Assert.Equal(2U, loginBonus.Point);
++                Assert.True(loginBonus.IsCurrent);
++                Assert.False(loginBonus.IsComplete);
++                break;
++            case "Map":
++                var map = Assert.Single(Assert.IsType<UserMap[]>(result));
++                Assert.Equal(11, map.MapId);
++                Assert.Equal(2U, map.Distance);
++                Assert.True(map.IsLock);
++                Assert.False(map.IsClear);
++                Assert.True(map.IsComplete);
++                Assert.Equal(3, map.UnlockFlag);
++                break;
++            case "MissionData":
++                var mission = Assert.IsType<UserMissionResponseData>(result);
++                Assert.Equal("2026-10-19", mission.UserWeeklyData.LastLoginWeek);
++                Assert.Equal("2026-10-12", mission.UserWeeklyData.BeforeLoginWeek);
++                Assert.True(mission.UserWeeklyData.FriendBonusFlag);
++                var data = Assert.Single(mission.UserMissionDataList);
++                Assert.Equal(1, data.Type);
++                Assert.Equal(2, data.Difficulty);
++                Assert.Equal(3, data.TargetGenreId);
++                Assert.Equal(4, data.TargetGenreTableId);
++                Assert.Equal(5, data.ConditionGenreId);
++                Assert.Equal(6, data.ConditionGenreTableId);
++                Assert.True(data.ClearFlag);
++                break;
++            case "Music":
++                var music = Assert.Single(Assert.IsType<UserMusicDetail[]>(result));
++                Assert.Equal(11, music.MusicId);
++                Assert.Equal(2, (int)music.Level);
++                Assert.Equal(3U, music.PlayCount);
++                Assert.Equal(1000000U, music.Achievement);
++                Assert.Equal(1, (int)music.ComboStatus);
++                Assert.Equal(2, (int)music.SyncStatus);
++                Assert.Equal(4U, music.DeluxscoreMax);
++                Assert.Equal(5, (int)music.ScoreRank);
++                Assert.Equal(6U, music.ExtNum1);
++                break;
++            case "NewItem":
++                var newItem = Assert.IsType<UserItem>(result);
++                Assert.Equal(ItemKind.Ticket, newItem.ItemKind);
++                Assert.Equal(11, newItem.ItemId);
++                Assert.Equal(1, newItem.Stock);
++                Assert.True(newItem.IsValid);
++                break;
+             case "KaleidxScope":
+                 var scope = Assert.Single(Assert.IsType<UserKaleidxScope[]>(result));
+                 Assert.Equal(11, scope.GateId);
+@@ -170,6 +233,9 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+     [InlineData("Ghost")]
+     [InlineData("Item")]
+     [InlineData("KaleidxScope")]
++    [InlineData("LoginBonus")]
++    [InlineData("Map")]
++    [InlineData("Music")]
+     public async Task UserDownload_EmptyListCompletesWithEmptyArray(string kind)
+     {
+         var response = JsonNode.Parse(DownloadResponse(kind))!;
+@@ -215,6 +281,8 @@ public async Task UserDownload_EmptyNestedListsComplete(string kind, string firs
+     [InlineData("Course", 10000000000L)]
+     [InlineData("FriendSeasonRanking", 9007199254740993L)]
+     [InlineData("Item", 30000000100L)]
++    [InlineData("LoginBonus", 9007199254740993L)]
++    [InlineData("Map", 9007199254740993L)]
+     public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string kind, long cursor)
+     {
+         var first = JsonNode.Parse(DownloadResponse(kind))!;
+@@ -229,6 +297,8 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+             "Course" => "courseId",
+             "FriendSeasonRanking" => "seasonId",
+             "Item" => "itemId",
++            "LoginBonus" => "bonusId",
++            "Map" => "mapId",
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+         last[$"user{kind}List"]![0]![idField] = 22;
+@@ -256,6 +326,8 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+             "Course" => Assert.IsType<UserCourse[]>(result).Select(course => course.CourseId),
+             "FriendSeasonRanking" => Assert.IsType<UserFriendSeasonRanking[]>(result).Select(ranking => ranking.SeasonId),
+             "Item" => Assert.IsType<UserItem[]>(result).Select(item => item.ItemId),
++            "LoginBonus" => Assert.IsType<UserLoginBonus[]>(result).Select(bonus => bonus.BonusId),
++            "Map" => Assert.IsType<UserMap[]>(result).Select(map => map.MapId),
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+         Assert.Equal(new[] { 11, 22 }, ids);
+@@ -332,6 +404,29 @@ public async Task UserDownload_FavoriteItemPaginationRemainsIncompleteWithCursor
+     [InlineData("Item", "userItemList.0.stock")]
+     [InlineData("KaleidxScope", "userKaleidxScopeList")]
+     [InlineData("KaleidxScope", "userKaleidxScopeList.0.gateId")]
++    [InlineData("LoginBonus", "userId")]
++    [InlineData("LoginBonus", "nextIndex")]
++    [InlineData("LoginBonus", "userLoginBonusList")]
++    [InlineData("LoginBonus", "userLoginBonusList.0.bonusId")]
++    [InlineData("Map", "userId")]
++    [InlineData("Map", "nextIndex")]
++    [InlineData("Map", "userMapList")]
++    [InlineData("Map", "userMapList.0.unlockFlag")]
++    [InlineData("MissionData", "userId")]
++    [InlineData("MissionData", "userWeeklyData")]
++    [InlineData("MissionData", "userWeeklyData.lastLoginWeek")]
++    [InlineData("MissionData", "userWeeklyData.beforeLoginWeek")]
++    [InlineData("MissionData", "userWeeklyData.friendBonusFlag")]
++    [InlineData("MissionData", "userMissionDataList")]
++    [InlineData("MissionData", "userMissionDataList.0.conditionGenreTableId")]
++    [InlineData("Music", "userId")]
++    [InlineData("Music", "nextIndex")]
++    [InlineData("Music", "userMusicList")]
++    [InlineData("Music", "userMusicList.0.userMusicDetailList")]
++    [InlineData("Music", "userMusicList.0.userMusicDetailList.0.extNum1")]
++    [InlineData("NewItem", "userId")]
++    [InlineData("NewItem", "itemKind")]
++    [InlineData("NewItem", "itemId")]
+     public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind, string member)
+     {
+         foreach (var omit in new[] { false, true })
+@@ -374,6 +469,11 @@ public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind,
+     [InlineData("Ghost")]
+     [InlineData("Item")]
+     [InlineData("KaleidxScope")]
++    [InlineData("LoginBonus")]
++    [InlineData("Map")]
++    [InlineData("MissionData")]
++    [InlineData("Music")]
++    [InlineData("NewItem")]
+     public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(HttpStatusCode.InternalServerError));
+@@ -393,6 +493,11 @@ public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     [InlineData("Ghost")]
+     [InlineData("Item")]
+     [InlineData("KaleidxScope")]
++    [InlineData("LoginBonus")]
++    [InlineData("Map")]
++    [InlineData("MissionData")]
++    [InlineData("Music")]
++    [InlineData("NewItem")]
+     public async Task UserDownload_WaitsForResponseBeforeInvokingCallbacks(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync();
+@@ -429,10 +534,13 @@ public async Task UserDownload_GhostAllowsEmptyResultBitList()
+     [Theory]
+     [InlineData("FriendSeasonRanking")]
+     [InlineData("Item")]
++    [InlineData("LoginBonus")]
++    [InlineData("Map")]
++    [InlineData("Music")]
+     public async Task UserDownload_InvalidLaterPageReportsErrorWithoutDeliveringPartialResults(string kind)
+     {
+         var first = JsonNode.Parse(DownloadResponse(kind))!;
+-        first["nextIndex"] = 9007199254740993L;
++        first["nextIndex"] = kind == "Music" ? int.MaxValue : 9007199254740993L;
+         var last = JsonNode.Parse(DownloadResponse(kind))!;
+         last[$"user{kind}List"] = null;
+         await using var server = await LoopbackServer.StartAsync(
+@@ -476,6 +584,11 @@ private DownloadPacketLease CreateDownloadPacket(
+                 data => onDone(data), onError),
+             "Ghost" => new PacketGetUserGhost(DownloadUserId, data => onDone(data), onError),
+             "Item" => new PacketGetUserItem(DownloadUserId, 3, data => onDone(data), onError),
++            "LoginBonus" => new PacketGetUserLoginBonus(DownloadUserId, data => onDone(data), onError),
++            "Map" => new PacketGetUserMap(DownloadUserId, data => onDone(data), onError),
++            "MissionData" => new PacketGetUserMissionData(DownloadUserId, data => onDone(data), onError),
++            "Music" => new PacketGetUserMusic(DownloadUserId, data => onDone(data), onError),
++            "NewItem" => new PacketGetUserNewItem(DownloadUserId, [], data => onDone(data), onError),
+             "KaleidxScope" => new PacketGetUserKaleidxScope(DownloadUserId, data => onDone(data), onError),
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+@@ -544,6 +657,28 @@ private static TestResponse JsonResponse(string json) =>
+             {"userId":9007199254740993,"nextIndex":0,"itemKind":3,"userItemList":[
+               {"itemKind":3,"itemId":11,"stock":2,"isValid":true}]}
+             """,
++        "LoginBonus" => """
++            {"userId":9007199254740993,"nextIndex":0,"userLoginBonusList":[
++              {"bonusId":11,"point":2,"isCurrent":true,"isComplete":false}]}
++            """,
++        "Map" => """
++            {"userId":9007199254740993,"nextIndex":0,"userMapList":[
++              {"mapId":11,"distance":2,"isLock":true,"isClear":false,"isComplete":true,"unlockFlag":3}]}
++            """,
++        "MissionData" => """
++            {"userId":9007199254740993,"userWeeklyData":{
++              "lastLoginWeek":"2026-10-19","beforeLoginWeek":"2026-10-12","friendBonusFlag":true},
++             "userMissionDataList":[{"type":1,"difficulty":2,"targetGenreId":3,"targetGenreTableId":4,
++              "conditionGenreId":5,"conditionGenreTableId":6,"clearFlag":true}]}
++            """,
++        "Music" => """
++            {"userId":9007199254740993,"nextIndex":0,"userMusicList":[{"userMusicDetailList":[
++              {"musicId":11,"level":2,"playCount":3,"achievement":1000000,"comboStatus":1,"syncStatus":2,
++               "deluxscoreMax":4,"scoreRank":5,"extNum1":6}]}]}
++            """,
++        "NewItem" => """
++            {"userId":9007199254740993,"itemKind":12,"itemId":11}
++            """,
+         "KaleidxScope" => """
+             {"userId":9007199254740993,"userKaleidxScopeList":[
+               {"gateId":11,"isGateFound":true,"isKeyFound":false,"isClear":true,"totalRestLife":1,
+diff --git a/tests/SinmaiLib.Tests/UserItemMapperTests.cs b/tests/SinmaiLib.Tests/UserItemMapperTests.cs
+index 9b8698e..d4a9981 100644
+--- a/tests/SinmaiLib.Tests/UserItemMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserItemMapperTests.cs
+@@ -9,6 +9,51 @@ namespace SinmaiLib.Tests;
+ 
+ public sealed class UserItemMapperTests
+ {
++    [Theory]
++    [InlineData(ItemKind.Plate)]
++    [InlineData(ItemKind.Ticket)]
++    [InlineData(ItemKind.Music)]
++    public void NewItemResponse_GrantsOneValidItem(ItemKind kind)
++    {
++        var response = new UserNewItemResponseVO
++        {
++            UserId = ulong.MaxValue,
++            ItemKind = kind,
++            ItemId = 42,
++        };
++
++        var item = response.ToUserItemVO();
++
++        Assert.Equal(kind, item.ItemKind);
++        Assert.Equal(42, item.ItemId);
++        Assert.Equal(1, item.Stock);
++        Assert.True(item.IsValid);
++    }
++
++    [Fact]
++    public void NewItemListResponse_NormalizesGrantsWithoutMutatingResponse()
++    {
++        var response = new UserNewItemListResponseVO
++        {
++            UserId = ulong.MaxValue,
++            UserItemList =
++            [
++                new() { ItemKind = ItemKind.Ticket, ItemId = 42, Stock = 99, IsValid = false },
++                new() { ItemKind = ItemKind.Plate, ItemId = 7, Stock = 0, IsValid = true },
++                new() { ItemKind = ItemKind.Ticket, ItemId = 42, Stock = 0, IsValid = false },
++            ],
++        };
++
++        var items = response.ToUserItemVOArray();
++
++        Assert.Equal(new[] { 42, 7, 42 }, items.Select(item => item.ItemId));
++        Assert.Equal(new[] { ItemKind.Ticket, ItemKind.Plate, ItemKind.Ticket }, items.Select(item => item.ItemKind));
++        Assert.All(items, item => { Assert.Equal(1, item.Stock); Assert.True(item.IsValid); });
++        Assert.Equal(new[] { 99, 0, 0 }, response.UserItemList.Select(item => item.Stock));
++        Assert.Equal(new[] { false, true, false }, response.UserItemList.Select(item => item.IsValid));
++        Assert.Empty((response with { UserItemList = [] }).ToUserItemVOArray());
++    }
++
+     public static TheoryData<ItemKind, int, bool> ItemCases => new()
+     {
+         { ItemKind.Plate, 1, true },

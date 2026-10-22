@@ -1,0 +1,3 @@
+src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs
+tests/SinmaiLib.Tests/Support/NewItemDependencies.cs
+tests/SinmaiLib.Tests/UserMusicMissionPacketTests.cs

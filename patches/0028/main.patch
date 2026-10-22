@@ -1,0 +1,774 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Tue, 20 Oct 2026 12:45:08 +0800
+Subject: [PATCH] refactor(net): migrate remaining user download packets and
+ add tests
+
+
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItemList.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItemList.cs
+index 818fc04..bb1cf97 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItemList.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItemList.cs
+@@ -1,31 +1,32 @@
+ using System;
+ using System.Collections.Generic;
++using System.Linq;
+ using AMDaemon.Allnet;
+ using MAI2.Util;
+ using MAI2System;
+ using Manager;
+ using Net.VO;
+ using Net.VO.Mai2;
++using Net.VO.Mapper;
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserNewItemList : Packet
++internal class PacketGetUserNewItemList : Packet
+ {
+     private readonly Action<UserItem[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserNewItemList(
+         int index,
+         UserData userData,
+         int maxTrackNo,
+         Action<UserItem[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+         : this(
+-            UserID.IsGuest(userData.Detail.UserID)
++            UserID.IsGuest(userData.Detail.UserId)
+                 ? UserID.GuestID(Auth.LocationId)
+-                : userData.Detail.UserID,
++                : userData.Detail.UserId,
+             userData,
+             Convert(index, userData, maxTrackNo),
+             onDone,
+@@ -37,7 +38,7 @@ public PacketGetUserNewItemList(
+         UserData userData,
+         List<UserPlaylog> userPlaylogList,
+         Action<UserItem[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+@@ -58,60 +59,43 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                UserItem[] obj = SafeNullMember(
+-                    (
+-                        base.Query as NetQuery<UserNewItemListRequestVO, UserNewItemListResponseVO>
+-                    ).Response
+-                );
+-                _onDone(obj);
++                var newItems = (
++                    (NetQuery<UserNewItemListRequestVO, UserNewItemListResponseVO>)Query
++                ).Response!.ToUserItemVOArray();
++                _onDone(newItems);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ 
+-    private NetQuery<UserNewItemListRequestVO, UserNewItemListResponseVO> GetNetQuery(
++    private static NetQuery<UserNewItemListRequestVO, UserNewItemListResponseVO> GetNetQuery(
+         ulong userId,
+         int romVersion,
+         UserData userData,
+         List<UserPlaylog> userPlaylogList
+-    )
+-    {
+-        NetQuery<UserNewItemListRequestVO, UserNewItemListResponseVO> netQuery = new NetQuery<
+-            UserNewItemListRequestVO,
+-            UserNewItemListResponseVO
+-        >("GetUserNewItemListApi", userId);
+-        List<UserDetail> list = new List<UserDetail> { userData.Detail.Export() };
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.version = romVersion;
+-        netQuery.Request.userData = list.ToArray();
+-        netQuery.Request.userPlaylogList = userPlaylogList.ToArray();
+-        return netQuery;
+-    }
+-
+-    private static UserItem[] SafeNullMember(UserNewItemListResponseVO src)
+-    {
+-        UserItem[] array = new UserItem[src.userItemList.Length];
+-        for (int i = 0; i < src.userItemList.Length; i++)
++    ) =>
++        new("GetUserNewItemListApi", userId)
+         {
+-            array[i].itemKind = src.userItemList[i].itemKind;
+-            array[i].itemId = src.userItemList[i].itemId;
+-            array[i].stock = 1;
+-            array[i].isValid = true;
+-        }
+-        return array;
+-    }
++            Request = new UserNewItemListRequestVO
++            {
++                UserId = userId,
++                Version = romVersion,
++                UserData = [userData.Detail.ToVO()],
++                UserPlaylogList = [.. userPlaylogList],
++            },
++        };
+ 
+-    private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo)
+-    {
+-        List<UserPlaylog> list = new List<UserPlaylog>();
+-        for (int i = 0; i < maxTrackNo; i++)
+-        {
+-            list.Add(src.ExportUserPlaylog(index, i));
+-        }
+-        return list;
+-    }
++    private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo) =>
++        [.. Enumerable.Range(0, maxTrackNo).Select(i => src.ExportUserPlaylog(index, i))];
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserOption.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserOption.cs
+index ad0ddce..d8e63a4 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserOption.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserOption.cs
+@@ -4,25 +4,26 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserOption : Packet
++internal class PacketGetUserOption : Packet
+ {
+     private readonly Action<UserOption> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserOption(
+         ulong userId,
+         Action<UserOption> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserOptionRequestVO, UserOptionResponseVO> netQuery = new NetQuery<
+-            UserOptionRequestVO,
+-            UserOptionResponseVO
+-        >("GetUserOptionApi", userId);
+-        netQuery.Request.userId = userId;
++        var netQuery = new NetQuery<UserOptionRequestVO, UserOptionResponseVO>(
++            "GetUserOptionApi",
++            userId
++        )
++        {
++            Request = new UserOptionRequestVO { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -32,15 +33,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserOptionRequestVO, UserOptionResponseVO> netQuery =
+-                    base.Query as NetQuery<UserOptionRequestVO, UserOptionResponseVO>;
+-                _onDone(netQuery.Response.userOption);
++                var netQuery = (NetQuery<UserOptionRequestVO, UserOptionResponseVO>)Query;
++                _onDone(netQuery.Response!.UserOption);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPartnerCloseness.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPartnerCloseness.cs
+index 18b52e8..41774b6 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPartnerCloseness.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPartnerCloseness.cs
+@@ -4,25 +4,26 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserPartnerCloseness : Packet
++internal class PacketGetUserPartnerCloseness : Packet
+ {
+     private readonly Action<UserIntimate[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserPartnerCloseness(
+         ulong userId,
+         Action<UserIntimate[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+-        NetQuery<UserIntimateRequestVO, UserIntimateResponseVO> netQuery = new NetQuery<
+-            UserIntimateRequestVO,
+-            UserIntimateResponseVO
+-        >("GetUserIntimateApi", userId);
+-        netQuery.Request.userId = userId;
++        var netQuery = new NetQuery<UserIntimateRequestVO, UserIntimateResponseVO>(
++            "GetUserIntimateApi",
++            userId
++        )
++        {
++            Request = new UserIntimateRequestVO { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -32,15 +33,21 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserIntimateRequestVO, UserIntimateResponseVO> netQuery =
+-                    base.Query as NetQuery<UserIntimateRequestVO, UserIntimateResponseVO>;
+-                _onDone(netQuery.Response.userIntimateList ?? Array.Empty<UserIntimate>());
++                var netQuery = (NetQuery<UserIntimateRequestVO, UserIntimateResponseVO>)Query;
++                _onDone(netQuery.Response!.UserIntimateList);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPortrait.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPortrait.cs
+index a78bfb2..0fdbdf1 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPortrait.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPortrait.cs
+@@ -1,21 +1,19 @@
+ using System;
+-using System.Collections.Generic;
+ using System.Linq;
+ using Net.VO;
+ using Net.VO.Mai2;
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserPortrait : Packet
++internal class PacketGetUserPortrait : Packet
+ {
+     private readonly Action<UserPortrait[], byte[]> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
++    private readonly Action<PacketStatus>? _onError;
+ 
+     public PacketGetUserPortrait(
+         ulong userId,
+         Action<UserPortrait[], byte[]> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+@@ -23,8 +21,10 @@ public PacketGetUserPortrait(
+         NetQuery<GetUserPortraitRequestVO, GetUserPortraitResponseVO> netQuery = new NetQuery<
+             GetUserPortraitRequestVO,
+             GetUserPortraitResponseVO
+-        >("GetUserPortraitApi", userId);
+-        netQuery.Request.userId = userId;
++        >("GetUserPortraitApi", userId)
++        {
++            Request = new GetUserPortraitRequestVO { UserId = userId },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -34,27 +34,28 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<GetUserPortraitRequestVO, GetUserPortraitResponseVO> netQuery =
+-                    base.Query as NetQuery<GetUserPortraitRequestVO, GetUserPortraitResponseVO>;
++                var netQuery = (NetQuery<GetUserPortraitRequestVO, GetUserPortraitResponseVO>)Query;
+                 _onDone(
+-                    netQuery.Response.userPortraitList.ToArray(),
+-                    netQuery
+-                        .Response.userPortraitList.SelectMany(
+-                            (UserPortrait i) => Base64ToBytes(i.divData)
+-                        )
+-                        .ToArray()
++                    [.. netQuery.Response!.UserPortraitList],
++                    [
++                        .. netQuery.Response.UserPortraitList.SelectMany(i =>
++                            Convert.FromBase64String(i.DivData)
++                        ),
++                    ]
+                 );
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
++                break;
++            case PacketState.Ready:
++            case PacketState.Process:
++            case PacketState.RetryWait:
++            case PacketState.Dialog:
+                 break;
++            default:
++                throw new ArgumentOutOfRangeException();
+         }
+-        return base.State;
+-    }
+-
+-    private static IEnumerable<byte> Base64ToBytes(string base64)
+-    {
+-        return Convert.FromBase64String(base64);
++        return State;
+     }
+ }
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPreview.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPreview.cs
+index ae0744d..351ceea 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPreview.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPreview.cs
+@@ -5,12 +5,10 @@
+ 
+ namespace Net.Packet.Mai2;
+ 
+-public class PacketGetUserPreview : Packet
++internal class PacketGetUserPreview : Packet
+ {
+     private readonly Action<ulong, UserPreviewResponseVO> _onDone;
+-
+-    private readonly Action<PacketStatus> _onError;
+-
++    private readonly Action<PacketStatus>? _onError;
+     private readonly ulong _userId;
+ 
+     public PacketGetUserPreview(
+@@ -18,20 +16,25 @@ public PacketGetUserPreview(
+         string authKey,
+         string token,
+         Action<ulong, UserPreviewResponseVO> onDone,
+-        Action<PacketStatus> onError = null
++        Action<PacketStatus>? onError = null
+     )
+     {
+         _onDone = onDone;
+         _onError = onError;
+         _userId = userId;
+-        NetQuery<UserPreviewRequestVO, UserPreviewResponseVO> netQuery = new NetQuery<
+-            UserPreviewRequestVO,
+-            UserPreviewResponseVO
+-        >("GetUserPreviewApi", userId);
+-        netQuery.Request.userId = userId;
+-        netQuery.Request.segaIdAuthKey = authKey;
+-        netQuery.Request.token = token;
+-        netQuery.Request.clientId = AMDaemon.System.KeychipId.ShortValue;
++        var netQuery = new NetQuery<UserPreviewRequestVO, UserPreviewResponseVO>(
++            "GetUserPreviewApi",
++            userId
++        )
++        {
++            Request = new UserPreviewRequestVO
++            {
++                UserId = userId,
++                SegaIdAuthKey = authKey,
++                Token = token,
++                ClientId = AMDaemon.System.KeychipId.ShortValue,
++            },
++        };
+         Create(netQuery);
+     }
+ 
+@@ -41,15 +44,14 @@ public override PacketState Proc()
+         {
+             case PacketState.Done:
+             {
+-                NetQuery<UserPreviewRequestVO, UserPreviewResponseVO> netQuery =
+-                    base.Query as NetQuery<UserPreviewRequestVO, UserPreviewResponseVO>;
+-                _onDone(_userId, netQuery.Response);
++                var netQuery = (NetQuery<UserPreviewRequestVO, UserPreviewResponseVO>)Query;
++                _onDone(_userId, netQuery.Response!);
+                 break;
+             }
+             case PacketState.Error:
+-                _onError?.Invoke(base.Status);
++                _onError?.Invoke(Status);
+                 break;
+         }
+-        return base.State;
++        return State;
+     }
+ }
+diff --git a/tests/SinmaiLib.Tests/README.md b/tests/SinmaiLib.Tests/README.md
+index 9eb11f4..defd22e 100644
+--- a/tests/SinmaiLib.Tests/README.md
++++ b/tests/SinmaiLib.Tests/README.md
+@@ -17,12 +17,16 @@ # SinmaiLib 测试
+ 以及资源释放。Packet 测试覆盖等待任务、响应处理、重试、意外任务异常、登录
+ Cookie、Ping 特殊处理、延迟统计和完成通知。用户下载测试直接编译 Card、Character、
+ Charge、Course、Data、Extend、Favorite、FavoriteItem、FriendBonus、FriendCheck、FriendRegist、
+-FriendSeasonRanking、Ghost、Item、KaleidxScope Packet，
++FriendSeasonRanking、Ghost、Item、KaleidxScope、LoginBonus、Map、MissionData、Music、
++NewItem、NewItemList、Option、PartnerCloseness、Portrait、Preview Packet，
+ 以及生产环境的 NetQuery、JSON 上下文、VO、FriendBonus Mapper 和相关枚举，
+ 覆盖请求字段、类型化响应、空列表、跨空页分页、64 位游标、必填/非空字段校验和错误回调。
+ FavoriteItem 分页是特例：测试固定其后续请求游标始终为 0、重复获取首页且无法完成
+ 分页的现有行为，通过有限次请求断言该失败情形。
+ `Fixtures/UserDetailResponse.json` 提供包含全部必填字段的模拟用户响应。
++NewItemList 测试通过桩提供已映射的用户详情快照，使用接受 playlog 列表的构造函数；
++不验证游戏侧 UserDetail Mapper、playlog 导出或原生 keychip 访问。新增覆盖物品授予
++归一化、头像分片按响应顺序解码拼接，以及预览认证字段与回调用户 ID。
+ `UserExtendMapperTests` 直接编译生产环境的 Extend/NPC Mapper 和模型，覆盖全部
+ 32 种扩展位标志组合、JSON 往返、卡片与 NPC 列表顺序、快照隔离、旧布尔字段和
+ 未知位的处理，以及初始化默认值。这些测试不编译依赖 Unity 的 `VOExtensions.cs`
+diff --git a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+index e17a649..65e80cd 100644
+--- a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
++++ b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+@@ -46,6 +46,11 @@
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMissionData.cs" Link="Source/PacketGetUserMissionData.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserMusic.cs" Link="Source/PacketGetUserMusic.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItem.cs" Link="Source/PacketGetUserNewItem.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserNewItemList.cs" Link="Source/PacketGetUserNewItemList.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserOption.cs" Link="Source/PacketGetUserOption.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPartnerCloseness.cs" Link="Source/PacketGetUserPartnerCloseness.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPortrait.cs" Link="Source/PacketGetUserPortrait.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/Packet/Mai2/PacketGetUserPreview.cs" Link="Source/PacketGetUserPreview.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/UserID.cs" Link="Source/UserID.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs" Link="Source/VO/Mapper/UserMissionDataMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendBonusMapper.cs" Link="Source/VO/Mapper/UserFriendBonusMapper.cs" />
+diff --git a/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs b/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
+index 361926d..a518298 100644
+--- a/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
++++ b/tests/SinmaiLib.Tests/Support/ExternalDependencies.cs
+@@ -3,6 +3,19 @@
+ 
+ // Only game runtime dependencies are replaced; networking and Packet code use
+ // their production source files.
++namespace AMDaemon
++{
++    internal static class System
++    {
++        public static TestKeychipId KeychipId { get; } = new();
++    }
++
++    internal sealed class TestKeychipId
++    {
++        public string ShortValue => "A1234567890";
++    }
++}
++
+ namespace AMDaemon.Allnet
+ {
+     internal static class Auth
+diff --git a/tests/SinmaiLib.Tests/Support/NewItemDependencies.cs b/tests/SinmaiLib.Tests/Support/NewItemDependencies.cs
+index cd5e408..c508754 100644
+--- a/tests/SinmaiLib.Tests/Support/NewItemDependencies.cs
++++ b/tests/SinmaiLib.Tests/Support/NewItemDependencies.cs
+@@ -1,10 +1,10 @@
+-// Runtime-only dependencies of PacketGetUserNewItem. Packet tests use the
++// Runtime-only dependencies of PacketGetUserNewItem and PacketGetUserNewItemList. Tests use the
+ // overload accepting playlogs directly, so game-side playlog export is excluded.
+ namespace Manager
+ {
+     internal sealed class UserData
+     {
+-        public TestUserDetail Detail => throw new NotSupportedException();
++        public TestUserDetail Detail { get; } = new();
+ 
+         public Net.VO.Mai2.UserPlaylog ExportUserPlaylog(int index, int trackNo) =>
+             throw new NotSupportedException();
+@@ -13,6 +13,12 @@ public Net.VO.Mai2.UserPlaylog ExportUserPlaylog(int index, int trackNo) =>
+     internal sealed class TestUserDetail
+     {
+         public ulong UserId { get; set; }
++
++        // Supply an already mapped snapshot: these tests exercise the Packet's
++        // wire contract, not the game-side UserDetail mapper.
++        public Net.VO.Mai2.UserDetail? WireData { get; set; }
++
++        public Net.VO.Mai2.UserDetail ToVO() => WireData ?? throw new NotSupportedException();
+     }
+ }
+ 
+diff --git a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+index 5748161..cd34954 100644
+--- a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
++++ b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+@@ -37,6 +37,11 @@ public sealed partial class PacketTests
+     [InlineData("MissionData")]
+     [InlineData("Music")]
+     [InlineData("NewItem")]
++    [InlineData("NewItemList")]
++    [InlineData("Option")]
++    [InlineData("Intimate")]
++    [InlineData("Portrait")]
++    [InlineData("Preview")]
+     public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(JsonResponse(DownloadResponse(kind)));
+@@ -58,6 +63,7 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+             "Course" or "Favorite" or "FriendCheck" or "FriendRegist" => 2,
+             "LoginBonus" or "Map" or "Music" or "NewItem" => 3,
+             "FavoriteItem" => 5,
++            "NewItemList" or "Preview" => 4,
+             _ => 1,
+         };
+         Assert.Equal(fieldCount, json.RootElement.EnumerateObject().Count());
+@@ -68,11 +74,24 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+         if (kind is "LoginBonus" or "Map" or "Music")
+             Assert.Equal(kind == "Map" ? 1000 : kind == "Music" ? 50 : 20,
+                 json.RootElement.GetProperty("maxCount").GetInt32());
+-        if (kind == "NewItem")
++        if (kind is "NewItem" or "NewItemList")
+         {
+             Assert.Equal(15600, json.RootElement.GetProperty("version").GetInt32());
+             Assert.Equal(0, json.RootElement.GetProperty("userPlaylogList").GetArrayLength());
+         }
++        if (kind == "NewItemList")
++        {
++            var detail = Assert.Single(json.RootElement.GetProperty("userData").EnumerateArray());
++            Assert.Equal("Test Player", detail.GetProperty("userName").GetString());
++            Assert.Equal(new[] { 1, 2, 3, 4, 5 },
++                detail.GetProperty("charaSlot").EnumerateArray().Select(slot => slot.GetInt32()));
++        }
++        if (kind == "Preview")
++        {
++            Assert.Equal("auth-key", json.RootElement.GetProperty("segaIdAuthKey").GetString());
++            Assert.Equal("test-token", json.RootElement.GetProperty("token").GetString());
++            Assert.Equal("A1234567890", json.RootElement.GetProperty("clientId").GetString());
++        }
+         if (kind == "Item")
+         {
+             Assert.Equal(30000000000L, json.RootElement.GetProperty("nextIndex").GetInt64());
+@@ -219,6 +238,38 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+                 Assert.True(scope.IsGateFound);
+                 Assert.False(scope.IsKeyFound);
+                 break;
++            case "NewItemList":
++                var newItems = Assert.IsType<UserItem[]>(result);
++                Assert.Equal(new[] { 11, 22, 11 }, newItems.Select(item => item.ItemId));
++                Assert.Equal(new[] { ItemKind.Ticket, ItemKind.Plate, ItemKind.Ticket },
++                    newItems.Select(item => item.ItemKind));
++                Assert.All(newItems, item => { Assert.Equal(1, item.Stock); Assert.True(item.IsValid); });
++                break;
++            case "Option":
++                var option = Assert.IsType<UserOption>(result);
++                Assert.Equal(2, (int)option.NoteSpeed);
++                Assert.Equal(3, (int)option.HeadPhoneVolume);
++                break;
++            case "Intimate":
++                var intimate = Assert.Single(Assert.IsType<UserIntimate[]>(result));
++                Assert.Equal(11, intimate.PartnerId);
++                Assert.Equal(2, intimate.IntimateLevel);
++                Assert.Equal(3, intimate.IntimateCountRewarded);
++                break;
++            case "Portrait":
++                var (portraits, bytes) = Assert.IsType<(UserPortrait[], byte[])>(result);
++                Assert.Equal(new[] { 2, 1 }, portraits.Select(portrait => portrait.DivNumber));
++                Assert.All(portraits, portrait => Assert.Equal(DownloadUserId, portrait.UserId));
++                Assert.Equal(new byte[] { 0, 128, 255, 1, 2 }, bytes);
++                break;
++            case "Preview":
++                var (requestedUserId, preview) = Assert.IsType<(ulong, UserPreviewResponseVO)>(result);
++                Assert.Equal(DownloadUserId, requestedUserId);
++                Assert.Equal(DownloadUserId + 1, preview.UserId);
++                Assert.Equal("Test Player", preview.UserName);
++                Assert.Equal(12345, preview.PlayerRating);
++                Assert.Equal(2, preview.BanState);
++                break;
+         }
+         Assert.Empty(errors);
+     }
+@@ -236,10 +287,12 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+     [InlineData("LoginBonus")]
+     [InlineData("Map")]
+     [InlineData("Music")]
++    [InlineData("NewItemList")]
++    [InlineData("Intimate")]
+     public async Task UserDownload_EmptyListCompletesWithEmptyArray(string kind)
+     {
+         var response = JsonNode.Parse(DownloadResponse(kind))!;
+-        response[$"user{kind}List"] = new JsonArray();
++        response[kind == "NewItemList" ? "userItemList" : $"user{kind}List"] = new JsonArray();
+         await using var server = await LoopbackServer.StartAsync(JsonResponse(response.ToJsonString()));
+         var results = new List<object>();
+         using var lease = CreateDownloadPacket(server, kind, results.Add);
+@@ -427,6 +480,18 @@ public async Task UserDownload_FavoriteItemPaginationRemainsIncompleteWithCursor
+     [InlineData("NewItem", "userId")]
+     [InlineData("NewItem", "itemKind")]
+     [InlineData("NewItem", "itemId")]
++    [InlineData("NewItemList", "userId")]
++    [InlineData("NewItemList", "userItemList")]
++    [InlineData("NewItemList", "userItemList.0.itemId")]
++    [InlineData("Option", "userOption")]
++    [InlineData("Option", "userOption.noteSpeed")]
++    [InlineData("Intimate", "userIntimateList")]
++    [InlineData("Intimate", "userIntimateList.0.partnerId")]
++    [InlineData("Portrait", "userPortraitList")]
++    [InlineData("Portrait", "userPortraitList.0.divData")]
++    [InlineData("Preview", "userId")]
++    [InlineData("Preview", "userName")]
++    [InlineData("Preview", "errorId")]
+     public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind, string member)
+     {
+         foreach (var omit in new[] { false, true })
+@@ -474,6 +539,11 @@ public async Task UserDownload_RejectsNullAndMissingRequiredMembers(string kind,
+     [InlineData("MissionData")]
+     [InlineData("Music")]
+     [InlineData("NewItem")]
++    [InlineData("NewItemList")]
++    [InlineData("Option")]
++    [InlineData("Intimate")]
++    [InlineData("Portrait")]
++    [InlineData("Preview")]
+     public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync(new TestResponse(HttpStatusCode.InternalServerError));
+@@ -498,6 +568,11 @@ public async Task UserDownload_HttpFailureInvokesErrorCallback(string kind)
+     [InlineData("MissionData")]
+     [InlineData("Music")]
+     [InlineData("NewItem")]
++    [InlineData("NewItemList")]
++    [InlineData("Option")]
++    [InlineData("Intimate")]
++    [InlineData("Portrait")]
++    [InlineData("Preview")]
+     public async Task UserDownload_WaitsForResponseBeforeInvokingCallbacks(string kind)
+     {
+         await using var server = await LoopbackServer.StartAsync();
+@@ -517,6 +592,21 @@ public async Task UserDownload_WaitsForResponseBeforeInvokingCallbacks(string ki
+         Assert.Empty(errors);
+     }
+ 
++    [Fact]
++    public async Task UserDownload_EmptyPortraitListCompletesWithEmptyArrays()
++    {
++        await using var server = await LoopbackServer.StartAsync(
++            JsonResponse("""{"length":0,"userPortraitList":[]}"""));
++        var results = new List<object>();
++        using var lease = CreateDownloadPacket(server, "Portrait", results.Add);
++
++        await lease.WaitForRequestAsync();
++        Assert.Equal(PacketState.Done, lease.Packet.Proc());
++        var (portraits, bytes) = Assert.IsType<(UserPortrait[], byte[])>(Assert.Single(results));
++        Assert.Empty(portraits);
++        Assert.Empty(bytes);
++    }
++
+     [Fact]
+     public async Task UserDownload_GhostAllowsEmptyResultBitList()
+     {
+@@ -589,6 +679,13 @@ private DownloadPacketLease CreateDownloadPacket(
+             "MissionData" => new PacketGetUserMissionData(DownloadUserId, data => onDone(data), onError),
+             "Music" => new PacketGetUserMusic(DownloadUserId, data => onDone(data), onError),
+             "NewItem" => new PacketGetUserNewItem(DownloadUserId, [], data => onDone(data), onError),
++            "NewItemList" => new PacketGetUserNewItemList(DownloadUserId, CreateNewItemUserData(), [],
++                data => onDone(data), onError),
++            "Option" => new PacketGetUserOption(DownloadUserId, data => onDone(data), onError),
++            "Intimate" => new PacketGetUserPartnerCloseness(DownloadUserId, data => onDone(data), onError),
++            "Portrait" => new PacketGetUserPortrait(DownloadUserId, (data, bytes) => onDone((data, bytes)), onError),
++            "Preview" => new PacketGetUserPreview(DownloadUserId, "auth-key", "test-token",
++                (userId, data) => onDone((userId, data)), onError),
+             "KaleidxScope" => new PacketGetUserKaleidxScope(DownloadUserId, data => onDone(data), onError),
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+@@ -598,6 +695,15 @@ private DownloadPacketLease CreateDownloadPacket(
+     private static TestResponse JsonResponse(string json) =>
+         new(Body: WirePayload.Encode(Encoding.UTF8.GetBytes(json)));
+ 
++    private static Manager.UserData CreateNewItemUserData()
++    {
++        var data = new Manager.UserData();
++        data.Detail.UserId = DownloadUserId;
++        data.Detail.WireData = JsonSerializer.Deserialize(DownloadResponse("Data"),
++            Net.VO.JsonContext.Default.UserDetailResponseVO)!.UserData;
++        return data;
++    }
++
+     private static string DownloadResponse(string kind) => kind switch
+     {
+         "Card" => """
+@@ -679,6 +785,42 @@ private static TestResponse JsonResponse(string json) =>
+         "NewItem" => """
+             {"userId":9007199254740993,"itemKind":12,"itemId":11}
+             """,
++        "NewItemList" => """
++            {"userId":9007199254740993,"userItemList":[
++              {"itemKind":12,"itemId":11,"stock":99,"isValid":false},
++              {"itemKind":1,"itemId":22,"stock":0,"isValid":false},
++              {"itemKind":12,"itemId":11,"stock":0,"isValid":true}]}
++            """,
++        "Option" => """
++            {"userId":9007199254740993,"userOption":{
++              "optionKind":0,"noteSpeed":2,"slideSpeed":0,"touchSpeed":0,"tapDesign":0,"holdDesign":0,
++              "slideDesign":0,"starType":0,"outlineDesign":0,"noteSize":0,"slideSize":0,"touchSize":0,
++              "starRotate":0,"dispCenter":0,"outFrameType":0,"dispChain":0,"dispRate":0,"dispBar":0,
++              "touchEffect":0,"submonitorAnimation":0,"submonitorAchive":0,"submonitorAppeal":0,
++              "matching":0,"trackSkip":0,"brightness":0,"mirrorMode":0,"dispJudge":0,"dispJudgePos":0,
++              "dispJudgeTouchPos":0,"adjustTiming":0,"judgeTiming":0,"ansVolume":0,"tapHoldVolume":0,
++              "criticalSe":0,"tapSe":0,"breakSe":0,"breakVolume":0,"exSe":0,"exVolume":0,"slideSe":0,
++              "slideVolume":0,"breakSlideVolume":0,"touchVolume":0,"touchHoldVolume":0,"damageSeVolume":0,
++              "headPhoneVolume":3,"sortTab":0,"sortMusic":0}}
++            """,
++        "Intimate" => """
++            {"userId":9007199254740993,"length":1,"userIntimateList":[
++              {"partnerId":11,"intimateLevel":2,"intimateCountRewarded":3}]}
++            """,
++        "Portrait" => """
++            {"length":2,"userPortraitList":[
++              {"userId":9007199254740993,"divNumber":2,"divLength":3,"divData":"AID/","placeId":1,
++               "clientId":"A1234567890","uploadDate":"2026-01-01","fileName":"portrait.jpg"},
++              {"userId":9007199254740993,"divNumber":1,"divLength":2,"divData":"AQI=","placeId":1,
++               "clientId":"A1234567890","uploadDate":"2026-01-01","fileName":"portrait.jpg"}]}
++            """,
++        "Preview" => """
++            {"userId":9007199254740994,"userName":"Test Player","isLogin":false,"lastGameId":"SDEZ",
++             "lastDataVersion":"1.56","lastRomVersion":"1.56","lastLoginDate":"2026-01-01",
++             "lastPlayDate":"2026-01-01","playerRating":12345,"nameplateId":1,"iconId":2,"trophyId":3,
++             "partnerId":4,"frameId":5,"dispRate":0,"totalAwake":6,"isNetMember":0,
++             "dailyBonusDate":"2026-01-01","headPhoneVolume":3,"isInherit":false,"banState":2,"errorId":0}
++            """,
+         "KaleidxScope" => """
+             {"userId":9007199254740993,"userKaleidxScopeList":[
+               {"gateId":11,"isGateFound":true,"isKeyFound":false,"isClear":true,"totalRestLife":1,
