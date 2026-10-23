@@ -1,0 +1,4151 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=88=9D=E6=99=82=E9=9B=A8=F0=9F=8D=A5?=
+ <Hatsushigure.c@gmail.com>
+Date: Fri, 23 Oct 2026 12:24:57 +0800
+Subject: [PATCH] refactor(vo): split user data mappers
+
+
+diff --git a/src/SinmaiLib/CollectionChainList.cs b/src/SinmaiLib/CollectionChainList.cs
+index fa50458..f54298d 100644
+--- a/src/SinmaiLib/CollectionChainList.cs
++++ b/src/SinmaiLib/CollectionChainList.cs
+@@ -595,7 +595,7 @@ out var outPartnerClosenessesData
+             );
+             if (outPartnerClosenessesData != null)
+             {
+-                intimate = outPartnerClosenessesData.closeness;
++                intimate = outPartnerClosenessesData.Closeness;
+             }
+             isCopyright = partner2.isCopyright;
+         }
+diff --git a/src/SinmaiLib/CollectionProcess.cs b/src/SinmaiLib/CollectionProcess.cs
+index 844d770..859a87b 100644
+--- a/src/SinmaiLib/CollectionProcess.cs
++++ b/src/SinmaiLib/CollectionProcess.cs
+@@ -3076,7 +3076,7 @@ public void InitializePartnerPresent(int monitorId)
+         HasPartnerClosenessData(monitorId, partner.GetID(), out var outPartnerClosenessesData);
+         if (outPartnerClosenessesData != null)
+         {
+-            displayIntimateNum = outPartnerClosenessesData.closeness;
++            displayIntimateNum = outPartnerClosenessesData.Closeness;
+         }
+         _monitors[monitorId].UpdateDisplayIntimateNumText(displayIntimateNum);
+         int presentTargetIntimate = 0;
+@@ -3315,12 +3315,12 @@ private void AddPartnerCloseness(int monitorId, int partnerId, int addCloseness)
+         if (!HasPartnerClosenessData(monitorId, partnerId, out outPartnerClosenessesData))
+         {
+             UserPartnerCloseness userPartnerCloseness = new UserPartnerCloseness();
+-            userPartnerCloseness.partnerId = partnerId;
+-            userPartnerCloseness.closeness = 0;
++            userPartnerCloseness.PartnerId = partnerId;
++            userPartnerCloseness.Closeness = 0;
+             userData.PartnerClosenesses.Add(userPartnerCloseness);
+             outPartnerClosenessesData = userPartnerCloseness;
+         }
+-        outPartnerClosenessesData.closeness += addCloseness;
++        outPartnerClosenessesData.Closeness += addCloseness;
+         foreach (UserItem intimateItem in userData.IntimateItemList)
+         {
+             if (intimateItem.ItemId == 10001)
+@@ -3371,7 +3371,7 @@ UserItem intimateItem in Singleton<UserDataManager>
+         UserPartnerCloseness outPartnerClosenessesData = new UserPartnerCloseness();
+         bool num = HasPartnerClosenessData(monitorId, partnerId, out outPartnerClosenessesData);
+         int num2 = 0;
+-        num2 = ((!num) ? 99999 : (99999 - outPartnerClosenessesData.closeness));
++        num2 = ((!num) ? 99999 : (99999 - outPartnerClosenessesData.Closeness));
+         if (canAddNum + presentNum[monitorId] > num2)
+         {
+             canAddNum = num2 - presentNum[monitorId];
+@@ -3408,7 +3408,7 @@ out UserPartnerCloseness outPartnerClosenessesData
+         outPartnerClosenessesData = null;
+         foreach (UserPartnerCloseness partnerCloseness in userData.PartnerClosenesses)
+         {
+-            if (partnerCloseness.partnerId == partnerId)
++            if (partnerCloseness.PartnerId == partnerId)
+             {
+                 outPartnerClosenessesData = partnerCloseness;
+                 result = true;
+@@ -3432,7 +3432,7 @@ out List<PartnerClosenessData> newRewardList
+         {
+             return;
+         }
+-        int closeness = outPartnerClosenessesData.closeness;
++        int closeness = outPartnerClosenessesData.Closeness;
+         Safe.ReadonlySortedDictionary<int, PartnerClosenessData> partnerClosenessDatas =
+             Singleton<DataManager>.Instance.GetPartnerClosenessDatas();
+         List<PartnerClosenessData> list = new List<PartnerClosenessData>();
+@@ -3454,7 +3454,7 @@ out List<PartnerClosenessData> newRewardList
+             {
+                 case PartnerRewardType.Character:
+                     if (
+-                        userData.CharaList.Find((UserChara c) => c.ID == reward.CharacterId.id)
++                        userData.CharaList.Find((UserChara c) => c.Id == reward.CharacterId.id)
+                         != null
+                     )
+                     {
+@@ -3521,7 +3521,7 @@ public void UpdatePartnerIntimateCountRewarded(int monitorId)
+                 if (
+                     Singleton<DataManager>
+                         .Instance.GetPartner(item.Value.partnerName.id)
+-                        .naviChara.id == partnerClosenesses[i].partnerId
++                        .naviChara.id == partnerClosenesses[i].PartnerId
+                 )
+                 {
+                     list.Add(item.Value);
+@@ -3529,9 +3529,9 @@ public void UpdatePartnerIntimateCountRewarded(int monitorId)
+             }
+             foreach (PartnerClosenessData item2 in list)
+             {
+-                if (item2.closeness <= partnerClosenesses[i].closeness)
++                if (item2.closeness <= partnerClosenesses[i].Closeness)
+                 {
+-                    partnerClosenesses[i].intimateCountRewarded = item2.closeness;
++                    partnerClosenesses[i].IntimateCountRewarded = item2.closeness;
+                 }
+             }
+         }
+@@ -3680,7 +3680,7 @@ public bool HasNextReward(int monitorId, int partnerId, out int presentTargetInt
+         int num2 = 0;
+         if (num)
+         {
+-            num2 = outPartnerClosenessesData.closeness;
++            num2 = outPartnerClosenessesData.Closeness;
+         }
+         Safe.ReadonlySortedDictionary<int, PartnerClosenessData> partnerClosenessDatas =
+             Singleton<DataManager>.Instance.GetPartnerClosenessDatas();
+@@ -3742,7 +3742,7 @@ out var outPartnerClosenessesData
+                 );
+                 if (outPartnerClosenessesData != null)
+                 {
+-                    num = outPartnerClosenessesData.closeness;
++                    num = outPartnerClosenessesData.Closeness;
+                 }
+                 _monitors[monitorId].StartIntimateAnimation(num, num + presentNum[monitorId]);
+                 AddPartnerCloseness(monitorId, partner.GetID(), presentNum[monitorId]);
+@@ -4493,7 +4493,7 @@ out CannotBuyItemReason cannotBuyItemReason
+                 }
+                 break;
+             case 3:
+-                if (userData.CharaList.Find((UserChara c) => c.ID == shopItemData.itemId) != null)
++                if (userData.CharaList.Find((UserChara c) => c.Id == shopItemData.itemId) != null)
+                 {
+                     cannotBuyItemReason = CannotBuyItemReason.UserMaxStock;
+                     return false;
+@@ -4749,7 +4749,7 @@ public int GetUserItemStock(int id, int monitorId)
+                 }
+                 break;
+             case 3:
+-                if (userData.CharaList.Find((UserChara c) => c.ID == shopItemData.itemId) != null)
++                if (userData.CharaList.Find((UserChara c) => c.Id == shopItemData.itemId) != null)
+                 {
+                     result = 1;
+                 }
+diff --git a/src/SinmaiLib/Datas/DebugData/DebugGameScoreListData.cs b/src/SinmaiLib/Datas/DebugData/DebugGameScoreListData.cs
+index 2012193..0243a1e 100644
+--- a/src/SinmaiLib/Datas/DebugData/DebugGameScoreListData.cs
++++ b/src/SinmaiLib/Datas/DebugData/DebugGameScoreListData.cs
+@@ -152,11 +152,11 @@ public GameScoreList GetGameScoreList(int monitorIndex)
+     {
+         GameScoreList gameScoreList = new GameScoreList(monitorIndex);
+         gameScoreList.Initialize(monitorIndex, isParty: false);
+-        gameScoreList.OverridePartyScore((int)_score.achivement, 0, 0, 0, 0, 0, trackSkip: false);
++        gameScoreList.OverridePartyScore((int)_score.Achievement, 0, 0, 0, 0, 0, trackSkip: false);
+         gameScoreList.SessionInfo = new SessionInfo
+         {
+             difficulty = (int)Difficulty,
+-            musicId = _score.id,
++            musicId = _score.Id,
+             isTutorial = false,
+             isAdvDemo = false,
+         };
+diff --git a/src/SinmaiLib/Datas/DebugData/DebugUserData.cs b/src/SinmaiLib/Datas/DebugData/DebugUserData.cs
+index ce777b2..cd6e654 100644
+--- a/src/SinmaiLib/Datas/DebugData/DebugUserData.cs
++++ b/src/SinmaiLib/Datas/DebugData/DebugUserData.cs
+@@ -306,7 +306,7 @@ public UserData GetUserData()
+                 }
+             )
+             {
+-                dictionary.Add(item3.id, item3);
++                dictionary.Add(item3.Id, item3);
+             }
+             userData.ScoreDic[j] = dictionary;
+         }
+diff --git a/src/SinmaiLib/Main/GameMain.cs b/src/SinmaiLib/Main/GameMain.cs
+index ee06257..85beaf9 100644
+--- a/src/SinmaiLib/Main/GameMain.cs
++++ b/src/SinmaiLib/Main/GameMain.cs
+@@ -486,7 +486,7 @@ private void RestoreRating(int index)
+                         userData.UpdateScore(
+                             item.Key,
+                             i,
+-                            item.Value.achivement,
++                            item.Value.Achievement,
+                             (uint)music.version
+                         );
+                     }
+diff --git a/src/SinmaiLib/Manager/Achieve/AchieveCredit.cs b/src/SinmaiLib/Manager/Achieve/AchieveCredit.cs
+index 13db429..47e65db 100644
+--- a/src/SinmaiLib/Manager/Achieve/AchieveCredit.cs
++++ b/src/SinmaiLib/Manager/Achieve/AchieveCredit.cs
+@@ -110,12 +110,12 @@ out var value2
+                     return false;
+                 }
+                 if (
+-                    value.playcount >= cond.param
+-                    && Util.CheckCombo(value.combo, cond)
+-                    && Util.CheckSync(value.sync, cond)
++                    value.PlayCount >= cond.param
++                    && Util.CheckCombo(value.ComboStatus, cond)
++                    && Util.CheckSync(value.SyncStatus, cond)
+                 )
+                 {
+-                    return Util.CheckRank(value.scoreRank, cond);
++                    return Util.CheckRank(value.ScoreRank, cond);
+                 }
+                 return false;
+             }
+diff --git a/src/SinmaiLib/Manager/Achieve/AchieveCreditData.cs b/src/SinmaiLib/Manager/Achieve/AchieveCreditData.cs
+index 98fdeea..7dacd4a 100644
+--- a/src/SinmaiLib/Manager/Achieve/AchieveCreditData.cs
++++ b/src/SinmaiLib/Manager/Achieve/AchieveCreditData.cs
+@@ -139,9 +139,9 @@ group i by Util.ToScoreId(i.SessionInfo.musicId, i.SessionInfo.difficulty)
+                 GameScoreList[] array = i.Value.ToArray();
+                 return new UserScore(i.Key)
+                 {
+-                    playcount = (uint)array.Length,
+-                    combo = array.Max((GameScoreList j) => j.ComboType),
+-                    sync = array.Max((GameScoreList j) => j.SyncType),
++                    PlayCount = (uint)array.Length,
++                    ComboStatus = array.Max((GameScoreList j) => j.ComboType),
++                    SyncStatus = array.Max((GameScoreList j) => j.SyncType),
+                 };
+             }
+         );
+diff --git a/src/SinmaiLib/Manager/Achieve/AchieveTotal.cs b/src/SinmaiLib/Manager/Achieve/AchieveTotal.cs
+index 220cb31..d94d724 100644
+--- a/src/SinmaiLib/Manager/Achieve/AchieveTotal.cs
++++ b/src/SinmaiLib/Manager/Achieve/AchieveTotal.cs
+@@ -93,12 +93,12 @@ private static bool FuncMusic(AchieveTotalData data, ReleaseItemConditions cond)
+                     return false;
+                 }
+                 if (
+-                    userScore3.playcount >= cond.param
+-                    && Util.CheckCombo(userScore3.combo, cond)
+-                    && Util.CheckSync(userScore3.sync, cond)
++                    userScore3.PlayCount >= cond.param
++                    && Util.CheckCombo(userScore3.ComboStatus, cond)
++                    && Util.CheckSync(userScore3.SyncStatus, cond)
+                 )
+                 {
+-                    return Util.CheckRank(userScore3.scoreRank, cond);
++                    return Util.CheckRank(userScore3.ScoreRank, cond);
+                 }
+                 return false;
+             }
+@@ -106,12 +106,12 @@ private static bool FuncMusic(AchieveTotalData data, ReleaseItemConditions cond)
+             {
+                 UserScore userScore2 = data.AnyScores[cond.musicId.id];
+                 if (
+-                    userScore2.playcount >= cond.param
+-                    && Util.CheckCombo(userScore2.combo, cond)
+-                    && Util.CheckSync(userScore2.sync, cond)
++                    userScore2.PlayCount >= cond.param
++                    && Util.CheckCombo(userScore2.ComboStatus, cond)
++                    && Util.CheckSync(userScore2.SyncStatus, cond)
+                 )
+                 {
+-                    return Util.CheckRank(userScore2.scoreRank, cond);
++                    return Util.CheckRank(userScore2.ScoreRank, cond);
+                 }
+                 return false;
+             }
+@@ -125,10 +125,10 @@ private static bool FuncMusic(AchieveTotalData data, ReleaseItemConditions cond)
+                         return false;
+                     }
+                     if (
+-                        userScore.playcount < cond.param
+-                        || !Util.CheckCombo(userScore.combo, cond)
+-                        || !Util.CheckSync(userScore.sync, cond)
+-                        || !Util.CheckRank(userScore.scoreRank, cond)
++                        userScore.PlayCount < cond.param
++                        || !Util.CheckCombo(userScore.ComboStatus, cond)
++                        || !Util.CheckSync(userScore.SyncStatus, cond)
++                        || !Util.CheckRank(userScore.ScoreRank, cond)
+                     )
+                     {
+                         return false;
+@@ -312,10 +312,10 @@ private static bool FuncTotalFullCombo(AchieveTotalData data, ReleaseItemConditi
+                 {
+                     return false;
+                 }
+-                return userScore2.extNum1 >= cond.param;
++                return userScore2.ExtNum1 >= cond.param;
+             }
+             case DifficultyID.ANY:
+-                return data.AnyScores[cond.musicId.id].extNum1 >= cond.param;
++                return data.AnyScores[cond.musicId.id].ExtNum1 >= cond.param;
+             case DifficultyID.ALL:
+             {
+                 for (int i = 0; i <= 3; i++)
+@@ -325,7 +325,7 @@ private static bool FuncTotalFullCombo(AchieveTotalData data, ReleaseItemConditi
+                     {
+                         return false;
+                     }
+-                    if (userScore.extNum1 < cond.param)
++                    if (userScore.ExtNum1 < cond.param)
+                     {
+                         return false;
+                     }
+diff --git a/src/SinmaiLib/Manager/Achieve/AchieveTotalData.cs b/src/SinmaiLib/Manager/Achieve/AchieveTotalData.cs
+index 261a472..11c2925 100644
+--- a/src/SinmaiLib/Manager/Achieve/AchieveTotalData.cs
++++ b/src/SinmaiLib/Manager/Achieve/AchieveTotalData.cs
+@@ -67,7 +67,7 @@ public static AchieveTotalData Create(int index)
+                 list.Add(
+                     new UserMapData
+                     {
+-                        ID = item.ID,
++                        Id = item.Id,
+                         Distance = item.Distance,
+                         IsClear = item.IsClear,
+                         IsComplete = item.IsComplete,
+@@ -78,7 +78,7 @@ public static AchieveTotalData Create(int index)
+         }
+         foreach (UserMapData v in udata.MapList)
+         {
+-            UserMapData userMapData = list.FirstOrDefault((UserMapData x) => x.ID == v.ID);
++            UserMapData userMapData = list.FirstOrDefault((UserMapData x) => x.Id == v.Id);
+             if (userMapData != null)
+             {
+                 userMapData.Distance = v.Distance;
+@@ -91,7 +91,7 @@ public static AchieveTotalData Create(int index)
+                 list.Add(
+                     new UserMapData
+                     {
+-                        ID = v.ID,
++                        Id = v.Id,
+                         Distance = v.Distance,
+                         IsClear = v.IsClear,
+                         IsComplete = v.IsComplete,
+@@ -109,11 +109,11 @@ public static AchieveTotalData Create(int index)
+             PlayTrackCount = udata
+                 .ScoreDic.Select(
+                     (Dictionary<int, UserScore> i) =>
+-                        i.Sum((KeyValuePair<int, UserScore> j) => j.Value.playcount)
++                        i.Sum((KeyValuePair<int, UserScore> j) => j.Value.PlayCount)
+                 )
+                 .Sum(),
+-            CharaList = udata.CharaList.ToDictionary((UserChara i) => i.ID, (UserChara i) => i),
+-            MapList = list.ToDictionary((UserMapData i) => i.ID, (UserMapData i) => i),
++            CharaList = udata.CharaList.ToDictionary((UserChara i) => i.Id, (UserChara i) => i),
++            MapList = list.ToDictionary((UserMapData i) => i.Id, (UserMapData i) => i),
+             MapDistance = list.Sum((UserMapData i) => i.Distance),
+             ContinueLoginCount = (
+                 Singleton<NetDataManager>.Instance.GetLoginVO(index)?.consecutiveLoginCount ?? 0
+@@ -133,10 +133,10 @@ public static AchieveTotalData Create(int index)
+                 UserScore[] source2 = i.Value.Where((UserScore j) => j != null).ToArray();
+                 return new UserScore(i.Key)
+                 {
+-                    playcount = (uint)source2.Sum((UserScore j) => j.playcount),
+-                    combo = source2.Max((UserScore j) => j.combo),
+-                    sync = source2.Max((UserScore j) => j.sync),
+-                    extNum1 = (uint)source2.Sum((UserScore j) => j.extNum1),
++                    PlayCount = (uint)source2.Sum((UserScore j) => j.PlayCount),
++                    ComboStatus = source2.Max((UserScore j) => j.ComboStatus),
++                    SyncStatus = source2.Max((UserScore j) => j.SyncStatus),
++                    ExtNum1 = (uint)source2.Sum((UserScore j) => j.ExtNum1),
+                 };
+             }
+         );
+@@ -159,7 +159,7 @@ select Singleton<DataManager>.Instance.GetMapTreasureData(
+                         ) into j
+                         where j != null && j.TreasureType == MapTreasureType.Character
+                         select udata.CharaList.FirstOrDefault(
+-                            (UserChara k) => k.ID == j.CharacterId.id
++                            (UserChara k) => k.Id == j.CharacterId.id
+                         ) into j
+                         where j != null
+                         select j
+diff --git a/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs b/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs
+index c2e5c56..92b21b3 100644
+--- a/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs
++++ b/src/SinmaiLib/Manager/FriendSeasonRankingManager.cs
+@@ -148,12 +148,12 @@ public int GetNextRewardPoint(int playerIndex, int getPoint = 0)
+             from t in Singleton<UserDataManager>
+                 .Instance.GetUserData(playerIndex)
+                 .FriendSeasonRankingList
+-            where GetOpenSeasonRankingID() == t.seasonId
++            where GetOpenSeasonRankingID() == t.SeasonId
+             select (t);
+         int num = 0;
+         if (source.Count() != 0)
+         {
+-            num = source.First().point + getPoint;
++            num = source.First().Point + getPoint;
+         }
+         List<RewardItem> list = GetOpenSeasonEventData()?.pointReward;
+         if (list != null)
+@@ -228,12 +228,12 @@ public List<RewardItem> GetRewardPointItemList(int playerIndex, int point)
+             from t in Singleton<UserDataManager>
+                 .Instance.GetUserData(playerIndex)
+                 .FriendSeasonRankingList
+-            where GetOpenSeasonRankingID() == t.seasonId
++            where GetOpenSeasonRankingID() == t.SeasonId
+             select (t);
+         int num = 0;
+         if (source.Count() != 0)
+         {
+-            num = source.First().point;
++            num = source.First().Point;
+         }
+         List<RewardItem> list2 = GetOpenSeasonEventData()?.pointReward;
+         if (list2 != null)
+@@ -261,12 +261,12 @@ public List<RewardItem> GetRewardRankItemList(int playerIndex)
+             from t in Singleton<UserDataManager>
+                 .Instance.GetUserData(playerIndex)
+                 .FriendSeasonRankingList
+-            where GetResultSeasonRankingID() == t.seasonId
++            where GetResultSeasonRankingID() == t.SeasonId
+             select (t);
+         int num = 0;
+         if (source.Count() != 0)
+         {
+-            num = source.First().rank;
++            num = source.First().Rank;
+         }
+         List<RewardItem> list2 = GetResultSeasonEventData()?.rankReward;
+         if (list2 != null)
+@@ -288,12 +288,12 @@ public int GetResultRank(int playerIndex)
+             from t in Singleton<UserDataManager>
+                 .Instance.GetUserData(playerIndex)
+                 .FriendSeasonRankingList
+-            where GetResultSeasonRankingID() == t.seasonId
++            where GetResultSeasonRankingID() == t.SeasonId
+             select (t);
+         int result = -1;
+-        if (source.Count() != 0 && source.First().rewardGet)
++        if (source.Count() != 0 && source.First().RewardGet)
+         {
+-            result = source.First().rank;
++            result = source.First().Rank;
+         }
+         return result;
+     }
+@@ -319,7 +319,7 @@ private bool GetItemEnable(int playerIndex, int itemKind, int itemId)
+                 result = userData.PartnerList.Find((UserItem t) => t.ItemId == itemId) == null;
+                 break;
+             case 1:
+-                result = userData.CharaList.Find((UserChara t) => t.ID == itemId) == null;
++                result = userData.CharaList.Find((UserChara t) => t.Id == itemId) == null;
+                 break;
+             case 2:
+                 result = !userData.MusicUnlockList.Contains(itemId);
+diff --git a/src/SinmaiLib/Manager/GameScoreList.cs b/src/SinmaiLib/Manager/GameScoreList.cs
+index da029f2..7cf3828 100644
+--- a/src/SinmaiLib/Manager/GameScoreList.cs
++++ b/src/SinmaiLib/Manager/GameScoreList.cs
+@@ -1182,7 +1182,7 @@ public void Initialize(int monitorIndex, bool isParty)
+             try
+             {
+                 UserChara userChara = userData.CharaList.FirstOrDefault(
+-                    (UserChara x) => x.ID == CharaSlot[i]
++                    (UserChara x) => x.Id == CharaSlot[i]
+                 );
+                 CharaLevel[i] = userChara.Level;
+                 CharaAwake[i] = userChara.Awakening;
+@@ -1216,8 +1216,8 @@ public void Initialize(int monitorIndex, bool isParty)
+         userData.ScoreDic[SessionInfo.difficulty].TryGetValue(SessionInfo.musicId, out value);
+         if (value != null)
+         {
+-            PreAchivement = (int)value.achivement;
+-            PreDxScore = value.deluxscore;
++            PreAchivement = (int)value.Achievement;
++            PreDxScore = value.Deluxscore;
+         }
+         PreUdemaeValue = (uint)userData.RatingList.Udemae.ClassValue;
+         PreClassValue = (uint)userData.RatingList.Udemae.ClassValue;
+diff --git a/src/SinmaiLib/Manager/NotesListManager.cs b/src/SinmaiLib/Manager/NotesListManager.cs
+index 11cf19e..71cb208 100644
+--- a/src/SinmaiLib/Manager/NotesListManager.cs
++++ b/src/SinmaiLib/Manager/NotesListManager.cs
+@@ -798,7 +798,7 @@ private int GetNowDistTreasureId(int index)
+         if (mapData != null)
+         {
+             UserMapData userMapData = userData.MapList.Find(
+-                (UserMapData m) => m.ID == userData.Detail.SelectMapId
++                (UserMapData m) => m.Id == userData.Detail.SelectMapId
+             );
+             if (userMapData != null)
+             {
+diff --git a/src/SinmaiLib/Manager/UserData.cs b/src/SinmaiLib/Manager/UserData.cs
+index 95a32eb..50bf237 100644
+--- a/src/SinmaiLib/Manager/UserData.cs
++++ b/src/SinmaiLib/Manager/UserData.cs
+@@ -338,9 +338,7 @@ public bool Is2ndPlayUser()
+ 
+     public bool EqualsFavoriteMusicList()
+     {
+-        return FavoriteItemMusicList
+-            .OrderBy((int e) => e)
+-            .SequenceEqual(NewFavoriteMusicList.OrderBy((int e) => e));
++        return FavoriteItemMusicList.Order().SequenceEqual(NewFavoriteMusicList.Order());
+     }
+ 
+     public bool IsGetMile()
+@@ -574,7 +572,7 @@ public bool AddCollections(Collection type, int id, bool addNewGet = false)
+     {
+         if (type == Collection.Chara)
+         {
+-            if (CharaList.FirstOrDefault((UserChara c) => c.ID == id) == null)
++            if (CharaList.FirstOrDefault((UserChara c) => c.Id == id) == null)
+             {
+                 CharaList.Add(new UserChara(id));
+                 NewCharaList.Add(id);
+@@ -654,7 +652,7 @@ public bool IsUnlockMap(int id)
+     {
+         for (int i = 0; i < MapList.Count; i++)
+         {
+-            if (MapList[i].ID == id)
++            if (MapList[i].Id == id)
+             {
+                 return true;
+             }
+@@ -670,7 +668,7 @@ public void AddUserMapData(int id)
+         }
+         for (int i = 0; i < MapList.Count; i++)
+         {
+-            if (MapList[i].ID == id)
++            if (MapList[i].Id == id)
+             {
+                 return;
+             }
+@@ -889,9 +887,9 @@ public void CalcTotalValue()
+                             && Singleton<DataManager>.Instance.GetMusic(item.Key).eventName.id != 0
+                         )
+                         {
+-                            Detail.TotalAchieves[l] += item.Value.achivement;
+-                            Detail.TotalDeluxScores[l] += item.Value.deluxscore;
+-                            Detail.TotalSyncs[l] += item.Value.sync.GetPoint();
++                            Detail.TotalAchieves[l] += item.Value.Achievement;
++                            Detail.TotalDeluxScores[l] += item.Value.Deluxscore;
++                            Detail.TotalSyncs[l] += item.Value.SyncStatus.GetPoint();
+                         }
+                     }
+                 }
+diff --git a/src/SinmaiLib/Manager/UserDataManager.cs b/src/SinmaiLib/Manager/UserDataManager.cs
+index 8984c2c..238e225 100644
+--- a/src/SinmaiLib/Manager/UserDataManager.cs
++++ b/src/SinmaiLib/Manager/UserDataManager.cs
+@@ -237,11 +237,11 @@ public void Reformat_For_PRiSM(long index)
+                 userData.ScoreDic[0].TryGetValue(music.Key, out var value);
+                 if (
+                     value != null
+-                    && value.achivement >= 2020000
+-                    && value.combo == PlayComboflagID.AllPerfect
++                    && value.Achievement >= 2020000
++                    && value.ComboStatus == PlayComboflagID.AllPerfect
+                 )
+                 {
+-                    value.combo = PlayComboflagID.AllPerfectPlus;
++                    value.ComboStatus = PlayComboflagID.AllPerfectPlus;
+                 }
+             }
+         }
+@@ -271,18 +271,18 @@ public void Reformat_For_PRiSM_PLUS(long index)
+             {
+                 continue;
+             }
+-            switch (value.combo)
++            switch (value.ComboStatus)
+             {
+                 case PlayComboflagID.AllPerfect:
+-                    if (value.achivement >= 2020000)
++                    if (value.Achievement >= 2020000)
+                     {
+-                        value.combo = PlayComboflagID.AllPerfectPlus;
++                        value.ComboStatus = PlayComboflagID.AllPerfectPlus;
+                     }
+                     break;
+                 case PlayComboflagID.AllPerfectPlus:
+-                    if (value.achivement < 2020000)
++                    if (value.Achievement < 2020000)
+                     {
+-                        value.combo = PlayComboflagID.AllPerfect;
++                        value.ComboStatus = PlayComboflagID.AllPerfect;
+                     }
+                     break;
+             }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserChara.cs b/src/SinmaiLib/Manager/UserDatas/UserChara.cs
+index ca1f0dc..913860c 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserChara.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserChara.cs
+@@ -31,7 +31,7 @@ public struct CharaLevelUpParam
+ 
+     public const uint LevelMin = 1u;
+ 
+-    public int ID { get; set; }
++    public int Id { get; set; }
+ 
+     public uint Count { get; set; }
+ 
+@@ -54,13 +54,13 @@ public UserChara()
+ 
+     public UserChara(int id)
+     {
+-        ID = id;
++        Id = id;
+         Clear();
+     }
+ 
+     public UserChara(int id, uint count, uint level)
+     {
+-        ID = id;
++        Id = id;
+         Clear();
+         Count = count;
+         Level = level;
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserDetail.cs b/src/SinmaiLib/Manager/UserDatas/UserDetail.cs
+index 7b0a180..bde5388 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserDetail.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserDetail.cs
+@@ -337,7 +337,7 @@ public UserChara[] AutoComposeCharacterSlot(
+                 bool flag = false;
+                 foreach (int remove in removeList)
+                 {
+-                    if (item2.ID == remove)
++                    if (item2.Id == remove)
+                     {
+                         flag = true;
+                         break;
+@@ -348,13 +348,13 @@ public UserChara[] AutoComposeCharacterSlot(
+                     continue;
+                 }
+             }
+-            if (IsMatchColor(playerIndex, item2.ID))
++            if (IsMatchColor(playerIndex, item2.Id))
+             {
+                 list2.Add(item2);
+             }
+-            else if (Singleton<DataManager>.Instance.GetChara(item2.ID).name.IsValid())
++            else if (Singleton<DataManager>.Instance.GetChara(item2.Id).name.IsValid())
+             {
+-                CharaData chara = Singleton<DataManager>.Instance.GetChara(item2.ID);
++                CharaData chara = Singleton<DataManager>.Instance.GetChara(item2.Id);
+                 if (Singleton<DataManager>.Instance.GetMapDatas().ContainsKey(chara.genre.id))
+                 {
+                     list3.Add(item2);
+@@ -373,13 +373,13 @@ public UserChara[] AutoComposeCharacterSlot(
+                     .IsInfinity;
+                 var num7 = (int)(
+                     b.GetMovementParam(
+-                        IsMatchColor(playerIndex, b.ID),
++                        IsMatchColor(playerIndex, b.Id),
+                         leader: false,
+                         isInfinity,
+                         b.Reincarnation != 0
+                     )
+                     - a.GetMovementParam(
+-                        IsMatchColor(playerIndex, a.ID),
++                        IsMatchColor(playerIndex, a.Id),
+                         leader: false,
+                         isInfinity,
+                         a.Reincarnation != 0
+@@ -390,7 +390,7 @@ public UserChara[] AutoComposeCharacterSlot(
+                     num7 = (int)(!ascending ? b.Level - a.Level : a.Level - b.Level);
+                     if (num7 == 0)
+                     {
+-                        return b.ID - a.ID;
++                        return b.Id - a.Id;
+                     }
+                 }
+                 return num7;
+@@ -442,7 +442,7 @@ public UserChara[] AutoComposeCharacterSlot(
+             }
+         }
+         list4.Clear();
+-        list3.Sort((UserChara a, UserChara b) => a.ID - b.ID);
++        list3.Sort((UserChara a, UserChara b) => a.Id - b.Id);
+         for (int num5 = 0; num5 < 5 && num5 < list3.Count; num5++)
+         {
+             list.Add(list3[num5]);
+@@ -491,7 +491,7 @@ private void OldInsertLockChara(List<UserChara> userCharaList, ref UserChara[] r
+             bool flag = true;
+             for (int j = 0; j < resultArray.Length; j++)
+             {
+-                if (CharaLockSlot[i] != resultArray[j].ID)
++                if (CharaLockSlot[i] != resultArray[j].Id)
+                 {
+                     continue;
+                 }
+@@ -527,7 +527,7 @@ private void OldInsertLockChara(List<UserChara> userCharaList, ref UserChara[] r
+             UserChara userChara3 = null;
+             foreach (UserChara userChara4 in userCharaList)
+             {
+-                if (userChara4.ID == CharaLockSlot[i])
++                if (userChara4.Id == CharaLockSlot[i])
+                 {
+                     userChara3 = userChara4;
+                     break;
+@@ -557,7 +557,7 @@ int leaderID
+         int num = 0;
+         if (0 <= leaderID)
+         {
+-            array[0] = userCharaList.First((UserChara c) => c.ID == leaderID);
++            array[0] = userCharaList.First((UserChara c) => c.Id == leaderID);
+             num = 1;
+         }
+         for (; num < CharaLockSlot.Length; num++)
+@@ -573,14 +573,14 @@ int leaderID
+         }
+         foreach (int index in queue2)
+         {
+-            array[index] = userCharaList.First((UserChara c) => c.ID == CharaLockSlot[index]);
++            array[index] = userCharaList.First((UserChara c) => c.Id == CharaLockSlot[index]);
+         }
+         for (int num2 = 0; num2 < 5; num2++)
+         {
+             bool flag = true;
+             foreach (int item in queue2)
+             {
+-                if (resultArray[num2]?.ID == CharaLockSlot[item])
++                if (resultArray[num2]?.Id == CharaLockSlot[item])
+                 {
+                     flag = false;
+                     break;
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserFriendSeasonRanking.cs b/src/SinmaiLib/Manager/UserDatas/UserFriendSeasonRanking.cs
+index 580c02a..977715b 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserFriendSeasonRanking.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserFriendSeasonRanking.cs
+@@ -2,17 +2,17 @@ namespace Manager.UserDatas;
+ 
+ public class UserFriendSeasonRanking
+ {
+-    public int seasonId { get; set; }
++    public int SeasonId { get; set; }
+ 
+-    public int point { get; set; }
++    public int Point { get; set; }
+ 
+-    public int rank { get; set; }
++    public int Rank { get; set; }
+ 
+-    public bool rewardGet { get; set; }
++    public bool RewardGet { get; set; }
+ 
+-    public string userName { get; set; }
++    public string UserName { get; set; }
+ 
+-    public string recordDate { get; set; }
++    public string RecordDate { get; set; }
+ 
+     public UserFriendSeasonRanking()
+     {
+@@ -28,21 +28,21 @@ public UserFriendSeasonRanking(
+         string date
+     )
+     {
+-        seasonId = id;
+-        this.point = point;
+-        this.rank = rank;
+-        rewardGet = isGet;
+-        userName = name;
+-        recordDate = date;
++        SeasonId = id;
++        this.Point = point;
++        this.Rank = rank;
++        RewardGet = isGet;
++        UserName = name;
++        RecordDate = date;
+     }
+ 
+     public void Clear()
+     {
+-        seasonId = 0;
+-        point = 0;
+-        rank = 0;
+-        rewardGet = false;
+-        userName = "";
+-        recordDate = "";
++        SeasonId = 0;
++        Point = 0;
++        Rank = 0;
++        RewardGet = false;
++        UserName = "";
++        RecordDate = "";
+     }
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserOption.cs b/src/SinmaiLib/Manager/UserDatas/UserOption.cs
+index 3a98bef..49096a5 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserOption.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserOption.cs
+@@ -55,23 +55,20 @@ private class UserOptionSimpleBase
+ 
+     public static string[][] Text = new string[5][]
+     {
+-        new string[3]
+-        {
++        [
+             OptionCateSpeedID.NoteSpeed.GetName(),
+             OptionCateSpeedID.TouchSpeed.GetName(),
+             OptionCateSpeedID.SlideSpeed.GetName(),
+-        },
+-        new string[6]
+-        {
++        ],
++        [
+             OptionCateGameID.TrackSkip.GetName(),
+             OptionCateGameID.Mirror.GetName(),
+             OptionCateGameID.StarRotate.GetName(),
+             OptionCateGameID.AdjustTiming.GetName(),
+             OptionCateGameID.JudgeTiming.GetName(),
+             OptionCateGameID.Brightness.GetName(),
+-        },
+-        new string[8]
+-        {
++        ],
++        [
+             OptionCateJudgeID.DispCenter.GetName(),
+             OptionCateJudgeID.DispOutFrame.GetName(),
+             OptionCateJudgeID.DispJudge.GetName(),
+@@ -80,17 +77,15 @@ private class UserOptionSimpleBase
+             OptionCateJudgeID.ChainDisp.GetName(),
+             OptionCateJudgeID.SubMonitor_Achive.GetName(),
+             OptionCateJudgeID.RatingDisp.GetName(),
+-        },
+-        new string[5]
+-        {
++        ],
++        [
+             OptionCateDesignID.TapDesign.GetName(),
+             OptionCateDesignID.HoldDesign.GetName(),
+             OptionCateDesignID.SlideDesign.GetName(),
+             OptionCateDesignID.StarDesign.GetName(),
+             OptionCateDesignID.OutlineDesign.GetName(),
+-        },
+-        new string[11]
+-        {
++        ],
++        [
+             OptionCateSoundID.Ans_Vol.GetName(),
+             OptionCateSoundID.Tap_SuccessSe.GetName(),
+             OptionCateSoundID.Tap_Judge.GetName(),
+@@ -102,7 +97,7 @@ private class UserOptionSimpleBase
+             OptionCateSoundID.Slide_Se.GetName(),
+             OptionCateSoundID.Slide_Vol.GetName(),
+             OptionCateSoundID.BreakSlide_Vol.GetName(),
+-        },
++        ],
+     };
+ 
+     public OptionKindID OptionKind { get; set; }
+@@ -113,31 +108,13 @@ private class UserOptionSimpleBase
+ 
+     public OptionTouchspeedID TouchSpeed { get; set; }
+ 
+-    public OptionNotespeedID GetNoteSpeed
+-    {
+-        get
+-        {
+-            if (OptionKindID.Custom != OptionKind)
+-            {
+-                return OptionBase[(int)OptionKind].noteSpeed;
+-            }
+-            return NoteSpeed;
+-        }
+-    }
++    public OptionNotespeedID GetNoteSpeed =>
++        OptionKindID.Custom != OptionKind ? OptionBase[(int)OptionKind].noteSpeed : NoteSpeed;
+ 
+     public OptionSlidespeedID GetSlideSpeed => SlideSpeed;
+ 
+-    public OptionTouchspeedID GetTouchSpeed
+-    {
+-        get
+-        {
+-            if (OptionKindID.Custom != OptionKind)
+-            {
+-                return OptionBase[(int)OptionKind].touchSpeed;
+-            }
+-            return TouchSpeed;
+-        }
+-    }
++    public OptionTouchspeedID GetTouchSpeed =>
++        OptionKind != OptionKindID.Custom ? OptionBase[(int)OptionKind].touchSpeed : TouchSpeed;
+ 
+     public OptionGametapID TapDesign { get; set; }
+ 
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserPartnerCloseness.cs b/src/SinmaiLib/Manager/UserDatas/UserPartnerCloseness.cs
+index e16317c..1acdb3f 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserPartnerCloseness.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserPartnerCloseness.cs
+@@ -5,9 +5,9 @@ namespace Manager.UserDatas;
+ [Serializable]
+ public class UserPartnerCloseness
+ {
+-    public int partnerId;
++    public int PartnerId;
+ 
+-    public int closeness;
++    public int Closeness;
+ 
+-    public int intimateCountRewarded;
++    public int IntimateCountRewarded;
+ }
+diff --git a/src/SinmaiLib/Manager/UserDatas/UserScore.cs b/src/SinmaiLib/Manager/UserDatas/UserScore.cs
+dissimilarity index 64%
+index 7670d6a..058ed1c 100644
+--- a/src/SinmaiLib/Manager/UserDatas/UserScore.cs
++++ b/src/SinmaiLib/Manager/UserDatas/UserScore.cs
+@@ -1,72 +1,72 @@
+-using System;
+-using DB;
+-
+-namespace Manager.UserDatas;
+-
+-[Serializable]
+-public class UserScore
+-{
+-    public int id;
+-
+-    public uint playcount;
+-
+-    public uint achivement;
+-
+-    public PlayComboflagID combo;
+-
+-    public PlaySyncflagID sync;
+-
+-    public uint deluxscore;
+-
+-    public MusicClearrankID scoreRank;
+-
+-    public uint extNum1;
+-
+-    public UserScore(int _id)
+-    {
+-        id = _id;
+-        playcount = 0u;
+-        achivement = 0u;
+-        combo = PlayComboflagID.None;
+-        sync = PlaySyncflagID.None;
+-        deluxscore = 0u;
+-        scoreRank = MusicClearrankID.Rank_D;
+-        extNum1 = 0u;
+-    }
+-
+-    public bool IsFullCombo()
+-    {
+-        if (combo != PlayComboflagID.Gold)
+-        {
+-            return combo == PlayComboflagID.Silver;
+-        }
+-        return true;
+-    }
+-
+-    public bool IsAllPerfect()
+-    {
+-        if (combo != PlayComboflagID.AllPerfect)
+-        {
+-            return combo == PlayComboflagID.AllPerfectPlus;
+-        }
+-        return true;
+-    }
+-
+-    public bool IsChain()
+-    {
+-        if (sync != PlaySyncflagID.ChainLow)
+-        {
+-            return sync == PlaySyncflagID.ChainHi;
+-        }
+-        return true;
+-    }
+-
+-    public bool IsSync()
+-    {
+-        if (sync != PlaySyncflagID.SyncLow)
+-        {
+-            return sync == PlaySyncflagID.SyncHi;
+-        }
+-        return true;
+-    }
+-}
++using System;
++using DB;
++
++namespace Manager.UserDatas;
++
++[Serializable]
++public class UserScore
++{
++    public int Id;
++
++    public uint PlayCount;
++
++    public uint Achievement;
++
++    public PlayComboflagID ComboStatus;
++
++    public PlaySyncflagID SyncStatus;
++
++    public uint Deluxscore;
++
++    public MusicClearrankID ScoreRank;
++
++    public uint ExtNum1;
++
++    public UserScore(int _id)
++    {
++        Id = _id;
++        PlayCount = 0u;
++        Achievement = 0u;
++        ComboStatus = PlayComboflagID.None;
++        SyncStatus = PlaySyncflagID.None;
++        Deluxscore = 0u;
++        ScoreRank = MusicClearrankID.Rank_D;
++        ExtNum1 = 0u;
++    }
++
++    public bool IsFullCombo()
++    {
++        if (ComboStatus != PlayComboflagID.Gold)
++        {
++            return ComboStatus == PlayComboflagID.Silver;
++        }
++        return true;
++    }
++
++    public bool IsAllPerfect()
++    {
++        if (ComboStatus != PlayComboflagID.AllPerfect)
++        {
++            return ComboStatus == PlayComboflagID.AllPerfectPlus;
++        }
++        return true;
++    }
++
++    public bool IsChain()
++    {
++        if (SyncStatus != PlaySyncflagID.ChainLow)
++        {
++            return SyncStatus == PlaySyncflagID.ChainHi;
++        }
++        return true;
++    }
++
++    public bool IsSync()
++    {
++        if (SyncStatus != PlaySyncflagID.SyncLow)
++        {
++            return SyncStatus == PlaySyncflagID.SyncHi;
++        }
++        return true;
++    }
++}
+diff --git a/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs b/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs
+index 7c18e4a..e514505 100644
+--- a/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs
++++ b/src/SinmaiLib/Monitor/CharacterSelect/CharacterChainList.cs
+@@ -59,7 +59,7 @@ public override void SetScrollCard(bool isVisible)
+                     mapColorData,
+                     userCharaData.UserChara.Reincarnation
+                 );
+-                bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.ID);
++                bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.Id);
+                 WeakPoint weakPoint = ((!flag) ? WeakPoint.Weak : WeakPoint.Forte);
+                 bool isLeaderChange = IsLeaderChange;
+                 if (isLeaderChange)
+@@ -155,7 +155,7 @@ public override void Deploy()
+                     mapColorData,
+                     userCharaData.UserChara.Reincarnation
+                 );
+-                bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.ID);
++                bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.Id);
+                 WeakPoint weakPoint = ((!flag) ? WeakPoint.Weak : WeakPoint.Forte);
+                 bool isLeaderChange = IsLeaderChange;
+                 if (isLeaderChange)
+@@ -234,7 +234,7 @@ public void NewcomerDeploy()
+                 mapColorData,
+                 newcomerData.UserChara.Reincarnation
+             );
+-            bool flag = _selectProcess.IsMatchColor(_playerIndex, newcomerData.UserChara.ID);
++            bool flag = _selectProcess.IsMatchColor(_playerIndex, newcomerData.UserChara.Id);
+             WeakPoint weakPoint = ((!flag) ? WeakPoint.Weak : WeakPoint.Forte);
+             bool isLeaderChange = IsLeaderChange;
+             if (isLeaderChange)
+@@ -304,7 +304,7 @@ public void FavoriteDeploy()
+                     mapColorData,
+                     userCharaData.UserChara.Reincarnation
+                 );
+-                bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.ID);
++                bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.Id);
+                 WeakPoint weakPoint = ((!flag) ? WeakPoint.Weak : WeakPoint.Forte);
+                 bool isLeaderChange = IsLeaderChange;
+                 if (isLeaderChange)
+@@ -416,7 +416,7 @@ protected override void Next(int targetIndex, Direction direction)
+                 mapColorData,
+                 userCharaData.UserChara.Reincarnation
+             );
+-            bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.ID);
++            bool flag = _selectProcess.IsMatchColor(_playerIndex, userCharaData.UserChara.Id);
+             WeakPoint weakPoint = ((!flag) ? WeakPoint.Weak : WeakPoint.Forte);
+             bool isLeaderChange = IsLeaderChange;
+             if (isLeaderChange)
+diff --git a/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs b/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs
+index e4dda15..91d3e01 100644
+--- a/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs
++++ b/src/SinmaiLib/Monitor/CharacterSelectMonitor.cs
+@@ -474,7 +474,7 @@ public void SetNewcomer(CharacterData chara)
+             CharacterMapColorData mapColorData = _characterSelect.GetMapColorData(
+                 chara.Data.genre.id
+             );
+-            bool flag = _characterSelect.IsMatchColor(monitorIndex, chara.UserChara.ID);
++            bool flag = _characterSelect.IsMatchColor(monitorIndex, chara.UserChara.Id);
+             Texture2D texture = chara.Texture;
+             Sprite face = Sprite.Create(
+                 texture,
+@@ -838,7 +838,7 @@ public void ToCharacterSelect(int slotIndex = -1)
+         if (_isNewcomerMode)
+         {
+             WeakPoint weak = (
+-                (!_characterSelect.IsMatchColor(monitorIndex, _newcomerChara.ID))
++                (!_characterSelect.IsMatchColor(monitorIndex, _newcomerChara.Id))
+                     ? WeakPoint.Weak
+                     : WeakPoint.Forte
+             );
+@@ -870,7 +870,7 @@ public void ToCharacterSelect(int slotIndex = -1)
+                 SpriteMeshType.FullRect
+             );
+             _exchangeOriginState.SetParts(sprite);
+-            bool flag = _characterSelect.IsMatchColor(monitorIndex, userCharaData.UserChara.ID);
++            bool flag = _characterSelect.IsMatchColor(monitorIndex, userCharaData.UserChara.Id);
+             bool isInfinity = Singleton<DataManager>
+                 .Instance.GetMapData(
+                     Singleton<UserDataManager>.Instance.GetUserData(monitorIndex).Detail.SelectMapId
+@@ -901,7 +901,7 @@ public void ToCharacterSelect(int slotIndex = -1)
+             if (_isNewcomerMode)
+             {
+                 CharacterData newcomerData = _characterSelect.GetNewcomerData(monitorIndex);
+-                flag = _characterSelect.IsMatchColor(monitorIndex, newcomerData.UserChara.ID);
++                flag = _characterSelect.IsMatchColor(monitorIndex, newcomerData.UserChara.Id);
+                 CharacterSelectProces.ArrowDirection arrowDirection =
+                     _characterSelect.GetArrowDirection(
+                         monitorIndex,
+@@ -933,7 +933,7 @@ public void ToCharacterSelect(int slotIndex = -1)
+                 CharacterData newcomerData2 = _characterSelect.GetNewcomerData(monitorIndex);
+                 bool matchColor = _characterSelect.IsMatchColor(
+                     monitorIndex,
+-                    newcomerData2.UserChara.ID
++                    newcomerData2.UserChara.Id
+                 );
+                 CharacterSelectProces.ArrowDirection arrowDirection2 =
+                     _characterSelect.GetArrowDirection(
+@@ -1147,7 +1147,7 @@ public void SetCharacterSlotData(int index, CharacterData userChara)
+                 )
+                 .IsInfinity;
+             bool reincarnated = userChara.UserChara.Reincarnation != 0;
+-            bool flag = _characterSelect.IsMatchColor(monitorIndex, userChara.UserChara.ID);
++            bool flag = _characterSelect.IsMatchColor(monitorIndex, userChara.UserChara.Id);
+             int movementParam = (int)
+                 userChara.UserChara.GetMovementParam(flag, index == 0, isInfinity, reincarnated);
+             WeakPoint targetPoint = ((!flag) ? WeakPoint.Weak : WeakPoint.Forte);
+@@ -1407,7 +1407,7 @@ public static bool IsFavorite(int userIndex, UserChara chara)
+         {
+             return Singleton<UserDataManager>
+                 .Instance.GetUserData(userIndex)
+-                .IsFavorite(UserData.Collection.Chara, chara.ID);
++                .IsFavorite(UserData.Collection.Chara, chara.Id);
+         }
+         return false;
+     }
+diff --git a/src/SinmaiLib/Monitor/Game/GameCtrl.cs b/src/SinmaiLib/Monitor/Game/GameCtrl.cs
+index d738131..3b276bb 100644
+--- a/src/SinmaiLib/Monitor/Game/GameCtrl.cs
++++ b/src/SinmaiLib/Monitor/Game/GameCtrl.cs
+@@ -1264,7 +1264,7 @@ public void CreateNoteLuncher()
+             userData.ScoreDic[difficulty].TryGetValue(musicId, out value);
+             if (value != null)
+             {
+-                myBest = (int)value.achivement;
++                myBest = (int)value.Achievement;
+             }
+             for (int num2 = 0; num2 < userData.SelectMusicRivalScoreDataList.Count; num2++)
+             {
+diff --git a/src/SinmaiLib/Monitor/GameMonitor.cs b/src/SinmaiLib/Monitor/GameMonitor.cs
+index 928d840..6304270 100644
+--- a/src/SinmaiLib/Monitor/GameMonitor.cs
++++ b/src/SinmaiLib/Monitor/GameMonitor.cs
+@@ -138,7 +138,7 @@ public void InitGameDispCtrl()
+             userData.ScoreDic[difficulty].TryGetValue(musicId, out value);
+             if (value != null)
+             {
+-                mybest = (int)value.achivement;
++                mybest = (int)value.Achievement;
+             }
+             GameDispCtrl.Initialize(monitorIndex, mybest);
+         }
+diff --git a/src/SinmaiLib/Monitor/MapResult/Phase3CommonMember.cs b/src/SinmaiLib/Monitor/MapResult/Phase3CommonMember.cs
+index d042146..d063a66 100644
+--- a/src/SinmaiLib/Monitor/MapResult/Phase3CommonMember.cs
++++ b/src/SinmaiLib/Monitor/MapResult/Phase3CommonMember.cs
+@@ -200,7 +200,7 @@ bool isAwakeEnd
+         MultiImage component = gameObject2
+             .transform.GetChild(1)
+             .gameObject.GetComponent<MultiImage>();
+-        num3 = userChara.ID;
++        num3 = userChara.Id;
+         texture2D = manager.GetCharacterTexture2D(num3);
+         sprite = Sprite.Create(
+             texture2D,
+@@ -211,7 +211,7 @@ bool isAwakeEnd
+             SpriteMeshType.FullRect
+         );
+         component.sprite = sprite;
+-        num = Singleton<DataManager>.Instance.GetChara(userChara.ID).color.id;
++        num = Singleton<DataManager>.Instance.GetChara(userChara.Id).color.id;
+         Color24 colorDark = Singleton<DataManager>.Instance.GetMapColorData(num).ColorDark;
+         Color color = new Color(
+             (float)(int)colorDark.R / 255f,
+@@ -233,7 +233,7 @@ bool isAwakeEnd
+         gameObject2.SetActive(value: true);
+         if (!isAwakeEnd)
+         {
+-            num2 = Singleton<DataManager>.Instance.GetChara(userChara.ID).genre.id;
++            num2 = Singleton<DataManager>.Instance.GetChara(userChara.Id).genre.id;
+             Image image = null;
+             for (int j = 1; j < 6; j++)
+             {
+@@ -436,8 +436,8 @@ float ticket_rate
+         {
+             Texture2D texture2D = null;
+             Sprite sprite = null;
+-            int iD = info[j].ID;
+-            Singleton<DataManager>.Instance.GetChara(info[j].ID);
++            int iD = info[j].Id;
++            Singleton<DataManager>.Instance.GetChara(info[j].Id);
+             texture2D = manager.GetCharacterTexture2D(iD);
+             sprite = Sprite.Create(
+                 texture2D,
+@@ -542,8 +542,8 @@ float ticket_rate
+             _awakeInfo.Add(item2);
+             AwakeInfo awakeInfo = _awakeInfo[l];
+             UserChara userChara = info[l];
+-            UserChara userChara2 = new UserChara(info[l].ID, info[l].Count, info[l].DisplayLevel);
+-            Singleton<DataManager>.Instance.GetChara(userChara.ID);
++            UserChara userChara2 = new UserChara(info[l].Id, info[l].Count, info[l].DisplayLevel);
++            Singleton<DataManager>.Instance.GetChara(userChara.Id);
+             List<CharaAwakeData> list = (
+                 from x in Singleton<DataManager>.Instance.GetCharaAwakes()
+                 select x.Value
+diff --git a/src/SinmaiLib/Monitor/MapResultMonitor.cs b/src/SinmaiLib/Monitor/MapResultMonitor.cs
+index 1219dae..0ef1897 100644
+--- a/src/SinmaiLib/Monitor/MapResultMonitor.cs
++++ b/src/SinmaiLib/Monitor/MapResultMonitor.cs
+@@ -753,7 +753,7 @@ public override void Initialize(int monIndex, bool active)
+             _musicID = Singleton<GamePlayManager>
+                 .Instance.GetDebugGameScore(_monitorID)
+                 .GameScoreData[GameManager.MusicTrackNumber - 1]
+-                .Score.id;
++                .Score.Id;
+         }
+         if (_dataListUserMap.Count == 0 || !_isEntry || _isGuest)
+         {
+@@ -786,7 +786,7 @@ KeyValuePair<int, MapData> mapData3 in Singleton<DataManager>.Instance.GetMapDat
+             num2 += key;
+         }
+         num2 *= 2;
+-        int num3 = userData.MapList.FindIndex((UserMapData m) => m.ID == _mapID);
++        int num3 = userData.MapList.FindIndex((UserMapData m) => m.Id == _mapID);
+         if (_dataListUserMap.Count == 0 || num3 < 0)
+         {
+             KeyValuePair<int, MapData> keyValuePair = Singleton<DataManager>
+@@ -801,7 +801,7 @@ KeyValuePair<int, MapData> mapData3 in Singleton<DataManager>.Instance.GetMapDat
+                 list.Add(mapData.ReleaseConditionIds.list[num4].id);
+             }
+             UserMapData userMapData2 = new UserMapData();
+-            userMapData2.ID = _mapID;
++            userMapData2.Id = _mapID;
+             userMapData2.CharaColorKey = mapData.ColorId.id;
+             Color24 color = Singleton<DataManager>
+                 .Instance.GetMapColorData(mapData.ColorId.id)
+@@ -823,7 +823,7 @@ KeyValuePair<int, MapData> mapData3 in Singleton<DataManager>.Instance.GetMapDat
+             _isEnableRainbow = false;
+         }
+         _userData = Singleton<UserDataManager>.Instance.GetUserData(_monitorID);
+-        int num5 = _userData.MapList.FindIndex((UserMapData m) => m.ID == _mapID);
++        int num5 = _userData.MapList.FindIndex((UserMapData m) => m.Id == _mapID);
+         if (num5 < 0)
+         {
+             num5 = 0;
+@@ -1098,9 +1098,9 @@ var item5 in list2.Select(
+             {
+                 CharaData data = Singleton<DataManager>.Instance.GetChara(charaSlot[num24]);
+                 UserChara userChara = userData.CharaList.Find(
+-                    (UserChara a2) => a2.ID == data.GetID()
++                    (UserChara a2) => a2.Id == data.GetID()
+                 );
+-                bool matchColor = userData.Detail.IsMatchColor(_monitorID, userChara.ID);
++                bool matchColor = userData.Detail.IsMatchColor(_monitorID, userChara.Id);
+                 bool leader = false;
+                 if (num23 == 0)
+                 {
+@@ -1193,7 +1193,7 @@ var item6 in _charaBaseV.Select(
+         if (_charaInfo.Count > 0)
+         {
+             BounusIconDispInfo bounusIconDispInfo = new BounusIconDispInfo();
+-            bounusIconDispInfo.ID = _charaInfo[0].ID;
++            bounusIconDispInfo.ID = _charaInfo[0].Id;
+             bounusIconDispInfo.miniIconType = BounusIconDispInfo.MiniIconType.MiniIconChara;
+             bounusIconDispInfo.bonusKind = BounusIconDispInfo.BonusKind.BonusKindChara;
+             bounusIconDispInfo.point = num25;
+@@ -1203,7 +1203,7 @@ var item6 in _charaBaseV.Select(
+         else
+         {
+             BounusIconDispInfo bounusIconDispInfo2 = new BounusIconDispInfo();
+-            bounusIconDispInfo2.ID = _charaInfo[0].ID;
++            bounusIconDispInfo2.ID = _charaInfo[0].Id;
+             bounusIconDispInfo2.miniIconType = BounusIconDispInfo.MiniIconType.MiniIconChara;
+             bounusIconDispInfo2.bonusKind = BounusIconDispInfo.BonusKind.BonusKindChara;
+             bounusIconDispInfo2.point = num25;
+@@ -3922,7 +3922,7 @@ var item in list2.Select(
+                                     )
+                                     {
+                                         list.Add(item.value);
+-                                        if (list[list.Count - 1].ID == _mapID)
++                                        if (list[list.Count - 1].Id == _mapID)
+                                         {
+                                             list[list.Count - 1].Distance = _phase2.m._distanceEnd[
+                                                 _phase2.m._rainbowID
+@@ -3936,7 +3936,7 @@ var item in list2.Select(
+                                         foreach (int id2 in userMapData.ReleaseIds)
+                                         {
+                                             UserMapData userMapData2 = source.FirstOrDefault(
+-                                                (UserMapData m) => m.ID == id2
++                                                (UserMapData m) => m.Id == id2
+                                             );
+                                             if (userMapData2 == null)
+                                             {
+@@ -3944,7 +3944,7 @@ var item in list2.Select(
+                                             }
+                                             if (
+                                                 !Singleton<MapMaster>.Instance.IsRelease(
+-                                                    userMapData2.ID,
++                                                    userMapData2.Id,
+                                                     userMapData2.Distance
+                                                 )
+                                             )
+@@ -3960,9 +3960,9 @@ var item in list2.Select(
+                                                 continue;
+                                             }
+                                             int select_id = _mapID;
+-                                            int mapID = list[num61].ID;
++                                            int mapID = list[num61].Id;
+                                             int num62 = _userData.MapList.FindIndex(
+-                                                (UserMapData m) => m.ID == mapID
++                                                (UserMapData m) => m.Id == mapID
+                                             );
+                                             int num63 = list[num61]
+                                                 .ReleaseIds.FindIndex((int m) => m == select_id);
+@@ -3982,7 +3982,7 @@ var item in list2.Select(
+                                                     )
+                                                 )
+                                                 {
+-                                                    _phase2.m._releaseIslandID.Add(list[num61].ID);
++                                                    _phase2.m._releaseIslandID.Add(list[num61].Id);
+                                                 }
+                                             }
+                                         }
+@@ -6584,7 +6584,7 @@ var item in list2.Select(
+                 }
+                 ResetSkipStart();
+                 _mapID = _userData.Detail.SelectMapId;
+-                int num = _userData.MapList.FindIndex((UserMapData m) => m.ID == _mapID);
++                int num = _userData.MapList.FindIndex((UserMapData m) => m.Id == _mapID);
+                 if (num < 0)
+                 {
+                     _userData.MapList.Add(_userMap);
+@@ -6626,7 +6626,7 @@ var item in list2.Select(
+                 {
+                     num = Singleton<MapMaster>
+                         .Instance.RefUserMapList[_monitorID]
+-                        .FindIndex((UserMapData m) => m.ID == _mapID);
++                        .FindIndex((UserMapData m) => m.Id == _mapID);
+                     if (num >= 0)
+                     {
+                         Singleton<MapMaster>.Instance.RefUserMapList[_monitorID][num].Distance =
+@@ -6764,7 +6764,7 @@ var item in list2.Select(
+                         }
+                         CharaData data2 = Singleton<DataManager>.Instance.GetChara(charaSlot[num9]);
+                         UserChara userChara = _userData.CharaList.Find(
+-                            (UserChara a2) => a2.ID == data2.GetID()
++                            (UserChara a2) => a2.Id == data2.GetID()
+                         );
+                         int num10 = (int)userChara.Level;
+                         if (num10 >= _phase3.m._levelMax)
+@@ -6784,7 +6784,7 @@ var item in list2.Select(
+                         }
+                         userChara.Level = (uint)num11;
+                         num = _userData.CharaList.FindIndex(
+-                            (UserChara a2) => a2.ID == data2.GetID()
++                            (UserChara a2) => a2.Id == data2.GetID()
+                         );
+                         if (num >= 0)
+                         {
+diff --git a/src/SinmaiLib/Monitor/MusicSelect/ChainList/MenuChainList.cs b/src/SinmaiLib/Monitor/MusicSelect/ChainList/MenuChainList.cs
+index 4f0f8d3..7ab8054 100644
+--- a/src/SinmaiLib/Monitor/MusicSelect/ChainList/MenuChainList.cs
++++ b/src/SinmaiLib/Monitor/MusicSelect/ChainList/MenuChainList.cs
+@@ -41,14 +41,14 @@ public void ChangeDifficulty(MusicDifficultyID difficulty)
+             PlaySyncflagID sync = PlaySyncflagID.None;
+             if (userScore != null)
+             {
+-                num = (int)userScore.achivement;
++                num = (int)userScore.Achievement;
+                 musicClearrankID = GameManager.GetClearRank(
+                     num,
+                     music.MusicData.utagePlayStyle == UtagePlayStyle.DoublePlayerScore
+                 );
+-                scoreAchivment = userScore.combo;
+-                sync = userScore.sync;
+-                dxScore = userScore.deluxscore;
++                scoreAchivment = userScore.ComboStatus;
++                sync = userScore.SyncStatus;
++                dxScore = userScore.Deluxscore;
+                 dxScoreMax = (uint)(music.ScoreData[(int)difficulty].maxNotes * 3);
+             }
+             if (
+@@ -314,15 +314,15 @@ public override void Deploy()
+                     PlaySyncflagID sync = PlaySyncflagID.None;
+                     if (userScore != null)
+                     {
+-                        num4 = (int)userScore.achivement;
++                        num4 = (int)userScore.Achievement;
+                         musicClearrankID = GameManager.GetClearRank(
+                             num4,
+                             musicSelectData.MusicData.utagePlayStyle
+                                 == UtagePlayStyle.DoublePlayerScore
+                         );
+-                        scoreAchivment = userScore.combo;
+-                        sync = userScore.sync;
+-                        dxScore = userScore.deluxscore;
++                        scoreAchivment = userScore.ComboStatus;
++                        sync = userScore.SyncStatus;
++                        dxScore = userScore.Deluxscore;
+                         dxScoreMax = (uint)(musicSelectData.ScoreData[num3].maxNotes * 3);
+                     }
+                     if (
+diff --git a/src/SinmaiLib/Monitor/MusicSelect/ChainList/MusicSelectChainList.cs b/src/SinmaiLib/Monitor/MusicSelect/ChainList/MusicSelectChainList.cs
+index 30c667a..2168aa8 100644
+--- a/src/SinmaiLib/Monitor/MusicSelect/ChainList/MusicSelectChainList.cs
++++ b/src/SinmaiLib/Monitor/MusicSelect/ChainList/MusicSelectChainList.cs
+@@ -306,14 +306,14 @@ public void SetChainData(
+         );
+         if (userScore != null)
+         {
+-            num = (int)userScore.achivement;
++            num = (int)userScore.Achievement;
+             musicClearrankID = GameManager.GetClearRank(
+                 num,
+                 musicSelectData.MusicData.utagePlayStyle == UtagePlayStyle.DoublePlayerScore
+             );
+-            dxScore = userScore.deluxscore;
+-            scoreAchivment = userScore.combo;
+-            sync = userScore.sync;
++            dxScore = userScore.Deluxscore;
++            scoreAchivment = userScore.ComboStatus;
++            sync = userScore.SyncStatus;
+             dxScoreMax = (uint)(musicSelectData.ScoreData[difficulty].maxNotes * 3);
+         }
+         NotesWrapper notesWrapper = Singleton<NotesListManager>.Instance.GetNotesList()[
+diff --git a/src/SinmaiLib/Monitor/MusicSelectInfo/MusicSelectInfoMonitor.cs b/src/SinmaiLib/Monitor/MusicSelectInfo/MusicSelectInfoMonitor.cs
+index 845eeef..d266a51 100644
+--- a/src/SinmaiLib/Monitor/MusicSelectInfo/MusicSelectInfoMonitor.cs
++++ b/src/SinmaiLib/Monitor/MusicSelectInfo/MusicSelectInfoMonitor.cs
+@@ -190,12 +190,12 @@ public override void Initialize(int monIndex, bool active)
+                     UserData userData = Singleton<UserDataManager>.Instance.GetUserData(monIndex);
+                     IEnumerable<Manager.UserDatas.UserFriendSeasonRanking> source =
+                         from t in userData.FriendSeasonRankingList
+-                        where eventData.seasonId == t.seasonId
++                        where eventData.seasonId == t.SeasonId
+                         select (t);
+                     int num = 0;
+                     if (source.Count() != 0)
+                     {
+-                        num = source.First().point;
++                        num = source.First().Point;
+                     }
+                     if (num == 0 && !userData.IsGuest() && ghostServerDataNum > 0)
+                     {
+diff --git a/src/SinmaiLib/Monitor/MusicSelectMonitor.cs b/src/SinmaiLib/Monitor/MusicSelectMonitor.cs
+index 1037ae9..38a2b9d 100644
+--- a/src/SinmaiLib/Monitor/MusicSelectMonitor.cs
++++ b/src/SinmaiLib/Monitor/MusicSelectMonitor.cs
+@@ -527,7 +527,7 @@ public override void Initialize(int playerIndex, bool isActive)
+             if (charaSlot[i] != 0)
+             {
+                 CharaData charaData = instance.GetChara(charaSlot[i]);
+-                UserChara userChara = charaList.Find((UserChara a) => a.ID == charaData.GetID());
++                UserChara userChara = charaList.Find((UserChara a) => a.Id == charaData.GetID());
+                 if (userChara != null)
+                 {
+                     MapColorData mapColorData = instance.GetMapColorData(charaData.color.id);
+@@ -788,8 +788,8 @@ public void SetRivalScore(bool isDifficultySelectSequence = false)
+             int dxScore = -1;
+             if (userScore != null)
+             {
+-                achivement = (int)userScore.achivement;
+-                dxScore = (int)userScore.deluxscore;
++                achivement = (int)userScore.Achievement;
++                dxScore = (int)userScore.Deluxscore;
+             }
+             UserRivalScoreDataList rivalScoreDataList = userData.CreateUserRivalScoreData(
+                 music.MusicData.name.id,
+diff --git a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs
+index a69022d..26b7f86 100644
+--- a/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs
++++ b/src/SinmaiLib/Net/Packet/Mai2/PacketUpsertUserAll.cs
+@@ -24,7 +24,7 @@ public PacketUpsertUserAll(
+         : this(
+             index,
+             UserID.IsGuest(src.Detail.UserId) ? UserID.GuestID(Auth.LocationId) : src.Detail.UserId,
+-            ToUserAll(index, src),
++            ToUserAll(index, src)!,
+             Convert(index, src, maxTrackNo),
+             onDone,
+             onError
+@@ -95,11 +95,7 @@ public override PacketState Proc()
+         return State;
+     }
+ 
+-    private static UserAll ToUserAll(int index, UserData src)
+-    {
+-        src.ExportUserAll(index, out var dst);
+-        return dst;
+-    }
++    private static UserAll? ToUserAll(int index, UserData src) => src.ExportUserAll(index);
+ 
+     private static List<UserPlaylog> Convert(int index, UserData src, int maxTrackNo) =>
+         maxTrackNo < 0
+diff --git a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs
+index c3a1136..8246d76 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylog.cs
+@@ -15,4 +15,16 @@ internal sealed record User2pPlaylog
+     public required int PlaceId { get; init; }
+ 
+     public required User2pPlaylogDetail[] User2pPlaylogDetailList { get; init; }
++
++    public static User2pPlaylog Default =>
++        new()
++        {
++            UserId1 = 0,
++            UserId2 = 0,
++            UserName1 = "",
++            UserName2 = "",
++            RegionId = 0,
++            PlaceId = 0,
++            User2pPlaylogDetailList = [],
++        };
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs
+index ebc6678..7f3999f 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/User2pPlaylogDetail.cs
+@@ -1,10 +1,12 @@
++using Manager;
++
+ namespace Net.VO.Mai2;
+ 
+ internal sealed record User2pPlaylogDetail
+ {
+     public required int MusicId { get; init; }
+ 
+-    public required int Level { get; init; }
++    public required MusicDifficultyID Level { get; init; }
+ 
+     public required int Achievement { get; init; }
+ 
+diff --git a/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs b/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs
+index f531644..645e806 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/UserGhost.cs
+@@ -1,3 +1,4 @@
++using System;
+ using System.Collections.Generic;
+ using Manager;
+ 
+@@ -15,7 +16,8 @@ internal sealed record UserGhost
+ 
+     public required int Rate { get; init; }
+ 
+-    public required int UdemaeRate { get; init; }
++    [Obsolete]
++    public int UdemaeRate { get; init; }
+ 
+     public required uint CourseRank { get; init; }
+ 
+diff --git a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+index 25c5663..99d04c7 100644
+--- a/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
++++ b/src/SinmaiLib/Net/VO/Mai2/VOExtensions.cs
+@@ -2,6 +2,7 @@
+ using System.Collections.Generic;
+ using System.IO;
+ using System.Linq;
++using System.Text;
+ using AMDaemon;
+ using AMDaemon.Allnet;
+ using DB;
+@@ -11,6 +12,7 @@
+ using Manager.MaiStudio;
+ using Manager.UserDatas;
+ using Net.VO.Mapper;
++using SinmaiLib.Net.VO.Mapper;
+ 
+ namespace Net.VO.Mai2;
+ 
+@@ -89,147 +91,72 @@ internal ClientPlayTime ExportAsClientPlayTime() =>
+             };
+     }
+ 
+-    internal static void ExportClientSetting(out ClientSetting dst)
++    internal static User2pPlaylog CreateUser2pPlaylog()
+     {
+-        dst = new()
+-        {
+-            BordId = AMDaemon.System.BoardId.ShortValue,
+-            ClientId = AMDaemon.System.KeychipId.ShortValue,
+-            PlaceId = (int)Auth.LocationId,
+-            PlaceName = Auth.LocationName,
+-            RegionId = Auth.RegionCode,
+-            RegionName = Auth.RegionNames[0],
+-            RomVersion = 25500,
+-            IsAou = false,
+-            IsDevelop = false,
+-        };
+-    }
++        var userData = UserDataManager.Instance.GetUserData(0L);
++        var userData2 = UserDataManager.Instance.GetUserData(1L);
++        if (!userData.IsEntry || userData.IsGuest() || !userData2.IsEntry || userData2.IsGuest())
++            return User2pPlaylog.Default;
+ 
+-    internal static void ExportClientTestmode(out ClientTestmode dst)
+-    {
+-        dst = ClientTestmode.Default with
+-        {
+-            PlaceId = (int)Auth.LocationId,
+-            ClientId = AMDaemon.System.KeychipId.ShortValue,
+-        };
+-        var backup = SingletonStateMachine<AmManager, AmManager.EState>.Instance.Backup;
+-        if (backup == null)
+-            return;
+-
+-        dst = dst with
+-        {
+-            TrackSingle = (backup.gameSetting.IsStandardSettingMachine ? 1 : 0),
+-            TrackMulti = (int)backup.gameSetting.MachineGroupID,
+-            TrackEvent = (int)backup.gameSetting.AdvVol,
+-            TotalMachine = backup.systemSetting.touchSens1P,
+-            SatelliteId = backup.systemSetting.touchSens2P,
+-            CameraPosition = (backup.gameSetting.IsContinue ? 1 : 0),
+-        };
+-    }
+-
+-    internal static void Export(out ClientUpload dst, string fileName)
+-    {
+-        dst = new()
++        var scoreListCount = GamePlayManager.Instance.GetScoreListCount();
++        List<User2pPlaylogDetail> list = [];
++        for (var i = 0; i < scoreListCount; i++)
+         {
+-            OrderId = 0,
+-            DivNumber = 0,
+-            DivLength = 0,
+-            DivData = "",
+-            PlaceId = (int)Auth.LocationId,
+-            ClientId = AMDaemon.System.KeychipId.ShortValue,
+-            UploadDate = TimeManager.GetNowDateString(),
+-            FileName = fileName,
+-        };
+-    }
++            var gameScore = Singleton<GamePlayManager>.Instance.GetGameScore(0, i);
++            var gameScore2 = Singleton<GamePlayManager>.Instance.GetGameScore(1, i);
++            if (gameScore.SessionInfo.difficulty != gameScore2.SessionInfo.difficulty)
++            {
++                continue;
++            }
+ 
+-    extension(UserPhoto)
+-    {
+-        public static UserPhoto ExportPhotoData(ulong userId, ulong playlogId, int trackNo)
+-        {
+-            return new UserPhoto
++            var isUtage = gameScore.SessionInfo.musicId >= 100000;
++            var item = new User2pPlaylogDetail
+             {
+-                OrderId = 0,
+-                UserId = userId,
+-                DivNumber = 0,
+-                DivLength = 0,
+-                DivData = "",
+-                PlaceId = (int)Auth.LocationId,
+-                ClientId = AMDaemon.System.KeychipId.ShortValue,
+-                UploadDate = TimeManager.GetNowDateString(),
+-                PlaylogId = playlogId,
+-                TrackNo = trackNo,
++                UserPlayDate = TimeManager.GetDateString(gameScore.UnixTime),
++                MusicId = gameScore.SessionInfo.musicId,
++                Level = isUtage
++                    ? (MusicDifficultyID)10
++                    : (MusicDifficultyID)gameScore.SessionInfo.difficulty,
++                Achievement = 0,
++                Deluxscore = 0,
+             };
+-        }
+-    }
+-
+-    internal static void Create(this User2pPlaylog requestVO)
+-    {
+-        var userData = Singleton<UserDataManager>.Instance.GetUserData(0L);
+-        var userData2 = Singleton<UserDataManager>.Instance.GetUserData(1L);
+-        var scoreListCount = Singleton<GamePlayManager>.Instance.GetScoreListCount();
+-        List<User2pPlaylogDetail> list = [];
+-        if (userData.IsEntry && !userData.IsGuest() && userData2.IsEntry && !userData2.IsGuest())
+-        {
+-            requestVO.userId1 = userData.Detail.UserId;
+-            requestVO.userName1 = userData.Detail.UserName;
+-            requestVO.userId2 = userData2.Detail.UserId;
+-            requestVO.userName2 = userData2.Detail.UserName;
+-            requestVO.regionId = Auth.RegionCode;
+-            requestVO.placeId = (int)Auth.LocationId;
+-            for (int i = 0; i < scoreListCount; i++)
++            if (isUtage && gameScore.SessionInfo.isUtageCoop)
+             {
+-                User2pPlaylogDetail item = default(User2pPlaylogDetail);
+-                var gameScore = Singleton<GamePlayManager>.Instance.GetGameScore(0, i);
+-                var gameScore2 = Singleton<GamePlayManager>.Instance.GetGameScore(1, i);
+-                if (gameScore.SessionInfo.difficulty != gameScore2.SessionInfo.difficulty)
+-                {
+-                    continue;
+-                }
+-                item.userPlayDate = TimeManager.GetDateString(gameScore.UnixTime);
+-                item.musicId = gameScore.SessionInfo.musicId;
+-                if (item.musicId >= 100000)
++                item = item with
+                 {
+-                    item.level = 10;
+-                    if (gameScore.SessionInfo.isUtageCoop)
+-                    {
+-                        item.achievement = (int)
+-                            Singleton<GamePlayManager>.Instance.GetAchivement(0, i);
+-                        item.deluxscore = (int)
+-                            Singleton<GamePlayManager>.Instance.GetDeluxeScore(0, i);
+-                    }
+-                    else
+-                    {
+-                        item.achievement += (int)
+-                            Singleton<GamePlayManager>.Instance.GetAchivement(0, i);
+-                        item.achievement += (int)
+-                            Singleton<GamePlayManager>.Instance.GetAchivement(1, i);
+-                        item.deluxscore += (int)
+-                            Singleton<GamePlayManager>.Instance.GetDeluxeScore(0, i);
+-                        item.deluxscore += (int)
+-                            Singleton<GamePlayManager>.Instance.GetDeluxeScore(1, i);
+-                    }
+-                }
+-                else
++                    Achievement = (int)Singleton<GamePlayManager>.Instance.GetAchivement(0, i),
++                    Deluxscore = (int)Singleton<GamePlayManager>.Instance.GetDeluxeScore(0, i),
++                };
++            }
++            else
++            {
++                item = item with
+                 {
+-                    item.level = gameScore.SessionInfo.difficulty;
+-                    item.achievement += (int)
+-                        Singleton<GamePlayManager>.Instance.GetAchivement(0, i);
+-                    item.achievement += (int)
+-                        Singleton<GamePlayManager>.Instance.GetAchivement(1, i);
+-                    item.deluxscore += (int)
+-                        Singleton<GamePlayManager>.Instance.GetDeluxeScore(0, i);
+-                    item.deluxscore += (int)
+-                        Singleton<GamePlayManager>.Instance.GetDeluxeScore(1, i);
+-                }
+-                list.Add(item);
++                    Achievement =
++                        (int)Singleton<GamePlayManager>.Instance.GetAchivement(0, i)
++                        + (int)Singleton<GamePlayManager>.Instance.GetAchivement(1, i),
++                    Deluxscore =
++                        (int)Singleton<GamePlayManager>.Instance.GetDeluxeScore(0, i)
++                        + (int)Singleton<GamePlayManager>.Instance.GetDeluxeScore(1, i),
++                };
+             }
++            list.Add(item);
+         }
+-        requestVO.user2pPlaylogDetailList = list;
++        return new User2pPlaylog
++        {
++            UserId1 = userData.Detail.UserId,
++            UserName1 = userData.Detail.UserName,
++            UserId2 = userData2.Detail.UserId,
++            UserName2 = userData2.Detail.UserName,
++            RegionId = Auth.RegionCode,
++            PlaceId = (int)Auth.LocationId,
++            User2pPlaylogDetailList = [.. list],
++        };
+     }
+ 
+     internal static UserActivity Clone(this UserActivity src) => src with { };
+ 
+-    internal static void ExportUserAll(this UserData src, int index, out UserAll dst)
++    internal static UserAll? ExportUserAll(this UserData src, int index)
+     {
+         if (!UserID.IsGuest(src.Detail.UserId))
+         {
+@@ -254,204 +181,160 @@ internal static void ExportUserAll(this UserData src, int index, out UserAll dst
+         }
+         if (index == -1)
+         {
+-            return;
++            return null;
+         }
+-        var netUserData = Singleton<NetDataManager>.Instance.GetNetUserData(index);
+-        dst.userData = new UserDetail[1] { src.Detail.ToVO() };
+-        dst.userExtend = new UserExtend[1] { src.Extend.ToVO() };
+-        dst.userOption = new UserOption[1] { src.Option.Export() };
+-        dst.userGhost = (
+-            (!src.MyGhost.NeedSave) ? null : new UserGhost[1] { src.MyGhost.Export() }
++
++        var netUserData = NetDataManager.Instance.GetNetUserData(index);
++        var characterListDiffFlags = GenerateArrayDiff(
++            netUserData.CharacterList,
++            src.CharaList.ToVOArray(),
++            (a, b) => a.CharacterId == b.CharacterId,
++            out var characterDiffList
+         );
+-        dst = dst with { UserRatingList = [src.RatingList.ToVO()] };
+-        dst.userChargeList = src.ExportUserChargeList();
+-        UserCharacter[] characterList = netUserData.CharacterList;
+-        UserCharacter[] nsrc = src.CharaList.Export();
+-        dst.userCharacterList = BuildListData(
+-            out dst.isNewCharacterList,
+-            nsrc,
+-            characterList,
+-            (UserCharacter a, UserCharacter b) => a.characterId == b.characterId
++        var mapListDiffFlags = GenerateArrayDiff(
++            netUserData.MapList,
++            src.MapList.ToVOArray(),
++            (a, b) => a.MapId == b.MapId,
++            out var mapDiffList
+         );
+-        UserMap[] mapList = netUserData.MapList;
+-        UserMap[] nsrc2 = src.MapList.Export();
+-        dst.userMapList = BuildListData(
+-            out dst.isNewMapList,
+-            nsrc2,
+-            mapList,
+-            (UserMap a, UserMap b) => a.mapId == b.mapId
++        var loginBonusDiffFlags = GenerateArrayDiff(
++            netUserData.LoginBonusList,
++            src.LoginBonusList.ToVOArray(),
++            (a, b) => a.BonusId == b.BonusId,
++            out var loginBonusDiffList
+         );
+-        UserLoginBonus[] loginBonusList = netUserData.LoginBonusList;
+-        UserLoginBonus[] nsrc3 = src.LoginBonusList.Export();
+-        dst.UserLoginBonusList = BuildListData(
+-            out dst.IsNewLoginBonusList,
+-            nsrc3,
+-            loginBonusList,
+-            (a, b) => a.BonusId == b.BonusId
++        var itemDiffFlags = GenerateArrayDiff(
++            netUserData.ExportUserItems(),
++            src.ExportUserItems(),
++            (a, b) => a.ItemId == b.ItemId && a.ItemKind == b.ItemKind,
++            out var itemDiffList
+         );
+-        UserItem[] osrc = netUserData.ExportUserItems();
+-        UserItem[] nsrc4 = src.ExportUserItems();
+-        dst.UserItemList = BuildListData(
+-            out dst.IsNewItemList,
+-            nsrc4,
+-            osrc,
+-            (a, b) => a.ItemId == b.ItemId && a.ItemKind == b.ItemKind
++        var musicDiffFlags = GenerateArrayDiff(
++            netUserData.MusicDetailList,
++            src.ExportScoreDetailArray(),
++            (a, b) => a.MusicId == b.MusicId && a.Level == b.Level,
++            out var musicDiffArray
+         );
+-        UserMusicDetail[] musicDetailList = netUserData.MusicDetailList;
+-        UserMusicDetail[] nsrc5 = src.ExportScoreDetailList();
+-        dst.userMusicDetailList = BuildListData(
+-            out dst.isNewMusicDetailList,
+-            nsrc5,
+-            musicDetailList,
+-            (UserMusicDetail a, UserMusicDetail b) => a.musicId == b.musicId && a.level == b.level
++        musicDiffArray =
++        [
++            .. musicDiffArray.Select(x =>
++                x.MusicId >= 100000 ? x with { Level = (MusicDifficultyID)10 } : x
++            ),
++        ];
++        var courseDiffFlags = GenerateArrayDiff(
++            netUserData.CourseList,
++            src.CourseList.ToVOArray(),
++            (a, b) => a.CourseId == b.CourseId,
++            out var courseDiffArray
+         );
+-        int num = dst.userMusicDetailList.Length;
+-        for (int num2 = 0; num2 < num; num2++)
+-        {
+-            if (dst.userMusicDetailList[num2].musicId >= 100000)
+-            {
+-                int level = 10;
+-                dst.userMusicDetailList[num2].level = (MusicDifficultyID)level;
+-            }
+-        }
+-        UserCourse[] courseList = netUserData.CourseList;
+-        UserCourse[] nsrc6 = [.. src.CourseList.Select(x => x.ToVO())];
+-        dst.userCourseList = BuildListData(
+-            out dst.isNewCourseList,
+-            nsrc6,
+-            courseList,
+-            (UserCourse a, UserCourse b) => a.courseId == b.courseId
++        var friendSeasonDiffFlags = GenerateArrayDiff(
++            netUserData.FriendSeasonRankingList,
++            src.FriendSeasonRankingList.ToVOArray(),
++            (a, b) => a.SeasonId == b.SeasonId,
++            out var friendSeasonDiffArray
+         );
+-        UserFriendSeasonRanking[] friendSeasonRankingList = netUserData.FriendSeasonRankingList;
+-        UserFriendSeasonRanking[] nsrc7 = src.FriendSeasonRankingList.Export();
+-        dst.userFriendSeasonRankingList = BuildListData(
+-            out dst.isNewFriendSeasonRankingList,
+-            nsrc7,
+-            friendSeasonRankingList,
+-            (UserFriendSeasonRanking a, UserFriendSeasonRanking b) => a.seasonId == b.seasonId
++        var favoritesDiffFlags = GenerateArrayDiff(
++            netUserData.ExportUserFavorites(),
++            src.ExportUserFavorites(),
++            out var favoritesDiffArray
+         );
+-        UserFavorite[] osrc2 = netUserData.ExportUserFavorites();
+-        UserFavorite[] nsrc8 = src.ExportUserFavorites();
+-        dst.userFavoriteList = BuildListData(out dst.isNewFavoriteList, nsrc8, osrc2);
+-        dst.userGamePlaylogList = new UserGamePlaylog[1] { src.ExportUserGamePlaylog(index) };
+-        int count = src.Activity.MusicList.Count;
+-        for (int num3 = 0; num3 < count; num3++)
+-        {
+-            if (src.Activity.MusicList[num3].Id >= 100000)
+-            {
+-                src.Activity.MusicList[num3].Param2 = 10;
+-            }
+-        }
+-        dst.userMissionDataList = src.MissionList.Export();
+-        dst.userWeeklyData = src.WeeklyData.Export();
+-        dst.userActivityList = new UserActivity[1] { src.Activity.ToVO() };
+-        if (index == 0)
+-        {
+-            dst.user2pPlaylog = new User2pPlaylog();
+-            dst.user2pPlaylog.Create();
+-        }
+-        UserIntimate[] userPartnerClosenessDataList = netUserData.UserPartnerClosenessDataList;
+-        UserIntimate[] array = src.PartnerClosenesses.ExportToNet();
+-        if (array.Length != 0)
+-        {
+-            dst.userIntimateList = BuildListData(
+-                out dst.isNewUserIntimateList,
+-                array,
+-                userPartnerClosenessDataList,
+-                (UserIntimate a, UserIntimate b) => a.partnerId == b.partnerId
+-            );
+-        }
+-        dst.userGetPointList = src.userGetPointList.ToVOArray();
+-        dst.userTradeItemList = src.userTradeItemList.ToVOArray();
+-        UserKaleidxScope[] userKaleidxScopeDataList = netUserData.UserKaleidxScopeDataList;
+-        UserKaleidxScope[] array2 = src.userKaleidxScopeList.ExportToNet();
+-        if (array2.Length != 0)
+-        {
+-            dst.userKaleidxScopeList = BuildListData(
+-                out dst.isNewKaleidxScopeList,
+-                array2,
+-                userKaleidxScopeDataList,
+-                (UserKaleidxScope a, UserKaleidxScope b) => a.gateId == b.gateId
+-            );
+-        }
+-        if (!src.EqualsFavoriteMusicList())
++        var intimateClosenessDiffFlags = GenerateArrayDiff(
++            netUserData.UserPartnerClosenessDataList,
++            src.PartnerClosenesses.ToVOArray(),
++            (a, b) => a.PartnerId == b.PartnerId,
++            out var intimateDiffArray
++        );
++        var kaleidxScopeDiffFlags = GenerateArrayDiff(
++            netUserData.UserKaleidxScopeDataList,
++            src.userKaleidxScopeList.ExportToNet(),
++            (a, b) => a.GateId == b.GateId,
++            out var kaleidxScopeDiffArray
++        );
++        foreach (var act in src.Activity.MusicList.Where(act => act.Id >= 100000))
+         {
+-            dst.userFavoritemusicList = src.NewFavoriteMusicList.ConvertFavoriteMusic();
+-            dst.isNewFavoritemusicList = "0";
++            act.Param2 = 10;
+         }
+-    }
+-
+-    public static T[] BuildListData<T>(
+-        out string flags,
+-        T[] newList,
+-        T[] oldList,
+-        Func<T, T, bool> compare
+-    )
+-    {
+-        T[] except = [.. newList.Except(oldList)];
+-        string[] array = [.. Enumerable.Repeat("1", except.Length)];
+-        T val = default(T);
+-        int i;
+-        for (i = 0; i < except.Length; i++)
++        return new UserAll
+         {
+-            if (!oldList.FirstOrDefault(n => compare(n, except[i])).Equals(val))
+-            {
+-                array[i] = "0";
+-            }
+-        }
+-        flags = string.Join("", array);
+-        return except;
++            UserData = [src.Detail.ToVO()],
++            UserExtend = [src.Extend.ToVO()],
++            UserOption = [src.Option.ToVO()],
++            UserGhost = src.MyGhost.NeedSave ? [src.MyGhost.ToVO()] : [],
++            UserRatingList = [src.RatingList.ToVO()],
++            UserChargeList = src.ExportUserChargeList(),
++            UserCharacterList = characterDiffList,
++            IsNewCharacterList = characterListDiffFlags,
++            UserMapList = mapDiffList,
++            IsNewMapList = mapListDiffFlags,
++            UserLoginBonusList = loginBonusDiffList,
++            IsNewLoginBonusList = loginBonusDiffFlags,
++            UserItemList = itemDiffList,
++            IsNewItemList = itemDiffFlags,
++            UserMusicDetailList = musicDiffArray,
++            IsNewMusicDetailList = musicDiffFlags,
++            UserCourseList = courseDiffArray,
++            IsNewCourseList = courseDiffFlags,
++            UserFriendSeasonRankingList = friendSeasonDiffArray,
++            IsNewFriendSeasonRankingList = friendSeasonDiffFlags,
++            UserFavoriteList = favoritesDiffArray,
++            IsNewFavoriteList = favoritesDiffFlags,
++            UserGamePlaylogList = [src.ExportUserGamePlaylog(index)],
++            UserMissionDataList = src.MissionList.ToVOArray(),
++            UserWeeklyData = src.WeeklyData.Export(),
++            UserActivityList = [src.Activity.ToVO()],
++            UserIntimateList = intimateDiffArray,
++            IsNewUserIntimateList = intimateClosenessDiffFlags,
++            UserGetPointList = src.userGetPointList.ToVOArray(),
++            UserTradeItemList = src.userTradeItemList.ToVOArray(),
++            UserKaleidxScopeList = kaleidxScopeDiffArray,
++            IsNewKaleidxScopeList = kaleidxScopeDiffFlags,
++            User2pPlaylog = index == 0 ? CreateUser2pPlaylog() : User2pPlaylog.Default,
++            UserShopItemStockList = [],
++            UserFavoritemusicList = src.EqualsFavoriteMusicList()
++                ? []
++                : src.NewFavoriteMusicList.ConvertFavoriteMusic(),
++            IsNewFavoritemusicList = src.EqualsFavoriteMusicList() ? "" : "0",
++        };
+     }
+ 
+-    public static T[] BuildListData2<T>(
+-        out string flags,
+-        T[] newList,
+-        T[] oldList,
+-        Func<T, T, bool> compare
++    private static string GenerateArrayDiff<T>(
++        T[] oldArray,
++        T[] newArray,
++        Func<T, T, bool> partialCompare,
++        out T[] diffArray
+     )
++        where T : class, IEquatable<T>
+     {
+-        IEnumerable<string> first = newList.Select((T val2) => JsonUtility.ToJson(val2));
+-        IEnumerable<string> second = oldList.Select((T val2) => JsonUtility.ToJson(val2));
+-        T[] except = first.Except(second).Select(JsonUtility.FromJson<T>).ToArray();
+-        string[] array = Enumerable.Repeat("1", except.Length).ToArray();
+-        T val = default(T);
+-        int i;
+-        for (i = 0; i < except.Length; i++)
++        T[] diffListResult = [.. newArray.Except(oldArray)];
++        diffArray = diffListResult;
++        var flags = diffArray.Select(x =>
+         {
+-            if (!oldList.FirstOrDefault((T n) => compare(n, except[i])).Equals(val))
+-            {
+-                array[i] = "0";
+-            }
+-        }
+-        flags = string.Join("", array);
+-        return except;
++            return oldArray.FirstOrDefault(y => partialCompare(x, y)) is null ? 1 : 0;
++        });
++        return string.Join("", flags);
+     }
+ 
+-    public static UserFavorite[] BuildListData(
+-        out string flags,
++    private static string GenerateArrayDiff(
++        UserFavorite[] oldList,
+         UserFavorite[] newList,
+-        UserFavorite[] oldList
++        out UserFavorite[] diffArray
+     )
+     {
+-        UserFavorite[] array = [.. newList.Except(oldList)];
+-        flags = "";
+-        string[] diffArray = [.. Enumerable.Repeat("1", array.Length)];
+-        for (var i = 0; i < array.Length; i++)
+-        {
+-            if (oldList.Length <= i || newList[i].ItemKind != oldList[i].ItemKind)
+-                continue;
++        const int itemKindCount = 5;
+ 
+-            if (!newList[i].ItemIdList.Order().SequenceEqual(oldList[i].ItemIdList.Order()))
++        diffArray = newList;
++        var flags = Enumerable
++            .Range(0, itemKindCount)
++            .Select(x =>
+             {
+-                diffArray[i] = "0";
+-            }
+-            else
+-            {
+-                diffArray[i] = "2";
+-            }
+-        }
+-        flags = string.Join("", diffArray);
+-        return newList;
++                if (x >= oldList.Length || newList[x].ItemKind != oldList[x].ItemKind)
++                    return 1;
++
++                return oldList[x].ItemIdList.Order().SequenceEqual(newList[x].ItemIdList.Order())
++                    ? 2
++                    : 0;
++            });
++        return string.Join("", flags);
+     }
+ 
+     internal static List<Manager.UserDatas.UserCard> Export(this UserCard[] src)
+@@ -470,18 +353,6 @@ private static Manager.UserDatas.UserCard Convert(this UserCard src) =>
+             endDataDate = TimeManager.GetUnixTime(src.EndDate),
+         };
+ 
+-    internal static UserCharacter[] Export(this List<UserChara> src) =>
+-        [.. src.Select(c => c.Convert())];
+-
+-    private static UserCharacter Convert(this UserChara src) =>
+-        new()
+-        {
+-            CharacterId = src.ID,
+-            Level = src.Level,
+-            Awakening = src.Awakening,
+-            UseCount = src.Count,
+-        };
+-
+     internal static UserChargelog ExportUserChargelog(this UserData src, int ticketId)
+     {
+         var ticket = Singleton<DataManager>.Instance.GetTicket(ticketId);
+@@ -564,28 +435,6 @@ internal static Manager.UserDatas.UserFriendBonus Export(this UserFriendBonus sr
+         return new() { ReturnCode = src.ReturnCode, GetMiles = src.GetMiles };
+     }
+ 
+-    internal static UserFriendSeasonRanking[] Export(
+-        this List<Manager.UserDatas.UserFriendSeasonRanking> src
+-    )
+-    {
+-        return [.. src.Select(c => c.Convert())];
+-    }
+-
+-    private static UserFriendSeasonRanking Convert(
+-        this Manager.UserDatas.UserFriendSeasonRanking src
+-    )
+-    {
+-        return new()
+-        {
+-            SeasonId = src.seasonId,
+-            Point = src.point,
+-            Rank = src.rank,
+-            RewardGet = src.rewardGet,
+-            UserName = src.userName,
+-            RecordDate = src.recordDate,
+-        };
+-    }
+-
+     public static UserGamePlaylog ExportUserGamePlaylog(this UserData src, int playerId)
+     {
+         UserGamePlaylog result = new UserGamePlaylog
+@@ -673,17 +522,6 @@ private static Manager.UserDatas.UserGhost Export(this UserGhost src)
+         return dst;
+     }
+ 
+-    public static UserGhost Export(this Manager.UserDatas.UserGhost src)
+-    {
+-        UserGhost dst = default(UserGhost);
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        dst.PlayDatetime = TimeManager.GetDateString(src.UnixTime);
+-        dst.ResultBitList = src.ResultBitList.ToArray();
+-        dst.Version = (int)
+-            Singleton<SystemConfig>.Instance.config.dataVersionInfo.versionNo.versionCode;
+-        return dst;
+-    }
+-
+     internal static UserItem[] ExportUserItems(this UserData src)
+     {
+         return
+@@ -783,53 +621,19 @@ private static UserKaleidxScope ConvertToNet(this Manager.UserDatas.UserKaleidxS
+         };
+     }
+ 
+-    internal static UserLoginBonus[] Export(this List<global::UserLoginBonus> src)
+-    {
+-        return [.. src.Select(m => m.Convert())];
+-    }
+-
+-    private static UserLoginBonus Convert(this global::UserLoginBonus src)
+-    {
+-        return new UserLoginBonus
+-        {
+-            BonusId = src.ID,
+-            Point = src.Point,
+-            IsCurrent = src.IsCurrent,
+-            IsComplete = src.IsComplete,
+-        };
+-    }
+-
+-    public static UserMap[] Export(this List<UserMapData> src)
+-    {
+-        return src.Select((UserMapData m) => m.Convert()).ToArray();
+-    }
+-
+-    private static UserMap Convert(this UserMapData src)
+-    {
+-        return new UserMap
+-        {
+-            mapId = src.ID,
+-            distance = src.Distance,
+-            isLock = src.IsLock,
+-            isClear = src.IsClear,
+-            isComplete = src.IsComplete,
+-            unlockFlag = ((!src.IsFinishedOpening) ? 1 : 0),
+-        };
+-    }
+-
+-    public static UserWeeklyData Export(this Manager.UserDatas.UserWeeklyData src)
++    extension(Manager.UserDatas.UserWeeklyData src)
+     {
+-        return src.Convert();
+-    }
+-
+-    private static UserWeeklyData Convert(this Manager.UserDatas.UserWeeklyData src)
+-    {
+-        return new UserWeeklyData
+-        {
+-            lastLoginWeek = ((src.LastLoginWeek == "") ? "1900/01/01" : src.LastLoginWeek),
+-            beforeLoginWeek = ((src.BeforeLoginWeek == "") ? "1900/01/01" : src.BeforeLoginWeek),
+-            friendBonusFlag = src.FriendBonusFlag,
+-        };
++        public UserWeeklyData Export() =>
++            new()
++            {
++                LastLoginWeek = string.IsNullOrEmpty(src.LastLoginWeek)
++                    ? "1900/01/01"
++                    : src.LastLoginWeek,
++                BeforeLoginWeek = string.IsNullOrEmpty(src.BeforeLoginWeek)
++                    ? "1900/01/01"
++                    : src.BeforeLoginWeek,
++                FriendBonusFlag = src.FriendBonusFlag,
++            };
+     }
+ 
+     public static Manager.UserDatas.UserWeeklyData Export(this UserWeeklyData src)
+@@ -847,32 +651,6 @@ private static Manager.UserDatas.UserWeeklyData Convert(this UserWeeklyData src)
+         };
+     }
+ 
+-    public static UserMissionData[] Export(
+-        this Dictionary<int, List<Manager.UserDatas.UserMissionData>> src
+-    )
+-    {
+-        List<UserMissionData> list = new List<UserMissionData>();
+-        foreach (KeyValuePair<int, List<Manager.UserDatas.UserMissionData>> item in src)
+-        {
+-            foreach (Manager.UserDatas.UserMissionData item2 in item.Value)
+-            {
+-                list.Add(
+-                    new UserMissionData
+-                    {
+-                        type = item2.Type,
+-                        difficulty = item2.Difficulty,
+-                        targetGenreId = item2.TargetGenreId,
+-                        targetGenreTableId = item2.TargetGenreTableId,
+-                        conditionGenreId = item2.ConditionGenreId,
+-                        conditionGenreTableId = item2.ConditionGenreTableId,
+-                        clearFlag = item2.ClearFlag,
+-                    }
+-                );
+-            }
+-        }
+-        return list.ToArray();
+-    }
+-
+     public static Dictionary<int, List<Manager.UserDatas.UserMissionData>> Export(
+         this UserMissionData[] src
+     )
+@@ -916,48 +694,32 @@ public static Dictionary<int, UserScore>[] ExportScoreDictionary(this UserMusicD
+         return array;
+     }
+ 
+-    public static UserMusicDetail[] ExportScoreDetailList(this UserData src)
++    public static UserMusicDetail[] ExportScoreDetailArray(this UserData src)
+     {
+-        return src
+-            .ScoreDic.SelectMany(
+-                (Dictionary<int, UserScore> i, int idx) =>
+-                    i.Select(
+-                        (KeyValuePair<int, UserScore> j) =>
+-                            j.Value.Convert((MusicDifficultyID)(0 + idx))
+-                    )
+-            )
+-            .ToArray();
++        return
++        [
++            .. src.ScoreDic.SelectMany(
++                (i, idx) => i.Select(j => j.Value.ToVO((MusicDifficultyID)(idx)))
++            ),
++        ];
+     }
+ 
+     private static UserScore Convert(this UserMusicDetail src)
+     {
+         return new UserScore(src.musicId)
+         {
+-            playcount = src.playCount,
+-            achivement = src.achievement,
+-            combo = src.comboStatus,
+-            sync = src.syncStatus,
+-            deluxscore = src.deluxscoreMax,
+-            scoreRank = src.scoreRank,
+-            extNum1 = src.extNum1,
++            PlayCount = src.playCount,
++            Achievement = src.achievement,
++            ComboStatus = src.comboStatus,
++            SyncStatus = src.syncStatus,
++            Deluxscore = src.deluxscoreMax,
++            ScoreRank = src.scoreRank,
++            ExtNum1 = src.extNum1,
+         };
+     }
+ 
+-    private static UserMusicDetail Convert(this UserScore src, MusicDifficultyID kind)
+-    {
+-        return new UserMusicDetail
+-        {
+-            musicId = src.id,
+-            level = kind,
+-            playCount = src.playcount,
+-            achievement = src.achivement,
+-            comboStatus = src.combo,
+-            syncStatus = src.sync,
+-            deluxscoreMax = src.deluxscore,
+-            scoreRank = src.scoreRank,
+-            extNum1 = src.extNum1,
+-        };
+-    }
++    private static UserMusicDetail Convert(this UserScore src, MusicDifficultyID kind) =>
++        src.ToVO(kind);
+ 
+     public static Manager.UserDatas.UserOption Export(this UserOption src)
+     {
+@@ -966,13 +728,6 @@ public static Manager.UserDatas.UserOption Export(this UserOption src)
+         return dst;
+     }
+ 
+-    public static UserOption Export(this Manager.UserDatas.UserOption src)
+-    {
+-        UserOption dst = default(UserOption);
+-        NetPacketUtil.CopyMember(ref dst, src);
+-        return dst;
+-    }
+-
+     public static List<UserPartnerCloseness> Export(this UserIntimate[] src)
+     {
+         return src.Select((UserIntimate r) => r.Convert()).ToList();
+@@ -982,24 +737,9 @@ private static UserPartnerCloseness Convert(this UserIntimate src)
+     {
+         return new UserPartnerCloseness
+         {
+-            partnerId = src.partnerId,
+-            closeness = src.intimateLevel,
+-            intimateCountRewarded = src.intimateCountRewarded,
+-        };
+-    }
+-
+-    public static UserIntimate[] ExportToNet(this List<UserPartnerCloseness> src)
+-    {
+-        return src.Select((UserPartnerCloseness r) => r.ConvertToNet()).ToArray();
+-    }
+-
+-    private static UserIntimate ConvertToNet(this UserPartnerCloseness src)
+-    {
+-        return new UserIntimate
+-        {
+-            partnerId = src.partnerId,
+-            intimateLevel = src.closeness,
+-            intimateCountRewarded = src.intimateCountRewarded,
++            PartnerId = src.partnerId,
++            Closeness = src.intimateLevel,
++            IntimateCountRewarded = src.intimateCountRewarded,
+         };
+     }
+ 
+diff --git a/src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs b/src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs
+index 62ba206..4b0e507 100644
+--- a/src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs
++++ b/src/SinmaiLib/Net/VO/Mapper/UserCourseMapper.cs
+@@ -1,3 +1,4 @@
++using System.Collections.Generic;
+ using Net.VO.Mai2;
+ using Riok.Mapperly.Abstractions;
+ 
+@@ -7,6 +8,8 @@ namespace Net.VO.Mapper;
+ internal static partial class UserCourseMapper
+ {
+     public static partial UserCourse ToVO(this Manager.UserDatas.UserCourse source);
+-    
++
+     public static partial Manager.UserDatas.UserCourse ToModel(this UserCourse source);
++
++    public static partial UserCourse[] ToVOArray(this List<Manager.UserDatas.UserCourse> source);
+ }
+diff --git a/src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs b/src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs
+index e032b35..f02a848 100644
+--- a/src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs
++++ b/src/SinmaiLib/Net/VO/Mapper/UserMissionDataMapper.cs
+@@ -1,3 +1,5 @@
++using System.Collections.Generic;
++using System.Linq;
+ using Net.VO.Mai2;
+ using Riok.Mapperly.Abstractions;
+ 
+@@ -6,6 +8,19 @@ namespace Net.VO.Mapper;
+ [Mapper]
+ internal static partial class UserMissionDataMapper
+ {
++    public static UserMissionData[] ToVOArray(
++        this Dictionary<int, List<Manager.UserDatas.UserMissionData>> source
++    ) => [.. source.SelectMany(x => x.Value.ToVOArrayInternal())];
++
++    [MapperIgnoreSource(nameof(Manager.UserDatas.UserMissionData.IsActive))]
++    public static partial UserMissionData ToVO(this Manager.UserDatas.UserMissionData source);
++
+     [MapperIgnoreSource(nameof(UserMissionResponseVO.UserId))]
+-    public static partial UserMissionResponseData ToResponseDataVO(this UserMissionResponseVO source);
++    public static partial UserMissionResponseData ToResponseDataVO(
++        this UserMissionResponseVO source
++    );
++
++    private static partial UserMissionData[] ToVOArrayInternal(
++        this List<Manager.UserDatas.UserMissionData> source
++    );
+ }
+diff --git a/src/SinmaiLib/Process/CharacterSelectProces.cs b/src/SinmaiLib/Process/CharacterSelectProces.cs
+index f27090b..19b284e 100644
+--- a/src/SinmaiLib/Process/CharacterSelectProces.cs
++++ b/src/SinmaiLib/Process/CharacterSelectProces.cs
+@@ -240,11 +240,11 @@ public override void OnStart()
+                 UserChara chara3 in Singleton<UserDataManager>.Instance.GetUserData(i).CharaList
+             )
+             {
+-                if (chara3.ID == 0)
++                if (chara3.Id == 0)
+                 {
+                     continue;
+                 }
+-                CharaData chara = Singleton<DataManager>.Instance.GetChara(chara3.ID);
++                CharaData chara = Singleton<DataManager>.Instance.GetChara(chara3.Id);
+                 if (!string.IsNullOrEmpty(chara.name.str))
+                 {
+                     MapColorData mapColorData = Singleton<DataManager>.Instance.GetMapColorData(
+@@ -269,7 +269,7 @@ UserChara chara3 in Singleton<UserDataManager>.Instance.GetUserData(i).CharaList
+                     int priority = Singleton<DataManager>
+                         .Instance.GetCharaGenre(chara.genre.id)
+                         .priority;
+-                    if (userData.IsFavorite(UserData.Collection.Chara, chara3.ID))
++                    if (userData.IsFavorite(UserData.Collection.Chara, chara3.Id))
+                     {
+                         _userFavoriteList[i].Add(item);
+                     }
+@@ -437,7 +437,7 @@ public void Reset(int playerIndex)
+             }
+             _monitor[playerIndex].SetActiveCharacterSlot(i, isSlotActive: true);
+             CharaData data = Singleton<DataManager>.Instance.GetChara(charaSlot[i]);
+-            UserChara userChara = userData.CharaList.Find((UserChara a) => a.ID == data.GetID());
++            UserChara userChara = userData.CharaList.Find((UserChara a) => a.Id == data.GetID());
+             CharacterData characterData = null;
+             foreach (ReadOnlyCollection<CharacterData> item in _userCharaList[playerIndex])
+             {
+@@ -470,7 +470,7 @@ public void Reset(int playerIndex)
+                 bool reincarnated = userChara.Reincarnation != 0;
+                 num += (int)
+                     userChara.GetMovementParam(
+-                        IsMatchColor(playerIndex, userChara.ID),
++                        IsMatchColor(playerIndex, userChara.Id),
+                         i == 0,
+                         isInfinity,
+                         reincarnated
+@@ -974,7 +974,7 @@ private void UpdateNewcomerCheck(int playerIndex)
+                     num += _slotArray[playerIndex]
+                         [i]
+                         .UserChara.GetMovementParam(
+-                            IsMatchColor(playerIndex, _slotArray[playerIndex][i].UserChara.ID),
++                            IsMatchColor(playerIndex, _slotArray[playerIndex][i].UserChara.Id),
+                             i == 0,
+                             isInfinity,
+                             reincarnated
+@@ -1060,7 +1060,7 @@ private void UpdateCharactorSelect(int playerIndex)
+                         num += _slotArray[playerIndex]
+                             [i]
+                             .UserChara.GetMovementParam(
+-                                IsMatchColor(playerIndex, _slotArray[playerIndex][i].UserChara.ID),
++                                IsMatchColor(playerIndex, _slotArray[playerIndex][i].UserChara.Id),
+                                 i == 0,
+                                 isInfinity,
+                                 reincarnated
+@@ -1357,7 +1357,7 @@ private void UpdateFavoriteList(int playerIndex)
+                     num += _slotArray[playerIndex]
+                         [num2]
+                         .UserChara.GetMovementParam(
+-                            IsMatchColor(playerIndex, _slotArray[playerIndex][num2].UserChara.ID),
++                            IsMatchColor(playerIndex, _slotArray[playerIndex][num2].UserChara.Id),
+                             num2 == 0,
+                             isInfinity,
+                             reincarnated
+@@ -1484,17 +1484,17 @@ private void UpdateFavoriteList(int playerIndex)
+             UserData userData = Singleton<UserDataManager>.Instance.GetUserData(playerIndex);
+             int id = _userFavoriteList[playerIndex][_favoriteListCurrentIndex[playerIndex]]
+                 .UserChara
+-                .ID;
+-            UserChara favo = userData.CharaList.Find((UserChara a) => a.ID == id);
++                .Id;
++            UserChara favo = userData.CharaList.Find((UserChara a) => a.Id == id);
+             SoundManager.PlaySE(Mai2.Mai2Cue.Cue.SE_SYS_FIX, playerIndex);
+-            if (userData.FlipFavorite(UserData.Collection.Chara, favo.ID))
++            if (userData.FlipFavorite(UserData.Collection.Chara, favo.Id))
+             {
+                 _tempFavorites[playerIndex].Add(GetUserCharaData(playerIndex, 0));
+             }
+             else
+             {
+                 _tempFavorites[playerIndex]
+-                    .Remove(_tempFavorites[playerIndex].Find((CharacterData a) => a.ID == favo.ID));
++                    .Remove(_tempFavorites[playerIndex].Find((CharacterData a) => a.ID == favo.Id));
+             }
+             SetInputLockInfo(playerIndex, 100f);
+             _monitor[playerIndex].SetVisibleFavoriteSlot(IsFavorite(playerIndex, favo));
+@@ -1680,7 +1680,7 @@ private CharacterData[] AutoElection(int playerIndex, int leaderID)
+                 int num = 0;
+                 while (num < list2[j].Count)
+                 {
+-                    if (array2[i] == null || array2[i].ID != list2[j][num].ID)
++                    if (array2[i] == null || array2[i].Id != list2[j][num].ID)
+                     {
+                         num++;
+                         continue;
+@@ -1736,7 +1736,7 @@ private IEnumerator AutoSetExecuteCoroutine(int playerIndex)
+                 num += _slotArray[playerIndex]
+                     [i]
+                     .UserChara.GetMovementParam(
+-                        IsMatchColor(playerIndex, _slotArray[playerIndex][i].UserChara.ID),
++                        IsMatchColor(playerIndex, _slotArray[playerIndex][i].UserChara.Id),
+                         i == 0,
+                         isInfinity,
+                         reincarnated
+@@ -1895,7 +1895,7 @@ public int GetSelectCharacotrDistance(int playerIndex, out ArrowDirection direct
+                                     _favoriteListCurrentIndex[playerIndex]
+                                 ]
+                                     .UserChara
+-                                    .ID
++                                    .Id
+                             ),
+                             leader: false,
+                             isInfinity,
+@@ -1909,7 +1909,7 @@ public int GetSelectCharacotrDistance(int playerIndex, out ArrowDirection direct
+             UserChara userChara = _userCharaList[playerIndex][_currentCategoryIndex[playerIndex]][
+                 _currentCharacterIndex[playerIndex]
+             ].UserChara;
+-            bool matchColor = IsMatchColor(playerIndex, userChara.ID);
++            bool matchColor = IsMatchColor(playerIndex, userChara.Id);
+             bool isInfinity2 = Singleton<DataManager>
+                 .Instance.GetMapData(
+                     Singleton<UserDataManager>.Instance.GetUserData(playerIndex).Detail.SelectMapId
+@@ -2050,7 +2050,7 @@ private void SelectSlot(int playerIndex, int slotIndex)
+                                         _currentCharacterIndex[playerIndex]
+                                     ]
+                                         .UserChara
+-                                        .ID
++                                        .Id
+                                 ),
+                                 slotIndex == 0,
+                                 isInfinity,
+@@ -2072,7 +2072,7 @@ private void SelectSlot(int playerIndex, int slotIndex)
+                 {
+                     if (characterData != null)
+                     {
+-                        bool matchColor = IsMatchColor(playerIndex, characterData.UserChara.ID);
++                        bool matchColor = IsMatchColor(playerIndex, characterData.UserChara.Id);
+                         bool isInfinity2 = Singleton<DataManager>
+                             .Instance.GetMapData(
+                                 Singleton<UserDataManager>
+@@ -2298,7 +2298,7 @@ private void Cancel(int playerIndex)
+         for (int i = 0; i < charaSlot.Length; i++)
+         {
+             CharaData charaData = Singleton<DataManager>.Instance.GetChara(charaSlot[i]);
+-            UserChara userChara = charaList.Find((UserChara a) => a.ID == charaData.GetID());
++            UserChara userChara = charaList.Find((UserChara a) => a.Id == charaData.GetID());
+             _monitor[playerIndex].ResetCharacterSlotData(i);
+             if (userChara != null)
+             {
+@@ -2625,7 +2625,7 @@ public string GetCharacterCategoryName(int playerIndex, int diffIndex)
+                 num = _userCharaList[playerIndex].Count + num;
+             }
+         }
+-        int iD = _userCharaList[playerIndex][num][0].UserChara.ID;
++        int iD = _userCharaList[playerIndex][num][0].UserChara.Id;
+         return Singleton<DataManager>.Instance.GetChara(iD).genre.str;
+     }
+ 
+diff --git a/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs b/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs
+index f7a5789..59a7f53 100644
+--- a/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs
++++ b/src/SinmaiLib/Process/CourseResult/CourseResultProcess.cs
+@@ -230,7 +230,7 @@ public void SetResultData()
+                     courseResultMusic.levelId = (MusicLevelID)notes2.musicLevelID;
+                     courseResultMusic.life = Singleton<CourseManager>.Instance.GetTrackLife(i, j);
+                     courseResultMusic.achievement = (int)
+-                        debugGameScore.GameScoreData[j].Score.achivement;
++                        debugGameScore.GameScoreData[j].Score.Achievement;
+                     courseResultMusic.dxscore = (int)debugGameScore.GameScoreData[j].DxScore;
+                     num += courseResultMusic.achievement;
+                     num2 += courseResultMusic.dxscore;
+@@ -300,7 +300,10 @@ public void SetResultData()
+                 var previousPassed = userCourse.TotalRestlife != 0;
+                 var currentPassed = courseResultTotal.life != 0;
+                 var currentIsNewRecord = userCourse.TotalAchievement < (uint)num;
+-                var needSetNewRecord = !previousPassed && currentPassed || currentPassed && currentIsNewRecord || !previousPassed && !currentPassed && currentIsNewRecord;
++                var needSetNewRecord =
++                    !previousPassed && currentPassed
++                    || currentPassed && currentIsNewRecord
++                    || !previousPassed && !currentPassed && currentIsNewRecord;
+ 
+                 if (needSetNewRecord)
+                 {
+diff --git a/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs b/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs
+index 4df76fa..c633f05 100644
+--- a/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs
++++ b/src/SinmaiLib/Process/CourseSelect/CourseSelectProcess.cs
+@@ -214,7 +214,7 @@ public override void OnStart()
+                 {
+                     CharaData charaData = Singleton<DataManager>.Instance.GetChara(charaSlot[l]);
+                     UserChara userChara = charaList.Find(
+-                        (UserChara a) => a.ID == charaData.GetID()
++                        (UserChara a) => a.Id == charaData.GetID()
+                     );
+                     if (userChara != null)
+                     {
+diff --git a/src/SinmaiLib/Process/DataSaveProcess.cs b/src/SinmaiLib/Process/DataSaveProcess.cs
+index 6c511fc..a9fc1fb 100644
+--- a/src/SinmaiLib/Process/DataSaveProcess.cs
++++ b/src/SinmaiLib/Process/DataSaveProcess.cs
+@@ -372,7 +372,7 @@ private void SaveDataFix()
+                 }
+                 foreach (KeyValuePair<int, UserScore> item2 in scoreDic[j])
+                 {
+-                    if (achive <= item2.Value.achivement)
++                    if (achive <= item2.Value.Achievement)
+                     {
+                         continue;
+                     }
+@@ -384,7 +384,7 @@ private void SaveDataFix()
+                     UserRate item = new UserRate(
+                         item2.Key,
+                         j,
+-                        item2.Value.achivement,
++                        item2.Value.Achievement,
+                         (uint)music.version
+                     );
+                     if (item.OldFlag)
+diff --git a/src/SinmaiLib/Process/FriendSeasonRanking/FriendSeasonRankingProcess.cs b/src/SinmaiLib/Process/FriendSeasonRanking/FriendSeasonRankingProcess.cs
+index 815ed6b..458cc2e 100644
+--- a/src/SinmaiLib/Process/FriendSeasonRanking/FriendSeasonRankingProcess.cs
++++ b/src/SinmaiLib/Process/FriendSeasonRanking/FriendSeasonRankingProcess.cs
+@@ -218,7 +218,7 @@ public override void OnStart()
+                     }
+                     IEnumerable<UserFriendSeasonRanking> source =
+                         from t in userData.FriendSeasonRankingList
+-                        where seasonRankingData.seasonId == t.seasonId
++                        where seasonRankingData.seasonId == t.SeasonId
+                         select (t);
+                     UserFriendSeasonRanking userFriendSeasonRanking = null;
+                     int num = 0;
+@@ -226,8 +226,8 @@ from t in userData.FriendSeasonRankingList
+                     if (source.Count() != 0)
+                     {
+                         userFriendSeasonRanking = source.First();
+-                        num = userFriendSeasonRanking.point;
+-                        rank = userFriendSeasonRanking.rank;
++                        num = userFriendSeasonRanking.Point;
++                        rank = userFriendSeasonRanking.Rank;
+                     }
+                     _resultInfo[j].isProgressResult = true;
+                     _resultInfo[j].seasonNo = (uint)seasonRankingData.seasonNo;
+@@ -322,30 +322,30 @@ from t in userData.FriendSeasonRankingList
+                     string nowDateString = TimeManager.GetNowDateString();
+                     if (userFriendSeasonRanking != null)
+                     {
+-                        if (userFriendSeasonRanking.point != (int)_resultInfo[j].nowPoint)
++                        if (userFriendSeasonRanking.Point != (int)_resultInfo[j].nowPoint)
+                         {
+-                            userFriendSeasonRanking.seasonId = seasonRankingData.seasonId;
+-                            userFriendSeasonRanking.point = (int)_resultInfo[j].nowPoint;
+-                            userFriendSeasonRanking.userName = userData.Detail.UserName;
+-                            userFriendSeasonRanking.recordDate = nowDateString;
+-                            if (userFriendSeasonRanking.point >= 100000)
++                            userFriendSeasonRanking.SeasonId = seasonRankingData.seasonId;
++                            userFriendSeasonRanking.Point = (int)_resultInfo[j].nowPoint;
++                            userFriendSeasonRanking.UserName = userData.Detail.UserName;
++                            userFriendSeasonRanking.RecordDate = nowDateString;
++                            if (userFriendSeasonRanking.Point >= 100000)
+                             {
+-                                userFriendSeasonRanking.point = 99999;
++                                userFriendSeasonRanking.Point = 99999;
+                             }
+                         }
+                     }
+                     else if (_resultInfo[j].nowPoint != 0)
+                     {
+                         userFriendSeasonRanking = new UserFriendSeasonRanking();
+-                        userFriendSeasonRanking.seasonId = seasonRankingData.seasonId;
+-                        userFriendSeasonRanking.point = (int)_resultInfo[j].nowPoint;
+-                        userFriendSeasonRanking.rank = (int)_resultInfo[j].rank;
+-                        userFriendSeasonRanking.rewardGet = false;
+-                        userFriendSeasonRanking.userName = userData.Detail.UserName;
+-                        userFriendSeasonRanking.recordDate = nowDateString;
+-                        if (userFriendSeasonRanking.point >= 100000)
++                        userFriendSeasonRanking.SeasonId = seasonRankingData.seasonId;
++                        userFriendSeasonRanking.Point = (int)_resultInfo[j].nowPoint;
++                        userFriendSeasonRanking.Rank = (int)_resultInfo[j].rank;
++                        userFriendSeasonRanking.RewardGet = false;
++                        userFriendSeasonRanking.UserName = userData.Detail.UserName;
++                        userFriendSeasonRanking.RecordDate = nowDateString;
++                        if (userFriendSeasonRanking.Point >= 100000)
+                         {
+-                            userFriendSeasonRanking.point = 99999;
++                            userFriendSeasonRanking.Point = 99999;
+                         }
+                         userData.FriendSeasonRankingList.Add(userFriendSeasonRanking);
+                     }
+@@ -373,18 +373,18 @@ from t in userData.FriendSeasonRankingList
+                         from t in Singleton<UserDataManager>
+                             .Instance.GetUserData(num5)
+                             .FriendSeasonRankingList
+-                        where seasonRankingData2.seasonId == t.seasonId
++                        where seasonRankingData2.seasonId == t.SeasonId
+                         select (t);
+                     UserFriendSeasonRanking userFriendSeasonRanking2 = null;
+                     if (source2.Count() != 0)
+                     {
+                         userFriendSeasonRanking2 = source2.First();
+                     }
+-                    if (userFriendSeasonRanking2 == null || userFriendSeasonRanking2.rewardGet)
++                    if (userFriendSeasonRanking2 == null || userFriendSeasonRanking2.RewardGet)
+                     {
+                         continue;
+                     }
+-                    if (userFriendSeasonRanking2.rank != 0)
++                    if (userFriendSeasonRanking2.Rank != 0)
+                     {
+                         int rewardRanking =
+                             Singleton<FriendSeasonRankingManager>.Instance.GetRewardRanking();
+@@ -403,8 +403,8 @@ from t in Singleton<UserDataManager>
+                                 );
+                         _resultInfo[num5].rewardRank = (uint)rewardRanking;
+                         _resultInfo[num5].rewardPoint = 0u;
+-                        _resultInfo[num5].nowPoint = (uint)userFriendSeasonRanking2.point;
+-                        _resultInfo[num5].rank = (uint)userFriendSeasonRanking2.rank;
++                        _resultInfo[num5].nowPoint = (uint)userFriendSeasonRanking2.Point;
++                        _resultInfo[num5].rank = (uint)userFriendSeasonRanking2.Rank;
+                         List<FriendSeasonRankingManager.RewardItem> rewardRankItemList =
+                             Singleton<FriendSeasonRankingManager>.Instance.GetRewardRankItemList(
+                                 num5
+@@ -442,7 +442,7 @@ from t in Singleton<UserDataManager>
+                             }
+                         }
+                     }
+-                    userFriendSeasonRanking2.rewardGet = true;
++                    userFriendSeasonRanking2.RewardGet = true;
+                 }
+             }
+             for (int num9 = 0; num9 < _monitors.Length; num9++)
+@@ -453,20 +453,20 @@ UserFriendSeasonRanking friendSeasonRanking in Singleton<UserDataManager>
+                         .FriendSeasonRankingList
+                 )
+                 {
+-                    if (friendSeasonRanking.rewardGet)
++                    if (friendSeasonRanking.RewardGet)
+                     {
+                         continue;
+                     }
+                     FriendSeasonRankingManager.EventData seasonEventData =
+                         Singleton<FriendSeasonRankingManager>.Instance.GetSeasonEventData(
+-                            friendSeasonRanking.seasonId
++                            friendSeasonRanking.SeasonId
+                         );
+                     if (seasonEventData != null)
+                     {
+                         long resultEndUnixTime = seasonEventData.resultEndUnixTime;
+                         if (resultEndUnixTime != 0L && resultEndUnixTime < TimeManager.PlayBaseTime)
+                         {
+-                            friendSeasonRanking.rewardGet = true;
++                            friendSeasonRanking.RewardGet = true;
+                         }
+                     }
+                 }
+diff --git a/src/SinmaiLib/Process/MusicSelectProcess.cs b/src/SinmaiLib/Process/MusicSelectProcess.cs
+index f3d28ca..e123e44 100644
+--- a/src/SinmaiLib/Process/MusicSelectProcess.cs
++++ b/src/SinmaiLib/Process/MusicSelectProcess.cs
+@@ -1103,7 +1103,7 @@ int newFavoriteMusic in Singleton<UserDataManager>
+                 scoreDic[item.level].TryGetValue(item.musicId, out value);
+                 if (value != null)
+                 {
+-                    num3 = value.achivement;
++                    num3 = value.Achievement;
+                 }
+                 bool flag = false;
+                 if (num3 < item.averageAchievement)
+@@ -1711,7 +1711,7 @@ ref combineRecommendRateList
+             int num31 = (int)(
+                 Singleton<UserDataManager>
+                     .Instance.GetUserData(num30)
+-                    .MapList.Find((UserMapData t) => t.ID == selectMap)
++                    .MapList.Find((UserMapData t) => t.Id == selectMap)
+                     ?.Distance
+                 ?? 0
+             );
+@@ -1952,18 +1952,18 @@ public void InputGenreSelectData(
+                         combine.musicSelectData[(int)ScoreType].MusicData.utagePlayStyle
+                         == UtagePlayStyle.DoublePlayerScore;
+                     MusicClearrankID clearRank = GameManager.GetClearRank(
+-                        (int)value.achivement,
++                        (int)value.Achievement,
+                         utageDoublePlayerScore
+                     );
+-                    genreSelectData.InputCombo(value.combo);
+-                    genreSelectData.InputSync(value.sync);
++                    genreSelectData.InputCombo(value.ComboStatus);
++                    genreSelectData.InputSync(value.SyncStatus);
+                     genreSelectData.InputRank(clearRank);
+-                    genreSelectData.InputAchivement(value.achivement);
++                    genreSelectData.InputAchivement(value.Achievement);
+                     int num2 = combine.musicSelectData[(int)ScoreType].ScoreData[num].maxNotes * 3;
+                     int percent = 0;
+                     if (num2 > 0)
+                     {
+-                        percent = (int)(value.deluxscore * 100) / num2;
++                        percent = (int)(value.Deluxscore * 100) / num2;
+                     }
+                     DeluxcorerankrateID deluxcoreRank = GameManager.GetDeluxcoreRank(percent);
+                     genreSelectData.InputDxScore(deluxcoreRank);
+@@ -4752,20 +4752,20 @@ bool isRatingCategory
+                     b.musicSelectData[(int)ScoreType].MusicData.utagePlayStyle
+                     == UtagePlayStyle.DoublePlayerScore;
+                 MusicClearrankID clearRank = GameManager.GetClearRank(
+-                    (int)userScore.achivement,
++                    (int)userScore.Achievement,
+                     utageDoublePlayerScore
+                 );
+                 MusicClearrankID clearRank2 = GameManager.GetClearRank(
+-                    (int)userScore2.achivement,
++                    (int)userScore2.Achievement,
+                     utageDoublePlayerScore2
+                 );
+                 num = ((clearRank > clearRank2) ? 1 : ((clearRank < clearRank2) ? (-1) : 0));
+                 if (num == 0)
+                 {
+                     num = (
+-                        (userScore.achivement < userScore2.achivement)
++                        (userScore.Achievement < userScore2.Achievement)
+                             ? (-1)
+-                            : ((userScore.achivement > userScore2.achivement) ? 1 : 0)
++                            : ((userScore.Achievement > userScore2.Achievement) ? 1 : 0)
+                     );
+                     if (num == 0)
+                     {
+@@ -4922,8 +4922,8 @@ bool isRatingCategory
+                     }
+                     return -1;
+                 }
+-                int combo = (int)value.combo;
+-                int combo2 = (int)value2.combo;
++                int combo = (int)value.ComboStatus;
++                int combo2 = (int)value2.ComboStatus;
+                 num3 = ((combo > combo2) ? 1 : ((combo < combo2) ? (-1) : 0));
+                 if (num3 == 0)
+                 {
+@@ -4983,9 +4983,9 @@ bool isRatingCategory
+                     if (num3 == 0)
+                     {
+                         num3 = (
+-                            (value.achivement < value2.achivement)
++                            (value.Achievement < value2.Achievement)
+                                 ? (-1)
+-                                : ((value.achivement > value2.achivement) ? 1 : 0)
++                                : ((value.Achievement > value2.Achievement) ? 1 : 0)
+                         );
+                         if (num3 == 0)
+                         {
+@@ -5143,8 +5143,8 @@ bool isRatingCategory
+                     }
+                     return -1;
+                 }
+-                int num4 = (int)value.sync;
+-                int num5 = (int)value2.sync;
++                int num4 = (int)value.SyncStatus;
++                int num5 = (int)value2.SyncStatus;
+                 switch (num4)
+                 {
+                     case 5:
+@@ -5226,9 +5226,9 @@ bool isRatingCategory
+                     if (num3 == 0)
+                     {
+                         num3 = (
+-                            (value.achivement < value2.achivement)
++                            (value.Achievement < value2.Achievement)
+                                 ? (-1)
+-                                : ((value.achivement > value2.achivement) ? 1 : 0)
++                                : ((value.Achievement > value2.Achievement) ? 1 : 0)
+                         );
+                         if (num3 == 0)
+                         {
+@@ -5280,13 +5280,13 @@ bool isRatingCategory
+                     if (value != null)
+                     {
+                         notes = Singleton<NotesListManager>
+-                            .Instance.GetNotesList()[value.id]
++                            .Instance.GetNotesList()[value.Id]
+                             .NotesList[a.musicSelectData[(int)ScoreType].Difficulty];
+                     }
+                     if (value2 != null)
+                     {
+                         notes2 = Singleton<NotesListManager>
+-                            .Instance.GetNotesList()[value2.id]
++                            .Instance.GetNotesList()[value2.Id]
+                             .NotesList[b.musicSelectData[(int)ScoreType].Difficulty];
+                     }
+                 }
+@@ -5318,13 +5318,13 @@ bool isRatingCategory
+                     if (value != null)
+                     {
+                         notes = Singleton<NotesListManager>
+-                            .Instance.GetNotesList()[value.id]
++                            .Instance.GetNotesList()[value.Id]
+                             .NotesList[num];
+                     }
+                     if (value2 != null)
+                     {
+                         notes2 = Singleton<NotesListManager>
+-                            .Instance.GetNotesList()[value2.id]
++                            .Instance.GetNotesList()[value2.Id]
+                             .NotesList[num2];
+                     }
+                 }
+@@ -5425,12 +5425,12 @@ bool isRatingCategory
+                 int num6 = 0;
+                 if (num4 > 0)
+                 {
+-                    num6 = (int)(value.deluxscore * 100) / num4;
++                    num6 = (int)(value.Deluxscore * 100) / num4;
+                 }
+                 int num7 = 0;
+                 if (num5 > 0)
+                 {
+-                    num7 = (int)(value2.deluxscore * 100) / num5;
++                    num7 = (int)(value2.Deluxscore * 100) / num5;
+                 }
+                 num3 = ((num6 > num7) ? 1 : ((num6 < num7) ? (-1) : 0));
+                 if (num3 == 0)
+@@ -5491,9 +5491,9 @@ bool isRatingCategory
+                     if (num3 == 0)
+                     {
+                         num3 = (
+-                            (value.achivement < value2.achivement)
++                            (value.Achievement < value2.Achievement)
+                                 ? (-1)
+-                                : ((value.achivement > value2.achivement) ? 1 : 0)
++                                : ((value.Achievement > value2.Achievement) ? 1 : 0)
+                         );
+                         if (num3 == 0)
+                         {
+@@ -5810,10 +5810,10 @@ private void SetRatingSortList(int player, ref List<CombineMusicSelectData> sort
+                     .TryGetValue(a.GetID(ScoreType), out var value);
+                 scoreDic[b.musicSelectData[(int)ScoreType].Difficulty]
+                     .TryGetValue(b.GetID(ScoreType), out var value2);
+-                uint num = value?.achivement ?? 0;
+-                uint num2 = value2?.achivement ?? 0;
+-                uint num3 = value?.deluxscore ?? 0;
+-                uint num4 = value2?.deluxscore ?? 0;
++                uint num = value?.Achievement ?? 0;
++                uint num2 = value2?.Achievement ?? 0;
++                uint num3 = value?.Deluxscore ?? 0;
++                uint num4 = value2?.Deluxscore ?? 0;
+                 int difficulty = a.musicSelectData[(int)ScoreType].Difficulty;
+                 int difficulty2 = b.musicSelectData[(int)ScoreType].Difficulty;
+                 int musicLevelID = a.musicSelectData[(int)ScoreType]
+@@ -6175,7 +6175,7 @@ ReadOnlyCollection<CombineMusicSelectData> combineMusicData in _combineMusicData
+                             item.musicSelectData[(int)ScoreType].MusicData.utagePlayStyle
+                             == UtagePlayStyle.DoublePlayerScore;
+                         MusicClearrankID clearRank = GameManager.GetClearRank(
+-                            (int)value.achivement,
++                            (int)value.Achievement,
+                             utageDoublePlayerScore
+                         );
+                         if (clearRank < MusicClearrankID.Rank_S)
+@@ -6187,7 +6187,7 @@ ReadOnlyCollection<CombineMusicSelectData> combineMusicData in _combineMusicData
+                         {
+                             medalData.MinimumClearRank = clearRank;
+                         }
+-                        PlayComboflagID combo = value.combo;
++                        PlayComboflagID combo = value.ComboStatus;
+                         if (combo == PlayComboflagID.None)
+                         {
+                             flag2 = true;
+@@ -6580,7 +6580,7 @@ out SortedList<int, string> nameList
+                             item.musicSelectData[(int)ScoreType].MusicData.utagePlayStyle
+                             == UtagePlayStyle.DoublePlayerScore;
+                         MusicClearrankID musicClearrankID = GameManager.GetClearRank(
+-                            (int)(GetUserScore(player, num, iD)?.achivement ?? 0),
++                            (int)(GetUserScore(player, num, iD)?.Achievement ?? 0),
+                             utageDoublePlayerScore
+                         );
+                         int num2 = (int)musicClearrankID;
+@@ -6818,12 +6818,12 @@ public FriendSeasonData GetFriendSeasonData(int player)
+                 from t in Singleton<UserDataManager>
+                     .Instance.GetUserData(player)
+                     .FriendSeasonRankingList
+-                where eventData.seasonId == t.seasonId
++                where eventData.seasonId == t.SeasonId
+                 select (t);
+             int point = 0;
+             if (source.Count() != 0)
+             {
+-                point = source.First().point;
++                point = source.First().Point;
+             }
+             result.seasonNo = eventData.seasonNo;
+             result.point = point;
+@@ -7018,8 +7018,8 @@ private void SetSelectMusicRivalScoreData(int monitorIndex, int musicID, int dif
+         int dxScore = -1;
+         if (userScore != null)
+         {
+-            achivement = (int)userScore.achivement;
+-            dxScore = (int)userScore.deluxscore;
++            achivement = (int)userScore.Achievement;
++            dxScore = (int)userScore.Deluxscore;
+         }
+         UserRivalScoreDataList selectRivalScoreDataList = userData.CreateUserRivalScoreData(
+             musicID,
+diff --git a/src/SinmaiLib/Process/PhotoEditProcess.cs b/src/SinmaiLib/Process/PhotoEditProcess.cs
+index 55a074a..7e995e6 100644
+--- a/src/SinmaiLib/Process/PhotoEditProcess.cs
++++ b/src/SinmaiLib/Process/PhotoEditProcess.cs
+@@ -346,11 +346,11 @@ public override void OnStart()
+                     _difficulties[num6, num8] = _gameScoreLists[num6, num8].SessionInfo.difficulty;
+                     _userScores[num6, num8] = new UserScore(_musicDatas[num8].GetID())
+                     {
+-                        achivement = Singleton<GamePlayManager>.Instance.GetAchivement(num6, num8),
+-                        combo = Singleton<GamePlayManager>.Instance.GetComboType(num6, num8),
+-                        sync = Singleton<GamePlayManager>.Instance.GetSyncType(num6, num8),
+-                        deluxscore = Singleton<GamePlayManager>.Instance.GetDeluxeScore(num6, num8),
+-                        scoreRank = Singleton<GamePlayManager>.Instance.GetClearRank(
++                        Achievement = Singleton<GamePlayManager>.Instance.GetAchivement(num6, num8),
++                        ComboStatus = Singleton<GamePlayManager>.Instance.GetComboType(num6, num8),
++                        SyncStatus = Singleton<GamePlayManager>.Instance.GetSyncType(num6, num8),
++                        Deluxscore = Singleton<GamePlayManager>.Instance.GetDeluxeScore(num6, num8),
++                        ScoreRank = Singleton<GamePlayManager>.Instance.GetClearRank(
+                             num6,
+                             _musicDatas[num8].utagePlayStyle == UtagePlayStyle.DoublePlayerScore,
+                             num8
+@@ -365,14 +365,14 @@ public override void OnStart()
+                 {
+                     _gameScoreLists[num6, num9] = debugGameScore.GetGameScoreList(num6, num9);
+                     _musicDatas[num9] = Singleton<DataManager>.Instance.GetMusic(
+-                        debugGameScore.GameScoreData[num9].Score.id
++                        debugGameScore.GameScoreData[num9].Score.Id
+                     );
+                     DebugGameScoreListData debugGameScoreListData = debugGameScore.GameScoreData[
+                         num9
+                     ];
+                     _difficulties[num6, num9] = (int)debugGameScoreListData.Difficulty;
+                     _notesDatas[num6, num9] = Singleton<DataManager>
+-                        .Instance.GetMusic(debugGameScoreListData.Score.id)
++                        .Instance.GetMusic(debugGameScoreListData.Score.Id)
+                         .notesData[_difficulties[num6, num9]];
+                     _userScores[num6, num9] = debugGameScore.GameScoreData[num9].Score;
+                     _currentStampIndex[num6] = PhotoeditStampID.Stamp00;
+@@ -1181,17 +1181,17 @@ bool isMyself
+         Notes notes = _notesDatas[targetIndex, trackNumber];
+         int level = notes.level;
+         MusicLevelID musicLevelID = (MusicLevelID)notes.musicLevelID;
+-        bool isUtage = userScore.id >= 100000;
++        bool isUtage = userScore.Id >= 100000;
+         MusicDifficultyID difficulty = (MusicDifficultyID)_difficulties[targetIndex, trackNumber];
+         _monitors[playerIndex].SetDifficulty(player, difficulty, isMyself, isUtage);
+         _monitors[playerIndex].SetLevel(player, level, musicLevelID, difficulty, isMyself, isUtage);
+         MusicClearrankID clearRank = GameManager.GetClearRank(
+-            (int)userScore.achivement,
++            (int)userScore.Achievement,
+             gameScoreList.SessionInfo.isUtageCoop
+         );
+         _monitors[playerIndex].SetClearRank(player, clearRank, isMyself);
+         _monitors[playerIndex].SetUtageDoublePlayerScoreFlag(gameScoreList.SessionInfo.isUtageCoop);
+-        _monitors[playerIndex].SetAchievement(player, userScore.achivement, isMyself);
++        _monitors[playerIndex].SetAchievement(player, userScore.Achievement, isMyself);
+         CharaData chara = Singleton<DataManager>.Instance.GetChara(
+             Singleton<UserDataManager>.Instance.GetUserData(targetIndex).Detail.CharaSlot[0]
+         );
+@@ -1228,7 +1228,8 @@ bool isMyself
+             );
+         }
+         _monitors[playerIndex].SetCharacterImage(player, character, isMyself);
+-        _monitors[playerIndex].SetMedal(player, userScore.combo, userScore.sync, isMyself);
++        _monitors[playerIndex]
++            .SetMedal(player, userScore.ComboStatus, userScore.SyncStatus, isMyself);
+         ConstParameter.ScoreKind scoreKind = GameManager.GetScoreKind(
+             gameScoreList.SessionInfo.musicId
+         );
+@@ -1267,7 +1268,7 @@ private void SetViewData(int playerIndex, int trackNumber, bool jacketImmediate
+             _musicDatas[trackNumber].thumbnailName
+         );
+         MusicClearrankID clearRank = GameManager.GetClearRank(
+-            (int)userScore.achivement,
++            (int)userScore.Achievement,
+             gameScoreList.SessionInfo.isUtageCoop
+         );
+         _monitors[playerIndex]
+@@ -1286,7 +1287,7 @@ private void SetViewData(int playerIndex, int trackNumber, bool jacketImmediate
+         {
+             SetData(playerIndex, 1, trackNumber, GameManager.TargetID.Left, playerIndex == 1);
+         }
+-        uint deluxscore = userScore.deluxscore;
++        uint deluxscore = userScore.Deluxscore;
+         int theoryDxScore = (int)
+             Singleton<GamePlayManager>
+                 .Instance.GetGameScore(playerIndex, trackNumber)
+@@ -1294,7 +1295,7 @@ private void SetViewData(int playerIndex, int trackNumber, bool jacketImmediate
+         int percent = 0;
+         if (theoryDxScore > 0)
+         {
+-            percent = (int)(_userScores[playerIndex, trackNumber].deluxscore * 100) / theoryDxScore;
++            percent = (int)(_userScores[playerIndex, trackNumber].Deluxscore * 100) / theoryDxScore;
+         }
+         int deluxcoreRank = (int)GameManager.GetDeluxcoreRank(percent);
+         _monitors[playerIndex].SetDxScore(deluxscore, (uint)theoryDxScore, deluxcoreRank);
+@@ -1365,7 +1366,7 @@ private void SetViewData(int playerIndex, int trackNumber, bool jacketImmediate
+                     .SetScoreGauge(eScoreType, perfect, critical, great, good, num);
+             }
+         }
+-        uint achivement = _userScores[playerIndex, trackNumber].achivement;
++        uint achivement = _userScores[playerIndex, trackNumber].Achievement;
+         decimal preAchivement = _gameScoreLists[playerIndex, trackNumber].PreAchivement;
+         decimal num6 = preAchivement;
+         _monitors[playerIndex]
+diff --git a/src/SinmaiLib/Process/PlInformationProcess.cs b/src/SinmaiLib/Process/PlInformationProcess.cs
+index 7c8daaa..e24d198 100644
+--- a/src/SinmaiLib/Process/PlInformationProcess.cs
++++ b/src/SinmaiLib/Process/PlInformationProcess.cs
+@@ -876,7 +876,7 @@ private void RestoreRating(int index, bool isInherit = false)
+                         userData.UpdateScore(
+                             item.Key,
+                             i,
+-                            item.Value.achivement,
++                            item.Value.Achievement,
+                             (uint)music.version
+                         );
+                     }
+@@ -1133,18 +1133,18 @@ private void ConvertMapRunMeterValue(int monitorID)
+         {
+             if (
+                 (
+-                    item.ID != 7
+-                    && (item.ID <= 50000 || item.ID >= 250000 || item.IsInfinity || item.IsEvent)
+-                    && item.ID != 200061
+-                    && item.ID != 200062
+-                    && item.ID != 200063
++                    item.Id != 7
++                    && (item.Id <= 50000 || item.Id >= 250000 || item.IsInfinity || item.IsEvent)
++                    && item.Id != 200061
++                    && item.Id != 200062
++                    && item.Id != 200063
+                 )
+                 || item.Distance == 0
+             )
+             {
+                 continue;
+             }
+-            MapData mapData = Singleton<DataManager>.Instance.GetMapData(item.ID);
++            MapData mapData = Singleton<DataManager>.Instance.GetMapData(item.Id);
+             if (mapData == null)
+             {
+                 continue;
+@@ -1176,7 +1176,7 @@ private void ConvertMapRunMeterValue(int monitorID)
+                         item_id = mapTreasureData.CharacterId.id;
+                         if (item_id > 0)
+                         {
+-                            num2 = userData.CharaList.FindIndex((UserChara m) => m.ID == item_id);
++                            num2 = userData.CharaList.FindIndex((UserChara m) => m.Id == item_id);
+                         }
+                         if (num2 < 0)
+                         {
+@@ -1358,7 +1358,7 @@ private void ChangeDefaultCharacter(int monitorID)
+         int i;
+         for (i = 0; i < member.Length; i++)
+         {
+-            if (userData.CharaList.FindIndex((UserChara m) => m.ID == member[i]) >= 0)
++            if (userData.CharaList.FindIndex((UserChara m) => m.Id == member[i]) >= 0)
+             {
+                 continue;
+             }
+@@ -1452,7 +1452,7 @@ private void AddDefaultCharacter(int monitorID)
+         int i;
+         for (i = 0; i < addMember.Length; i++)
+         {
+-            if (userData.CharaList.FindIndex((UserChara m) => m.ID == addMember[i]) >= 0)
++            if (userData.CharaList.FindIndex((UserChara m) => m.Id == addMember[i]) >= 0)
+             {
+                 continue;
+             }
+diff --git a/src/SinmaiLib/Process/RegionalSelectProcess.cs b/src/SinmaiLib/Process/RegionalSelectProcess.cs
+index 23c2ff9..ef533a9 100644
+--- a/src/SinmaiLib/Process/RegionalSelectProcess.cs
++++ b/src/SinmaiLib/Process/RegionalSelectProcess.cs
+@@ -137,9 +137,9 @@ out _isEventOpen[i]
+                 {
+                     foreach (UserMapData item in _userMapDataList[i])
+                     {
+-                        if (_discoverList[i].Contains(item.ID))
++                        if (_discoverList[i].Contains(item.Id))
+                         {
+-                            _userDatas[i].Activity.MapFound(item.ID);
++                            _userDatas[i].Activity.MapFound(item.Id);
+                             item.IsFinishedOpening = true;
+                             item.IsLock = false;
+                         }
+@@ -159,7 +159,7 @@ out _eventBannerIndex[i]
+                 _selectCursolIndex[i] = num;
+                 if (0 <= _eventBannerIndex[i])
+                 {
+-                    int iD = _userMapDataList[i][_eventBannerIndex[i]].ID;
++                    int iD = _userMapDataList[i][_eventBannerIndex[i]].Id;
+                     Sprite mapBgSprite = container.assetManager.GetMapBgSprite(
+                         iD,
+                         "UI_EventBanner"
+@@ -888,7 +888,7 @@ out bool isEvent
+         List<int> list5 = new List<int>();
+         foreach (UserMapData userMap in userMapList)
+         {
+-            MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMap.ID);
++            MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMap.Id);
+             if (!Singleton<EventManager>.Instance.IsOpenEvent(mapData.OpenEventId.id))
+             {
+                 continue;
+@@ -907,15 +907,15 @@ out bool isEvent
+             {
+                 if (userMap.IsEvent)
+                 {
+-                    list2.Add(userMap.ID);
++                    list2.Add(userMap.Id);
+                 }
+                 else if (userMap.IsInfinity)
+                 {
+-                    list4.Add(userMap.ID);
++                    list4.Add(userMap.Id);
+                 }
+                 else
+                 {
+-                    list3.Add(userMap.ID);
++                    list3.Add(userMap.Id);
+                 }
+             }
+         }
+@@ -931,7 +931,7 @@ out bool isEvent
+         {
+             foreach (UserMapData userMap2 in userMapList)
+             {
+-                if (userMap2.ID == item)
++                if (userMap2.Id == item)
+                 {
+                     list.Add(userMap2);
+                     break;
+@@ -950,18 +950,18 @@ private Queue<int> GenerateDiscoverList(List<UserMapData> userMapList, List<int>
+                 mapData.IsLock
+                 || mapData.IsFinishedOpening
+                 || 0 < mapData.Distance
+-                || (mapData.IsEvent && !GameManager.IsSpecialMap(mapData.ID))
++                || (mapData.IsEvent && !GameManager.IsSpecialMap(mapData.Id))
+                 || (mapData.IsEvent && mapData.IsFinishedOpening)
+             )
+             {
+-                if (mapData.IsEvent && !GameManager.IsSpecialMap(mapData.ID))
++                if (mapData.IsEvent && !GameManager.IsSpecialMap(mapData.Id))
+                 {
+                     mapData.IsFinishedOpening = true;
+                 }
+             }
+-            else if (existIDList.FindIndex((int n) => n == mapData.ID) < 0)
++            else if (existIDList.FindIndex((int n) => n == mapData.Id) < 0)
+             {
+-                queue.Enqueue(mapData.ID);
++                queue.Enqueue(mapData.Id);
+                 mapData.IsFinishedOpening = true;
+             }
+         }
+@@ -987,7 +987,7 @@ out int eventIndex
+             {
+                 continue;
+             }
+-            MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMapData2.ID);
++            MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMapData2.Id);
+             if (
+                 mapData == null
+                 || !Singleton<EventManager>.Instance.IsNewEvent(mapData.OpenEventId.id)
+@@ -1006,7 +1006,7 @@ out int eventIndex
+             if (
+                 num3 != eventStartUnixTime
+                 || userMapData == null
+-                || userMapData.ID <= userMapData2.ID
++                || userMapData.Id <= userMapData2.Id
+             )
+             {
+                 long unixTime = TimeManager.GetUnixTime(userData.Detail.EventWatchedDate);
+@@ -1019,7 +1019,7 @@ out int eventIndex
+                 {
+                     num = i;
+                 }
+-                if (!GameManager.IsSpecialMap(userMapData2.ID))
++                if (!GameManager.IsSpecialMap(userMapData2.Id))
+                 {
+                     eventIndex = i;
+                     userMapData = userMapData2;
+@@ -1033,7 +1033,7 @@ out int eventIndex
+             {
+                 if (GameManager.IsSpecialMap(id))
+                 {
+-                    int num4 = userMapList.FindIndex((UserMapData n) => n.ID == id);
++                    int num4 = userMapList.FindIndex((UserMapData n) => n.Id == id);
+                     if (num4 >= 0 && !userMapList[num4].IsLock && !userMapList[num4].IsComplete)
+                     {
+                         return num4;
+@@ -1050,7 +1050,7 @@ out int eventIndex
+             if (userData.Detail.SelectMapId > 0)
+             {
+                 int num5 = userMapList.FindIndex(
+-                    (UserMapData n) => n.ID == userData.Detail.SelectMapId
++                    (UserMapData n) => n.Id == userData.Detail.SelectMapId
+                 );
+                 if (num5 >= 0 && !userMapList[num5].IsLock && !userMapList[num5].IsComplete)
+                 {
+@@ -1059,14 +1059,14 @@ out int eventIndex
+             }
+             foreach (int id2 in discoverList)
+             {
+-                int num6 = userMapList.FindIndex((UserMapData n) => n.ID == id2);
++                int num6 = userMapList.FindIndex((UserMapData n) => n.Id == id2);
+                 if (num6 >= 0 && !userMapList[num6].IsLock && !userMapList[num6].IsComplete)
+                 {
+                     return num6;
+                 }
+             }
+         }
+-        int num7 = userMapList.FindIndex((UserMapData n) => n.ID == userData.Detail.SelectMapId);
++        int num7 = userMapList.FindIndex((UserMapData n) => n.Id == userData.Detail.SelectMapId);
+         if (num7 >= 0 && !userMapList[num7].IsLock && !userMapList[num7].IsComplete)
+         {
+             return num7;
+@@ -1164,7 +1164,7 @@ private void RegionSelectDecide(int id)
+         _monitors[id].Decide();
+         if (userMapData.Distance == 0)
+         {
+-            MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMapData.ID);
++            MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMapData.Id);
+             if (mapData?.TreasureExDatas[0] != null && mapData.TreasureExDatas[0].Distance == 0)
+             {
+                 _subStates[id] = RegionSelectIndividualState.RewardWait;
+@@ -1383,7 +1383,7 @@ private int GetDefaultRegionIndex(int id)
+     {
+         for (int i = 0; i < _userMapDataList[id].Count; i++)
+         {
+-            if (_userMapDataList[id][i].ID == 250005)
++            if (_userMapDataList[id][i].Id == 250005)
+             {
+                 return i;
+             }
+@@ -1393,7 +1393,7 @@ private int GetDefaultRegionIndex(int id)
+ 
+     private void Decide(int id)
+     {
+-        _userDatas[id].Detail.SelectMapId = _userMapDataList[id][_selectCursolIndex[id]].ID;
++        _userDatas[id].Detail.SelectMapId = _userMapDataList[id][_selectCursolIndex[id]].Id;
+         SoundManager.PlayVoice(Mai2.Voice_000001.Cue.VO_000065, id);
+         int num = ((id == 0) ? 1 : 0);
+         if (_subStates[num] <= RegionSelectIndividualState.RewardWait)
+diff --git a/src/SinmaiLib/Process/ResultProcess.cs b/src/SinmaiLib/Process/ResultProcess.cs
+index b695735..65c661a 100644
+--- a/src/SinmaiLib/Process/ResultProcess.cs
++++ b/src/SinmaiLib/Process/ResultProcess.cs
+@@ -152,7 +152,7 @@ public override void OnStart()
+         }
+         else
+         {
+-            _musicID = debugGameScoreList.GameScoreData[GameManager.MusicTrackNumber - 1].Score.id;
++            _musicID = debugGameScoreList.GameScoreData[GameManager.MusicTrackNumber - 1].Score.Id;
+         }
+         MusicData music = Singleton<DataManager>.Instance.GetMusic(_musicID);
+         Texture2D jacketThumbTexture2D = container.assetManager.GetJacketThumbTexture2D(
+@@ -215,11 +215,11 @@ public override void OnStart()
+             {
+                 _userScores[l] = new UserScore(_musicID)
+                 {
+-                    achivement = Singleton<GamePlayManager>.Instance.GetAchivement(l),
+-                    combo = Singleton<GamePlayManager>.Instance.GetComboType(l),
+-                    sync = Singleton<GamePlayManager>.Instance.GetSyncType(l),
+-                    deluxscore = Singleton<GamePlayManager>.Instance.GetDeluxeScore(l),
+-                    scoreRank = Singleton<GamePlayManager>.Instance.GetClearRank(
++                    Achievement = Singleton<GamePlayManager>.Instance.GetAchivement(l),
++                    ComboStatus = Singleton<GamePlayManager>.Instance.GetComboType(l),
++                    SyncStatus = Singleton<GamePlayManager>.Instance.GetSyncType(l),
++                    Deluxscore = Singleton<GamePlayManager>.Instance.GetDeluxeScore(l),
++                    ScoreRank = Singleton<GamePlayManager>.Instance.GetClearRank(
+                         l,
+                         music.utagePlayStyle == UtagePlayStyle.DoublePlayerScore
+                     ),
+@@ -238,7 +238,7 @@ public override void OnStart()
+                 DebugGameScoreListData debugGameScoreListData = debugGameScore.GameScoreData[
+                     GameManager.MusicTrackNumber - 1
+                 ];
+-                GameManager.SelectMusicID[num] = debugGameScoreListData.Score.id;
++                GameManager.SelectMusicID[num] = debugGameScoreListData.Score.Id;
+                 GameManager.SelectDifficultyID[num] = (int)debugGameScoreListData.Difficulty;
+                 _userScores[l] = debugGameScoreListData.Score;
+                 for (int m = 0; m < 4; m++)
+@@ -249,12 +249,12 @@ public override void OnStart()
+                     _conventionScores[l, m] = debugGameScoreListData2.GetGameScoreList(l);
+                 }
+                 Singleton<GamePlayManager>.Instance.DebugSetGameScore(num, _gameScoreLists[num]);
+-                int id = debugGameScoreListData.Score.id;
++                int id = debugGameScoreListData.Score.Id;
+                 int difficulty = (int)debugGameScoreListData.Difficulty;
+                 Singleton<GamePlayManager>.Instance.GetGameScore(num).SessionInfo = new SessionInfo
+                 {
+                     notesData = Singleton<DataManager>.Instance.GetMusic(id).notesData[difficulty],
+-                    musicId = debugGameScoreListData.Score.id,
++                    musicId = debugGameScoreListData.Score.Id,
+                     difficulty = (int)debugGameScoreListData.Difficulty,
+                 };
+                 if (num < 2)
+@@ -345,7 +345,7 @@ public override void OnStart()
+             if (!_userData[n].IsTrial() && !GameManager.IsUtage && !_isHideScore[n])
+             {
+                 _userData[n]
+-                    .UpdateScore(_musicID, num2, _userScores[n].achivement, (uint)music.version);
++                    .UpdateScore(_musicID, num2, _userScores[n].Achievement, (uint)music.version);
+                 if (GameManager.SelectGhostID[n] != GhostManager.GhostTarget.End)
+                 {
+                     bool vsGhostWin = Singleton<GamePlayManager>.Instance.GetVsGhostWin(n);
+@@ -419,7 +419,7 @@ public override void OnStart()
+             _userData[n].ScoreDic[num2].TryGetValue(_musicID, out value);
+             uint bestScore = 0u;
+             uint diffScore = 0u;
+-            uint num3 = _userScores[n].deluxscore;
++            uint num3 = _userScores[n].Deluxscore;
+             int num4 =
+                 Singleton<GamePlayManager>.Instance.GetGameScore(n).SessionInfo.notesData.maxNotes
+                 * 3;
+@@ -449,32 +449,32 @@ public override void OnStart()
+             if (value == null)
+             {
+                 _monitors[n].SetDxScore(num3, (int)num3, num4, deluxcoreRank);
+-                _userScores[n].playcount++;
++                _userScores[n].PlayCount++;
+                 int num5 = 1010000;
+                 if (music.utagePlayStyle == UtagePlayStyle.DoublePlayerScore)
+                 {
+                     num5 *= 2;
+                 }
+-                if (_userScores[n].achivement >= num5)
++                if (_userScores[n].Achievement >= num5)
+                 {
+-                    _userScores[n].extNum1++;
++                    _userScores[n].ExtNum1++;
+                 }
+-                _userData[n].ScoreDic[num2].Add(_userScores[n].id, _userScores[n]);
+-                if (_userScores[n].achivement != 0)
++                _userData[n].ScoreDic[num2].Add(_userScores[n].Id, _userScores[n]);
++                if (_userScores[n].Achievement != 0)
+                 {
+                     _isNewRecord[n] = true;
+                     bestScore = 0u;
+-                    diffScore = _userScores[n].achivement;
++                    diffScore = _userScores[n].Achievement;
+                 }
+             }
+             else
+             {
+-                int deluxscore = (int)value.deluxscore;
+-                int fluctuation = (int)_userScores[n].deluxscore - deluxscore;
++                int deluxscore = (int)value.Deluxscore;
++                int fluctuation = (int)_userScores[n].Deluxscore - deluxscore;
+                 if (_isDebug)
+                 {
+                     deluxscore = (int)_debugGameScore[n].DxScore;
+-                    fluctuation = (int)_userScores[n].deluxscore - deluxscore;
++                    fluctuation = (int)_userScores[n].Deluxscore - deluxscore;
+                 }
+                 if (_isHideScore[n])
+                 {
+@@ -482,7 +482,7 @@ public override void OnStart()
+                 }
+                 _monitors[n].SetDxScore(num3, fluctuation, num4, deluxcoreRank);
+                 int num6 = 0;
+-                if (value.achivement < _userScores[n].achivement)
++                if (value.Achievement < _userScores[n].Achievement)
+                 {
+                     int num7 = 1010000;
+                     bool flag2 = music.utagePlayStyle == UtagePlayStyle.DoublePlayerScore;
+@@ -490,14 +490,14 @@ public override void OnStart()
+                     {
+                         num7 *= 2;
+                     }
+-                    if (_userScores[n].achivement >= num7)
++                    if (_userScores[n].Achievement >= num7)
+                     {
+                         num6++;
+                     }
+-                    diffScore = _userScores[n].achivement - value.achivement;
+-                    bestScore = value.achivement;
+-                    value.achivement = _userScores[n].achivement;
+-                    value.scoreRank = GameManager.GetClearRank((int)value.achivement, flag2);
++                    diffScore = _userScores[n].Achievement - value.Achievement;
++                    bestScore = value.Achievement;
++                    value.Achievement = _userScores[n].Achievement;
++                    value.ScoreRank = GameManager.GetClearRank((int)value.Achievement, flag2);
+                     _isNewRecord[n] = true;
+                 }
+                 else
+@@ -507,42 +507,42 @@ public override void OnStart()
+                     {
+                         num8 *= 2;
+                     }
+-                    if (_userScores[n].achivement >= num8)
++                    if (_userScores[n].Achievement >= num8)
+                     {
+-                        num6 = ((value.extNum1 != 0) ? 1 : 2);
++                        num6 = ((value.ExtNum1 != 0) ? 1 : 2);
+                     }
+-                    diffScore = value.achivement - _userScores[n].achivement;
+-                    bestScore = value.achivement;
++                    diffScore = value.Achievement - _userScores[n].Achievement;
++                    bestScore = value.Achievement;
+                     _isNewRecord[n] = false;
+                 }
+-                value.extNum1 += (uint)num6;
+-                if (value.combo < _userScores[n].combo)
++                value.ExtNum1 += (uint)num6;
++                if (value.ComboStatus < _userScores[n].ComboStatus)
+                 {
+-                    value.combo = _userScores[n].combo;
++                    value.ComboStatus = _userScores[n].ComboStatus;
+                 }
+-                if (_userScores[n].sync == PlaySyncflagID.SyncPlay)
++                if (_userScores[n].SyncStatus == PlaySyncflagID.SyncPlay)
+                 {
+-                    if (value.sync == PlaySyncflagID.None)
++                    if (value.SyncStatus == PlaySyncflagID.None)
+                     {
+-                        value.sync = _userScores[n].sync;
++                        value.SyncStatus = _userScores[n].SyncStatus;
+                     }
+                 }
+-                else if (value.sync == PlaySyncflagID.SyncPlay)
++                else if (value.SyncStatus == PlaySyncflagID.SyncPlay)
+                 {
+-                    if (_userScores[n].sync != PlaySyncflagID.None)
++                    if (_userScores[n].SyncStatus != PlaySyncflagID.None)
+                     {
+-                        value.sync = _userScores[n].sync;
++                        value.SyncStatus = _userScores[n].SyncStatus;
+                     }
+                 }
+-                else if (value.sync < _userScores[n].sync)
++                else if (value.SyncStatus < _userScores[n].SyncStatus)
+                 {
+-                    value.sync = _userScores[n].sync;
++                    value.SyncStatus = _userScores[n].SyncStatus;
+                 }
+-                if (value.deluxscore < _userScores[n].deluxscore)
++                if (value.Deluxscore < _userScores[n].Deluxscore)
+                 {
+-                    value.deluxscore = _userScores[n].deluxscore;
++                    value.Deluxscore = _userScores[n].Deluxscore;
+                 }
+-                value.playcount++;
++                value.PlayCount++;
+             }
+             SetPlayResultParam(n);
+             if (_isHideScore[n])
+@@ -643,7 +643,7 @@ public override void OnStart()
+             bool utageDoublePlayerScoreFlag =
+                 music.utagePlayStyle == UtagePlayStyle.DoublePlayerScore;
+             _monitors[n].SetUtageDoublePlayerScoreFlag(utageDoublePlayerScoreFlag);
+-            _monitors[n].SetAchievementRate(_userScores[n].achivement);
++            _monitors[n].SetAchievementRate(_userScores[n].Achievement);
+             for (int num15 = 0; num15 < 4; num15++)
+             {
+                 if (num15 != n)
+@@ -678,15 +678,15 @@ public override void OnStart()
+                         _userData[num17].Detail.UserId,
+                         _musicID,
+                         difficulty3,
+-                        (int)_userScores[num17].achivement,
+-                        (int)_userScores[num17].deluxscore
++                        (int)_userScores[num17].Achievement,
++                        (int)_userScores[num17].Deluxscore
+                     );
+             }
+             int num18 = GameManager.SelectDifficultyID[num16];
+             UserScore value2 = null;
+             _userData[num16].ScoreDic[num18].TryGetValue(_musicID, out value2);
+-            int achivement = (int)(value2?.achivement ?? _userScores[num16].achivement);
+-            int dxScore = (int)(value2?.deluxscore ?? _userScores[num16].deluxscore);
++            int achivement = (int)(value2?.Achievement ?? _userScores[num16].Achievement);
++            int dxScore = (int)(value2?.Deluxscore ?? _userScores[num16].Deluxscore);
+             UserRivalScoreDataList rivalScoreDataList = _userData[num16]
+                 .CreateUserRivalScoreData(_musicID, num18, achivement, dxScore);
+             _monitors[num16].SetRivalScore(ref rivalScoreDataList);
+@@ -747,7 +747,7 @@ public override void OnStart()
+                         int num23 = (int)(
+                             (debugGameScore2 == null)
+                                 ? Singleton<GamePlayManager>.Instance.GetAchivement(num21, num22)
+-                                : debugGameScore2.GameScoreData[num22].Score.achivement
++                                : debugGameScore2.GameScoreData[num22].Score.Achievement
+                         );
+                         ConstParameter.ScoreKind scoreKind2 = GameManager.GetScoreKind(musicId);
+                         int num24 = (int)(
+@@ -816,7 +816,7 @@ public override void OnStart()
+                         debugGameScore3.GameScoreData[GameManager.MusicTrackNumber - 1].Difficulty;
+                 }
+                 MusicClearrankID clearRank = GameManager.GetClearRank(
+-                    (int)_userScores[num28].achivement,
++                    (int)_userScores[num28].Achievement,
+                     _gameScoreLists[num28].SessionInfo.isUtageCoop
+                 );
+                 string name = clearRank.GetName();
+@@ -872,8 +872,8 @@ public override void OnStart()
+                 );
+                 _monitors[num28]
+                     .SetMedalData(
+-                        _userScores[num28].combo,
+-                        _userScores[num28].sync,
++                        _userScores[num28].ComboStatus,
++                        _userScores[num28].SyncStatus,
+                         medalTarget,
+                         toValue
+                     );
+@@ -899,12 +899,12 @@ public override void OnStart()
+                             Singleton<GamePlayManager>.Instance.GetGameScore(num28).Dan
+                         );
+                 }
+-                if (_userScores[num28].sync > PlaySyncflagID.None)
++                if (_userScores[num28].SyncStatus > PlaySyncflagID.None)
+                 {
+                     UserAct.ActivityCode code = (UserAct.ActivityCode)(
+-                        _userScores[num28].sync + 39
++                        _userScores[num28].SyncStatus + 39
+                     );
+-                    switch (_userScores[num28].sync)
++                    switch (_userScores[num28].SyncStatus)
+                     {
+                         case PlaySyncflagID.ChainHi:
+                             code = UserAct.ActivityCode.FullSyncP;
+@@ -924,10 +924,10 @@ public override void OnStart()
+                             level3
+                         );
+                 }
+-                if (_userScores[num28].combo > PlayComboflagID.None)
++                if (_userScores[num28].ComboStatus > PlayComboflagID.None)
+                 {
+                     UserAct.ActivityCode code2 = UserAct.ActivityCode.FullCombo;
+-                    switch (_userScores[num28].combo)
++                    switch (_userScores[num28].ComboStatus)
+                     {
+                         case PlayComboflagID.Gold:
+                             code2 = UserAct.ActivityCode.FullComboP;
+@@ -1029,9 +1029,9 @@ public override void OnStart()
+                                         .Difficulty
+                                     : ((MusicDifficultyID)GameManager.SelectDifficultyID[item2])
+                             );
+-                            uint achivement2 = _userScores[item2].achivement;
+-                            PlayComboflagID combo = _userScores[item2].combo;
+-                            bool utage = _userScores[item2].id >= 100000;
++                            uint achivement2 = _userScores[item2].Achievement;
++                            PlayComboflagID combo = _userScores[item2].ComboStatus;
++                            bool utage = _userScores[item2].Id >= 100000;
+                             _monitors[num28]
+                                 .SetMultiUserData(
+                                     num34,
+@@ -1116,7 +1116,7 @@ private void LogicUpdate()
+                             continue;
+                         }
+                         MusicClearrankID clearRank = GameManager.GetClearRank(
+-                            (int)_userScores[k].achivement,
++                            (int)_userScores[k].Achievement,
+                             _gameScoreLists[k].SessionInfo.isUtageCoop
+                         );
+                         SoundManager.StopBGM(k);
+@@ -2182,14 +2182,16 @@ private void SetPlayResultParam(int playerIndex)
+     {
+         GameManager
+             .PlayResultParams[playerIndex]
+-            .SetPlayComboflagID(_userScores[playerIndex].combo);
+-        GameManager.PlayResultParams[playerIndex].SetSyncflagID(_userScores[playerIndex].sync);
++            .SetPlayComboflagID(_userScores[playerIndex].ComboStatus);
++        GameManager
++            .PlayResultParams[playerIndex]
++            .SetSyncflagID(_userScores[playerIndex].SyncStatus);
+         int num = ((playerIndex == 0) ? 1 : 0);
+         if (
+             num >= 0
+             && Singleton<UserDataManager>.Instance.GetUserData(num).IsTrial()
+-            && _userScores[playerIndex].scoreRank >= MusicClearrankID.Rank_A
+-            && _userScores[num].scoreRank >= MusicClearrankID.Rank_A
++            && _userScores[playerIndex].ScoreRank >= MusicClearrankID.Rank_A
++            && _userScores[num].ScoreRank >= MusicClearrankID.Rank_A
+         )
+         {
+             GameManager.PlayResultParams[playerIndex].SetIsTrialPlayBonus(isTrialPlayBonus: true);
+diff --git a/src/SinmaiLib/RegionalInfoDisplay.cs b/src/SinmaiLib/RegionalInfoDisplay.cs
+index 3d1d4b8..8f82b97 100644
+--- a/src/SinmaiLib/RegionalInfoDisplay.cs
++++ b/src/SinmaiLib/RegionalInfoDisplay.cs
+@@ -122,7 +122,7 @@ public void SetPerfectChallengeClose()
+     public void SetData(UserMapData userMapData, int monIndex)
+     {
+         _displayAnimator.Play(Animator.StringToHash("In"), 0, 0f);
+-        MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMapData.ID);
++        MapData mapData = Singleton<DataManager>.Instance.GetMapData(userMapData.Id);
+         if (userMapData.IsLock)
+         {
+             _lockImage.SetActive(value: true);
+@@ -399,7 +399,7 @@ public void SetData(UserMapData userMapData, int monIndex)
+                 TreasurePinObject.PinType pinType = TreasurePinObject.PinType.Goal;
+                 int frameType = 2;
+                 int treasureType = 0;
+-                if (GameManager.IsSpecialMap(userMapData.ID))
++                if (GameManager.IsSpecialMap(userMapData.Id))
+                 {
+                     _treasureSignage.SetPin(num++, pinType, 1, 2);
+                 }
+@@ -493,7 +493,7 @@ public void SetData(UserMapData userMapData, int monIndex)
+                 bool flag3 = false;
+                 if (num >= num8 && num <= num9)
+                 {
+-                    if (GameManager.IsSpecialMap(userMapData.ID))
++                    if (GameManager.IsSpecialMap(userMapData.Id))
+                     {
+                         _treasureSignage.SetPin(num, pinType2, 1, 2);
+                     }
+@@ -599,7 +599,7 @@ public void SetData(UserMapData userMapData, int monIndex)
+                     Sprite sprite2 = null;
+                     Sprite sprite3 = null;
+                     int num16 = -1;
+-                    if (GameManager.IsSpecialMap(userMapData.ID) && num15 != 0)
++                    if (GameManager.IsSpecialMap(userMapData.Id) && num15 != 0)
+                     {
+                         _treasureSignage.SetSecret();
+                         _treasureSignage.SetDistanceMeter(TreasureSignage.MeterType.Special, num15);
+diff --git a/src/SinmaiLib/RegionalList.cs b/src/SinmaiLib/RegionalList.cs
+index 802710d..22e1e31 100644
+--- a/src/SinmaiLib/RegionalList.cs
++++ b/src/SinmaiLib/RegionalList.cs
+@@ -104,7 +104,7 @@ AssetManager assetManager
+                     ? "UI_Island_Icon_Lock"
+                     : "UI_Island_Icon"
+             );
+-            Sprite mapBgSprite = _assetManager.GetMapBgSprite(mapData.ID, text);
++            Sprite mapBgSprite = _assetManager.GetMapBgSprite(mapData.Id, text);
+             component.Initialize();
+             component.SetData(
+                 regionNodeState,
+diff --git a/src/SinmaiLib/TimelineRoot.cs b/src/SinmaiLib/TimelineRoot.cs
+index aabd370..bdf7dd4 100644
+--- a/src/SinmaiLib/TimelineRoot.cs
++++ b/src/SinmaiLib/TimelineRoot.cs
+@@ -96,14 +96,14 @@ public void Initialise(MusicData musicData, int monitorIndex)
+         if (value != null)
+         {
+             flag = true;
+-            num = (int)value.achivement;
++            num = (int)value.Achievement;
+             musicClearrankID = GameManager.GetClearRank(
+                 num,
+                 musicData.utagePlayStyle == UtagePlayStyle.DoublePlayerScore
+             );
+-            index = value.combo;
+-            index2 = value.sync;
+-            num2 = value.deluxscore;
++            index = value.ComboStatus;
++            index2 = value.SyncStatus;
++            num2 = value.Deluxscore;
+             dxScoreMax = (uint)(musicData.notesData[num3].maxNotes * 3);
+         }
+         _lv_Base.ChangeSprite(num3);
+diff --git a/src/SinmaiLib/UserMapData.cs b/src/SinmaiLib/UserMapData.cs
+index 7b28fdc..84caaa7 100644
+--- a/src/SinmaiLib/UserMapData.cs
++++ b/src/SinmaiLib/UserMapData.cs
+@@ -7,7 +7,7 @@ public class UserMapData
+ 
+     private uint _distance;
+ 
+-    public int ID { get; set; }
++    public int Id { get; set; }
+ 
+     public Color MapColor { get; set; }
+ 
+@@ -42,7 +42,7 @@ public UserMapData()
+ 
+     public UserMapData(int id)
+     {
+-        ID = id;
++        Id = id;
+         Clear();
+     }
+ 
+diff --git a/src/SinmaiLib/Util/MapMaster.cs b/src/SinmaiLib/Util/MapMaster.cs
+index f6603fc..84fd969 100644
+--- a/src/SinmaiLib/Util/MapMaster.cs
++++ b/src/SinmaiLib/Util/MapMaster.cs
+@@ -96,7 +96,7 @@ KeyValuePair<int, MapData> mapData in Singleton<DataManager>.Instance.GetMapData
+                 {
+                     int mapID = userMaps[i].mapId;
+                     int num = RefConvertUserMapList[monitorID]
+-                        .FindIndex((UserMapData userMap) => userMap.ID == mapID);
++                        .FindIndex((UserMapData userMap) => userMap.Id == mapID);
+                     if (num < 0)
+                     {
+                         RefConvertUserMapList[monitorID].Add(userMapData);
+@@ -283,7 +283,7 @@ KeyValuePair<int, MapData> mapData2 in Singleton<DataManager>.Instance.GetMapDat
+                     }
+                     int mapID = userMaps[l].mapId;
+                     int num = RefUserMapList[k]
+-                        .FindIndex((UserMapData userMap) => userMap.ID == mapID);
++                        .FindIndex((UserMapData userMap) => userMap.Id == mapID);
+                     if (num < 0)
+                     {
+                         RefUserMapList[k].Add(userMapData2);
+@@ -303,7 +303,7 @@ KeyValuePair<int, MapData> mapData2 in Singleton<DataManager>.Instance.GetMapDat
+             int num2 = -1;
+             foreach (UserMapData map in RefConvertUserMapList[k])
+             {
+-                num2 = RefUserMapList[k].FindIndex((UserMapData m) => m.ID == map.ID);
++                num2 = RefUserMapList[k].FindIndex((UserMapData m) => m.Id == map.Id);
+                 if (num2 >= 0)
+                 {
+                     RefUserMapList[k][num2].Distance = map.Distance;
+@@ -328,7 +328,7 @@ KeyValuePair<int, MapData> mapData2 in Singleton<DataManager>.Instance.GetMapDat
+                 list2[num4].IsLock = isLock2;
+                 if (list2[num4].IsEvent)
+                 {
+-                    int iD = list2[num4].ID;
++                    int iD = list2[num4].Id;
+                     MapData mapData = Singleton<DataManager>.Instance.GetMapData(iD);
+                     if (
+                         mapData != null
+@@ -354,7 +354,7 @@ private UserMapData ConvertNewPlayerMap(int monitorId, int mapId)
+         UserMapData userMapData = Singleton<UserDataManager>
+             .Instance.GetUserData(monitorId)
+             .MapList.ToArray()
+-            .FirstOrDefault((UserMapData targetMap) => targetMap.ID == mapId);
++            .FirstOrDefault((UserMapData targetMap) => targetMap.Id == mapId);
+         uint num = 0u;
+         if (userMapData != null)
+         {
+@@ -396,7 +396,7 @@ private UserMapData ConvertNewPlayerMap(int monitorId, int mapId)
+         }
+         return new UserMapData
+         {
+-            ID = mapId,
++            Id = mapId,
+             CharaColorKey = mapData.ColorId.id,
+             MapColor = Color.black,
+             ReleaseIds = list,
+@@ -426,7 +426,7 @@ public static UserMapData ConvertUserMap(UserMap map)
+         }
+         return new UserMapData
+         {
+-            ID = mapId,
++            Id = mapId,
+             CharaColorKey = mapData.ColorId.id,
+             MapColor = Color.black,
+             ReleaseIds = list,
+@@ -501,8 +501,8 @@ private bool IsLock(int monitorId, List<int> releaseMapIds)
+         UserMapData[] source = Singleton<MapMaster>.Instance.RefUserMapList[monitorId].ToArray();
+         foreach (int id in releaseMapIds)
+         {
+-            UserMapData userMapData = source.FirstOrDefault((UserMapData m) => m.ID == id);
+-            if (userMapData != null && !IsRelease(userMapData.ID, userMapData.Distance))
++            UserMapData userMapData = source.FirstOrDefault((UserMapData m) => m.Id == id);
++            if (userMapData != null && !IsRelease(userMapData.Id, userMapData.Distance))
+             {
+                 return true;
+             }
+@@ -548,7 +548,7 @@ public void CreateUserDataMapList(int monitorId)
+             int num = 0;
+             int num2 = 0;
+             int distance = (int)item.value.Distance;
+-            mapData = Singleton<DataManager>.Instance.GetMapData(item.value.ID);
++            mapData = Singleton<DataManager>.Instance.GetMapData(item.value.Id);
+             if (mapData != null && mapData.TreasureExDatas != null)
+             {
+                 mapTreasureExData = mapData.TreasureExDatas.FirstOrDefault(
+@@ -574,8 +574,8 @@ public void CreateUserDataMapList(int monitorId)
+                 && (flag || flag2 || item.value.IsFinishedOpening)
+             )
+             {
+-                mapID = item.value.ID;
+-                num = userData.MapList.FindIndex((UserMapData user_map) => user_map.ID == mapID);
++                mapID = item.value.Id;
++                num = userData.MapList.FindIndex((UserMapData user_map) => user_map.Id == mapID);
+                 if (num < 0)
+                 {
+                     userData.MapList.Add(list[item.index]);
+@@ -601,14 +601,14 @@ public void CreateUserDataMapList(int monitorId)
+                 continue;
+             }
+             mapID = userData.Detail.SelectMapId;
+-            if (item.value.ID != userData.Detail.SelectMapId)
++            if (item.value.Id != userData.Detail.SelectMapId)
+             {
+                 continue;
+             }
+-            num = userData.MapList.FindIndex((UserMapData user_map) => user_map.ID == mapID);
++            num = userData.MapList.FindIndex((UserMapData user_map) => user_map.Id == mapID);
+             if (num < 0)
+             {
+-                num2 = list.FindIndex((UserMapData user_map) => user_map.ID == mapID);
++                num2 = list.FindIndex((UserMapData user_map) => user_map.Id == mapID);
+                 if (num2 >= 0)
+                 {
+                     userData.MapList.Add(list[num2]);
+@@ -630,7 +630,7 @@ public void CreateUserDataMapList(int monitorId)
+             int num3 = -1;
+             foreach (UserMapData map in RefConvertUserMapList[monitorId])
+             {
+-                num3 = RefUserMapList[monitorId].FindIndex((UserMapData m) => m.ID == map.ID);
++                num3 = RefUserMapList[monitorId].FindIndex((UserMapData m) => m.Id == map.Id);
+                 if (num3 >= 0)
+                 {
+                     RefUserMapList[monitorId][num3].Distance = map.Distance;
+@@ -639,9 +639,9 @@ public void CreateUserDataMapList(int monitorId)
+                         RefUserMapList[monitorId][num3].IsComplete = true;
+                     }
+                     int mapID2 = 0;
+-                    mapID2 = RefUserMapList[monitorId][num3].ID;
++                    mapID2 = RefUserMapList[monitorId][num3].Id;
+                     if (
+-                        userData.MapList.FindIndex((UserMapData user_map) => user_map.ID == mapID2)
++                        userData.MapList.FindIndex((UserMapData user_map) => user_map.Id == mapID2)
+                         < 0
+                     )
+                     {
+@@ -652,7 +652,7 @@ public void CreateUserDataMapList(int monitorId)
+             IsConvertMapDistance[monitorId] = false;
+         }
+         int mapID3 = userData.Detail.SelectMapId;
+-        int num4 = userData.MapList.FindIndex((UserMapData user_map) => user_map.ID == mapID3);
++        int num4 = userData.MapList.FindIndex((UserMapData user_map) => user_map.Id == mapID3);
+         mapData = Singleton<DataManager>.Instance.GetMapData(mapID3);
+         mapTreasureExData = null;
+         mapTreasureExData2 = null;
+@@ -667,7 +667,7 @@ public void CreateUserDataMapList(int monitorId)
+         }
+         if (num4 < 0)
+         {
+-            int num5 = list.FindIndex((UserMapData user_map) => user_map.ID == mapID3);
++            int num5 = list.FindIndex((UserMapData user_map) => user_map.Id == mapID3);
+             if (num5 >= 0)
+             {
+                 userData.MapList.Add(list[num5]);
+diff --git a/tests/SinmaiLib.Tests/PacketTests.cs b/tests/SinmaiLib.Tests/PacketTests.cs
+index 9348a8f..833f6de 100644
+--- a/tests/SinmaiLib.Tests/PacketTests.cs
++++ b/tests/SinmaiLib.Tests/PacketTests.cs
+@@ -300,7 +300,7 @@ public async Task Proc_Success_RecordsResponseSizeAndRequestCount()
+     {
+         _manager.CollectDelayInfoDisable = false;
+         var log = Singleton<UserDataManager>.Instance.UserData.NetDelayLog;
+-        var requestLog = log.Request[(int)Net.VO.Mai2.ApiKind.GetUserDataApi];
++        var requestLog = log.Request[(int)global::Net.VO.Mai2.ApiKind.GetUserDataApi];
+         var count = requestLog.Count;
+         var size = requestLog.Size;
+         var downloads = log.DlRequests;
+diff --git a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+index ff37a6c..a7f897f 100644
+--- a/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
++++ b/tests/SinmaiLib.Tests/SinmaiLib.Tests.csproj
+@@ -14,6 +14,14 @@
+   </ItemGroup>
+   <ItemGroup>
+     <FrameworkReference Include="Microsoft.AspNetCore.App" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserFriendSeasonRankingMapper.cs" Link="Source/Net/VO/Mapper/UserFriendSeasonRankingMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserIntimateMapper.cs" Link="Source/Net/VO/Mapper/UserIntimateMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserLoginBonusMapper.cs" Link="Source/Net/VO/Mapper/UserLoginBonusMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserMusicDetailMapper.cs" Link="Source/Net/VO/Mapper/UserMusicDetailMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserFriendSeasonRanking.cs" Link="Source/Manager/UserDatas/UserFriendSeasonRanking.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserPartnerCloseness.cs" Link="Source/Manager/UserDatas/UserPartnerCloseness.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserScore.cs" Link="Source/Manager/UserDatas/UserScore.cs" />
++    <Compile Include="../../src/SinmaiLib/UserLoginBonus.cs" Link="Source/UserLoginBonus.cs" />
+     <!-- Compile the real networking code without Unity or native AMDaemon dependencies. -->
+     <Compile Include="../../src/SinmaiLib/Net/NetHttpClient.cs" Link="Source/NetHttpClient.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/NetHttpException.cs" Link="Source/NetHttpException.cs" />
+@@ -73,6 +81,7 @@
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserTradeItemMapper.cs" Link="Source/VO/Mapper/UserTradeItemMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/UserUdemaeMapper.cs" Link="Source/VO/Mapper/UserUdemaeMapper.cs" />
+     <Compile Include="../../src/SinmaiLib/Net/VO/Mapper/MapEncountNpcMapper.cs" Link="Source/VO/Mapper/MapEncountNpcMapper.cs" />
++    <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserMissionData.cs" Link="Source/UserDatas/UserMissionData.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserAct.cs" Link="Source/UserDatas/UserAct.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserCourse.cs" Link="Source/UserDatas/UserCourse.cs" />
+     <Compile Include="../../src/SinmaiLib/Manager/UserDatas/UserExtend.cs" Link="Source/UserDatas/UserExtend.cs" />
+diff --git a/tests/SinmaiLib.Tests/UserCourseMapperTests.cs b/tests/SinmaiLib.Tests/UserCourseMapperTests.cs
+index 2ad12be..4cb5ee7 100644
+--- a/tests/SinmaiLib.Tests/UserCourseMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserCourseMapperTests.cs
+@@ -46,7 +46,7 @@ string clearDate
+     [Fact]
+     public void ModelToWire_ExportsUpdatedCourseWithoutChangingDownloadedSnapshot()
+     {
+-        var downloaded = new Net.VO.Mai2.UserCourse
++        var downloaded = new global::Net.VO.Mai2.UserCourse
+         {
+             CourseId = 42,
+             IsLastClear = false,
+diff --git a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+index a189355..1a09ed2 100644
+--- a/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
++++ b/tests/SinmaiLib.Tests/UserDownloadPacketTests.cs
+@@ -7,6 +7,7 @@
+ using Net.Packet;
+ using Net.Packet.Mai2;
+ using Net.VO.Mai2;
++using LoginBonusVO = global::Net.VO.Mai2.UserLoginBonus;
+ using SinmaiLib.Tests.Support;
+ using Xunit;
+ 
+@@ -229,7 +230,7 @@ public async Task UserDownload_SerializesRequestAndDeliversTypedResponse(string
+                 Assert.True(userItem.IsValid);
+                 break;
+             case "LoginBonus":
+-                var loginBonus = Assert.Single(Assert.IsType<UserLoginBonus[]>(result));
++                var loginBonus = Assert.Single(Assert.IsType<LoginBonusVO[]>(result));
+                 Assert.Equal(11, loginBonus.BonusId);
+                 Assert.Equal(2U, loginBonus.Point);
+                 Assert.True(loginBonus.IsCurrent);
+@@ -424,7 +425,7 @@ public async Task UserDownload_PaginatesThroughEmptyPageAndPreservesOrder(string
+             "Course" => Assert.IsType<UserCourse[]>(result).Select(course => course.CourseId),
+             "FriendSeasonRanking" => Assert.IsType<UserFriendSeasonRanking[]>(result).Select(ranking => ranking.SeasonId),
+             "Item" => Assert.IsType<UserItem[]>(result).Select(item => item.ItemId),
+-            "LoginBonus" => Assert.IsType<UserLoginBonus[]>(result).Select(bonus => bonus.BonusId),
++            "LoginBonus" => Assert.IsType<LoginBonusVO[]>(result).Select(bonus => bonus.BonusId),
+             "Map" => Assert.IsType<UserMap[]>(result).Select(map => map.MapId),
+             _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+         };
+@@ -774,7 +775,7 @@ private static Manager.UserData CreateNewItemUserData()
+         var data = new Manager.UserData();
+         data.Detail.UserId = DownloadUserId;
+         data.Detail.WireData = JsonSerializer.Deserialize(DownloadResponse("Data"),
+-            Net.VO.JsonContext.Default.UserDetailResponseVO)!.UserData;
++            global::Net.VO.JsonContext.Default.UserDetailResponseVO)!.UserData;
+         return data;
+     }
+ 
+diff --git a/tests/SinmaiLib.Tests/UserRivalMapperTests.cs b/tests/SinmaiLib.Tests/UserRivalMapperTests.cs
+index 49493a1..43cb855 100644
+--- a/tests/SinmaiLib.Tests/UserRivalMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserRivalMapperTests.cs
+@@ -27,11 +27,11 @@ public void WireToModelAndBack_PreservesIdAndName(ulong rivalId)
+     [Fact]
+     public void ListToModel_PreservesOrderDuplicatesAndIndependentNames()
+     {
+-        var downloaded = new Net.VO.Mai2.UserRivalData { RivalId = 9007199254740993, RivalName = "Old" };
++        var downloaded = new global::Net.VO.Mai2.UserRivalData { RivalId = 9007199254740993, RivalName = "Old" };
+         var models = new[]
+         {
+             downloaded,
+-            new Net.VO.Mai2.UserRivalData { RivalId = 42, RivalName = "Other" },
++            new global::Net.VO.Mai2.UserRivalData { RivalId = 42, RivalName = "Other" },
+             downloaded,
+         }.ToModelList();
+ 
+@@ -47,5 +47,5 @@ public void ListToModel_PreservesOrderDuplicatesAndIndependentNames()
+ 
+     [Fact]
+     public void EmptyListToModel_ReturnsEmptyList() =>
+-        Assert.Empty(Array.Empty<Net.VO.Mai2.UserRivalData>().ToModelList());
++        Assert.Empty(Array.Empty<global::Net.VO.Mai2.UserRivalData>().ToModelList());
+ }
+diff --git a/tests/SinmaiLib.Tests/UserShopStockMapperTests.cs b/tests/SinmaiLib.Tests/UserShopStockMapperTests.cs
+index ae3e417..9c29aee 100644
+--- a/tests/SinmaiLib.Tests/UserShopStockMapperTests.cs
++++ b/tests/SinmaiLib.Tests/UserShopStockMapperTests.cs
+@@ -26,7 +26,7 @@ public void WireToModelAndBack_PreservesShopStock(int tradeCount)
+     [Fact]
+     public void ModelToWire_ExportsPurchaseWithoutChangingDownloadedSnapshot()
+     {
+-        var downloaded = new Net.VO.Mai2.UserShopStock { ShopItemId = 42, TradeCount = 7 };
++        var downloaded = new global::Net.VO.Mai2.UserShopStock { ShopItemId = 42, TradeCount = 7 };
+         var stock = downloaded.ToModel();
+         stock.TradeCount++;
+         var uploaded = stock.ToVO();
+@@ -40,11 +40,11 @@ public void ModelToWire_ExportsPurchaseWithoutChangingDownloadedSnapshot()
+     [Fact]
+     public void ListToModel_PreservesOrderDuplicatesAndIndependentStock()
+     {
+-        var downloaded = new Net.VO.Mai2.UserShopStock { ShopItemId = 42, TradeCount = 7 };
++        var downloaded = new global::Net.VO.Mai2.UserShopStock { ShopItemId = 42, TradeCount = 7 };
+         var models = new[]
+         {
+             downloaded,
+-            new Net.VO.Mai2.UserShopStock { ShopItemId = 11, TradeCount = 0 },
++            new global::Net.VO.Mai2.UserShopStock { ShopItemId = 11, TradeCount = 0 },
+             downloaded,
+         }.ToModelList();
+ 
+@@ -52,6 +52,6 @@ public void ListToModel_PreservesOrderDuplicatesAndIndependentStock()
+         models[0].TradeCount++;
+         Assert.Equal(7, downloaded.TradeCount);
+         Assert.Equal(7, models[2].TradeCount);
+-        Assert.Empty(Array.Empty<Net.VO.Mai2.UserShopStock>().ToModelList());
++        Assert.Empty(Array.Empty<global::Net.VO.Mai2.UserShopStock>().ToModelList());
+     }
+ }

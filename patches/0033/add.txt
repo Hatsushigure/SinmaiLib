@@ -1,0 +1,10 @@
+src/SinmaiLib/Net/VO/Mapper/UserCharacterMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserFriendSeasonRankingMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserGhostMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserIntimateMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserLoginBonusMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserMapMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserMusicDetailMapper.cs
+src/SinmaiLib/Net/VO/Mapper/UserOptionMapper.cs
+tests/SinmaiLib.Tests/UserMissionDataMapperTests.cs
+tests/SinmaiLib.Tests/UserUploadMapperTests.cs
